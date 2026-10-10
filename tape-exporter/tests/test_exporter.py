@@ -9,10 +9,11 @@ import urllib.error
 import urllib.request
 
 from lto_exporter.commands import (RunResult, UnsafeCommand, _check, run_command,
-                                   sg_logs_argv, tapeinfo_argv)
+                                   sg_logs_argv)
 from lto_exporter.config import ConfigError, parse_config, validate_device_path
 from lto_exporter.exporter import Collector, make_server
-from lto_exporter.parsers import parse_sg_logs_error_counters, parse_tapeinfo
+from lto_exporter.parsers import parse_sg_logs_error_counters
+from offline.tapeinfo_text import parse_tapeinfo_text
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -29,7 +30,7 @@ def identity(path):
 def cfg(devices=None, **kw):
     raw = {"port": 0, "cache_seconds": 0,
            "devices": devices if devices is not None else
-           [{"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs", "tapeinfo"]}]}
+           [{"name": "drive0", "path": "/dev/sg3"}]}
     raw.update(kw)
     return parse_config(raw, resolver=identity)
 
@@ -57,9 +58,12 @@ class CommandTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             sg_logs_argv("/usr/bin/sg_logs", "0x2e", "/dev/sg3")
 
-    def test_tapeinfo_argv(self):
-        self.assertEqual(tapeinfo_argv("/usr/sbin/tapeinfo", "/dev/sg3"),
-                         ["/usr/sbin/tapeinfo", "-f", "/dev/sg3"])
+    def test_no_tapeinfo_builder_and_non_sg_logs_exe_refused(self):
+        import lto_exporter.commands as cmds
+        self.assertFalse(hasattr(cmds, "tapeinfo_argv"))
+        for exe in ("/usr/sbin/tapeinfo", "/usr/bin/mt", "/bin/sh"):
+            with self.assertRaises(UnsafeCommand):
+                sg_logs_argv(exe, "write", "/dev/sg3")
 
     def test_forbidden_tokens_rejected(self):
         for tok in ("--reset", "-R", "--select", "-S"):
@@ -69,8 +73,8 @@ class CommandTests(unittest.TestCase):
     def test_collector_only_issues_allowlisted_commands(self):
         runner = FakeRunner({})
         Collector(cfg(), runner=runner).collect()
-        allowed = {("--readonly", "--page=0x2"), ("--readonly", "--page=0x3"), ("-f",)}
-        self.assertEqual(len(runner.calls), 3)
+        allowed = {("--readonly", "--page=0x2"), ("--readonly", "--page=0x3")}
+        self.assertEqual(len(runner.calls), 2)
         for argv in runner.calls:
             self.assertIn(tuple(argv[1:-1]), allowed)
             self.assertEqual(argv[-1], "/dev/sg3")
@@ -97,6 +101,33 @@ class CommandTests(unittest.TestCase):
     def test_runner_missing_binary(self):
         res = run_command(["/nonexistent/sg_logs", "--readonly"], timeout=1, max_bytes=1024)
         self.assertEqual(res.status, "not_found")
+
+    def test_real_runner_path_spawns_only_sg_logs(self):
+        spawned = []
+
+        class P:
+            def __init__(self, argv, **kw):
+                spawned.append(list(argv))
+                raise FileNotFoundError
+
+        c = cfg(devices=[{"name": f"d{i}", "path": f"/dev/sg{i}"} for i in range(3)])
+        runner = lambda a, t, m: run_command(a, t, m, popen=P)
+        out = Collector(c, runner=runner).collect()
+        self.assertEqual(len(spawned), 6)
+        for argv in spawned:
+            self.assertEqual(argv[0], "/usr/bin/sg_logs")
+            self.assertEqual(argv[1], "--readonly")
+            self.assertNotIn("tapeinfo", " ".join(argv))
+        self.assertNotIn("tapeinfo", out)
+        self.assertNotIn("tapealert", out.lower())
+
+    def test_exporter_never_imports_offline_parser(self):
+        code = ("import sys, lto_exporter.exporter; "
+                "print(any(m.startswith('offline') for m in sys.modules))")
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r = subprocess.run([sys.executable, "-c", code], cwd=here,
+                           capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.stdout.strip(), "False", r.stderr)
 
     def test_runner_kwargs(self):
         seen = {}
@@ -131,6 +162,8 @@ class ConfigTests(unittest.TestCase):
         bad = [
             [{"name": "bad name", "path": "/dev/sg0"}],
             [{"name": "d", "path": "/dev/sg0", "collectors": ["mt"]}],
+            [{"name": "d", "path": "/dev/sg0", "collectors": ["tapeinfo"]}],
+            [{"name": "d", "path": "/dev/sg0", "collectors": ["sg_logs", "tapeinfo"]}],
             [{"name": "d", "path": "/dev/sg0"}, {"name": "d", "path": "/dev/sg1"}],
             [{"name": f"d{i}", "path": f"/dev/sg{i}"} for i in range(17)],
         ]
@@ -139,6 +172,8 @@ class ConfigTests(unittest.TestCase):
                 parse_config({"devices": devs}, resolver=identity)
         with self.assertRaises(ConfigError):
             parse_config({"port": 70000}, resolver=identity)
+        with self.assertRaises(ConfigError):
+            parse_config({"tapeinfo_path": "/usr/sbin/tapeinfo"}, resolver=identity)
 
 
 class SgLogsParserTests(unittest.TestCase):
@@ -174,28 +209,34 @@ class SgLogsParserTests(unittest.TestCase):
         self.assertEqual((p.status, p.values), ("ok", {}))
 
 
-class TapeinfoParserTests(unittest.TestCase):
-    def test_ok(self):
-        t = parse_tapeinfo(fx("tapeinfo_ok.txt"))
-        self.assertEqual((t.vendor, t.product, t.ready, t.compression_enabled),
-                         ("SYNTHVND", "LTO-SIM", 1, 1))
-        self.assertEqual(t.tapealert_flags, (3, 20))
+class OfflineTapeinfoParserTests(unittest.TestCase):
+    """Offline text parser only; never connected to the exporter."""
 
-    def test_not_ready_partial(self):
-        t = parse_tapeinfo(fx("tapeinfo_not_ready.txt"))
-        self.assertEqual(t.ready, 0)
-        self.assertIsNone(t.compression_enabled)
-        self.assertEqual(t.tapealert_flags, ())
+    def test_ok(self):
+        t = parse_tapeinfo_text(fx("tapeinfo_ok.txt"))
+        self.assertEqual((t["vendor"], t["product"], t["ready"], t["compression_enabled"]),
+                         ("SYNTHVND", "LTO-SIM", True, True))
+        self.assertEqual(t["tapealert_codes_listed"], [3, 20])
+        self.assertNotIn("FAKE-SERIAL", json.dumps(t))
+
+    def test_no_alert_lines_is_unknown_not_zero(self):
+        t = parse_tapeinfo_text(fx("tapeinfo_not_ready.txt"))
+        self.assertIs(t["ready"], False)
+        self.assertIsNone(t["compression_enabled"])
+        self.assertEqual(t["tapealert_codes_listed"], [])
+        self.assertEqual(t["tapealert_support"], "unknown")
+        self.assertFalse(any("count" in k or "active" in k for k in t))
 
     def test_garbage(self):
-        self.assertEqual(parse_tapeinfo("cannot open SCSI device\n").status, "parse_error")
+        t = parse_tapeinfo_text("cannot open SCSI device\n")
+        self.assertFalse(t["parsed"])
+        self.assertIsNone(t["ready"])
 
 
 def full_runner():
     return FakeRunner({
         "--page=0x2": RunResult("ok", 0, fx("sg_logs_write_ok.txt"), 0.12),
         "--page=0x3": RunResult("ok", 0, fx("sg_logs_read_partial.txt"), 0.08),
-        "-f": RunResult("ok", 0, fx("tapeinfo_ok.txt"), 0.3),
     })
 
 
@@ -206,22 +247,18 @@ class CollectorTests(unittest.TestCase):
         self.assertIn('tape_bytes_processed_total{device="drive0",direction="write"} 2199023255553', out)
         self.assertIn('tape_log_parameter_present{device="drive0",direction="read",parameter="rewrites_or_rereads"} 0', out)
         self.assertNotIn('tape_error_counter_total{device="drive0",direction="read",parameter="rewrites_or_rereads"}', out)
-        self.assertIn('tape_exporter_collector_success{device="drive0",collector="tapeinfo"} 1', out)
-        self.assertIn('tape_tapealert_flag{device="drive0",code="20"} 1', out)
-        self.assertIn('tape_drive_ready{device="drive0"} 1', out)
-        self.assertNotIn("FAKE-SERIAL", out)
+        self.assertNotIn("tapeinfo", out)
+        self.assertNotIn("tapealert", out)
         self.assertNotIn("/dev/", out)
 
     def test_failures_are_distinguished(self):
         runner = FakeRunner({
             "--page=0x2": RunResult("timeout", None, "", 10.0),
             "--page=0x3": RunResult("ok", 5, "", 0.01),
-            "-f": RunResult("ok", 1, "", 0.01),
         })
         out = Collector(cfg(), runner=runner).collect()
         self.assertIn('tape_exporter_collector_status{device="drive0",collector="sg_logs_write_errors",status="timeout"} 1', out)
         self.assertIn('tape_exporter_collector_status{device="drive0",collector="sg_logs_read_errors",status="unsupported"} 1', out)
-        self.assertIn('tape_exporter_collector_success{device="drive0",collector="tapeinfo"} 0', out)
         self.assertNotIn("tape_error_counter_total", out)
         self.assertNotIn("tape_log_parameter_present", out)
 
@@ -230,10 +267,10 @@ class CollectorTests(unittest.TestCase):
         runner = full_runner()
         c = Collector(cfg(cache_seconds=30), runner=runner, clock=lambda: t[0])
         c.collect(); c.collect()
-        self.assertEqual(len(runner.calls), 3)
+        self.assertEqual(len(runner.calls), 2)
         t[0] = 31.0
         c.collect()
-        self.assertEqual(len(runner.calls), 6)
+        self.assertEqual(len(runner.calls), 4)
 
 
 class HttpTests(unittest.TestCase):

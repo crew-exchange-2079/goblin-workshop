@@ -1,4 +1,4 @@
-"""Tolerant parsers for sg_logs and tapeinfo text output.
+"""Tolerant parser for sg_logs error-counter page text output.
 
 Sources for every parsed field (public):
   * sg_logs(8), sg3_utils: https://sg.danny.cz/sg/sg_logs.html and
@@ -11,11 +11,6 @@ Sources for every parsed field (public):
     log pages are defined by T10 SPC ("Error counter log pages").
   * sg3_utils(8) EXIT STATUS / include/sg_lib.h: 0 ok, 2 not ready,
     5 illegal request, 9 invalid opcode, 15 file error, 33 timeout.
-  * tapeinfo(1), mtx: https://manpages.debian.org/stable/mtx/tapeinfo.1.en.html
-    Line formats come from tapeinfo.c in mtx 1.3.12
-    (https://sourceforge.net/projects/mtx/): "Vendor ID: '...'",
-    "Product ID: '...'", "Ready: yes|no", "DataCompEnabled: yes|no",
-    "TapeAlert[N]: <message>." (printed only for flags that are set).
 
 Anything not recognised is ignored. A value that is absent or malformed is
 reported as missing, never as zero.
@@ -75,61 +70,3 @@ def parse_sg_logs_error_counters(text, expected_direction):
     if not header_seen and not values:
         return ErrorCounterPage("parse_error")
     return ErrorCounterPage("ok", values)
-
-
-@dataclass
-class TapeInfo:
-    status: str                       # ok | parse_error
-    vendor: str | None = None
-    product: str | None = None
-    ready: int | None = None
-    compression_enabled: int | None = None
-    tapealert_flags: tuple = ()
-
-
-_KV_RE = re.compile(r"^([A-Za-z][A-Za-z ]{0,40}):\s*(.*?)\s*$")
-_TA_RE = re.compile(r"^TapeAlert\[([0-9]{1,3})\]:")
-_SAFE_STR = re.compile(r"[^A-Za-z0-9 ._-]")
-
-
-def _clean(val):
-    val = _SAFE_STR.sub("", val.strip().strip("'")).strip()
-    return val[:32] or None
-
-
-def _yesno(val):
-    return {"yes": 1, "no": 0}.get(val.strip().lower())
-
-
-def parse_tapeinfo(text):
-    info = TapeInfo("ok")
-    flags = set()
-    recognised = False
-    for line in text.splitlines():
-        m = _TA_RE.match(line)
-        if m:
-            code = int(m.group(1))
-            if 1 <= code <= 64:
-                flags.add(code)
-                recognised = True
-            continue
-        m = _KV_RE.match(line)
-        if not m:
-            continue
-        key, val = m.group(1), m.group(2)
-        # Deliberately not parsed: SerialNumber, SCSI ID/LUN, Block Position.
-        if key == "Vendor ID" and info.vendor is None:
-            info.vendor = _clean(val)
-        elif key == "Product ID" and info.product is None:
-            info.product = _clean(val)
-        elif key == "Ready" and info.ready is None:
-            info.ready = _yesno(val)
-        elif key == "DataCompEnabled" and info.compression_enabled is None:
-            info.compression_enabled = _yesno(val)
-        else:
-            continue
-        recognised = True
-    if not recognised:
-        return TapeInfo("parse_error")
-    info.tapealert_flags = tuple(sorted(flags))
-    return info

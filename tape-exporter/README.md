@@ -3,13 +3,16 @@
 A small, read-only Prometheus exporter for Linux LTO / SCSI tape drives.
 Python 3.10+ standard library only. No cloud services, accounts or telemetry.
 
-It shells out (without a shell) to two existing public tools and parses their
-text output:
+It runs exactly one external tool, `sg_logs` from sg3_utils, without a
+shell, and parses its text output:
 
-| collector  | tool / command                                   | default |
-|------------|--------------------------------------------------|---------|
-| `sg_logs`  | `sg_logs --readonly --page=0x2 DEV` and `--page=0x3` (sg3_utils) | on  |
-| `tapeinfo` | `tapeinfo -f DEV` (mtx)                          | opt-in  |
+```
+sg_logs --readonly --page=0x2 /dev/sgN   # Write Error Counter log page
+sg_logs --readonly --page=0x3 /dev/sgN   # Read Error Counter log page
+```
+
+**`tapeinfo` (mtx) is never executed** and can't be enabled. See
+[Why no tapeinfo](#why-no-tapeinfo).
 
 > Status: MVP, tested only against **synthetic fixtures** — it has not been run
 > against real hardware. Treat the first deployment as a trial.
@@ -33,29 +36,38 @@ text output:
 * **Rate limiting.** Results are cached for `cache_seconds` (default 30) and
   collections are serialised, so frequent scrapes don't hammer the drive.
 * **Low-cardinality labels.** `device` is your configured alias, never the
-  path or serial. `tapeinfo` prints the serial number; it is not parsed.
+  path or serial.
 * Device output and errors are never echoed into HTTP responses or logs.
 
-### Why `tapeinfo` is opt-in
+### Why no tapeinfo
 
-1. mtx's Linux backend opens the device **`O_RDWR`** (`scsi_linux.c`), so it
-   needs write permission on the sg node, which is a much broader grant than
-   `sg_logs --readonly`.
-2. It reads the TapeAlert log page (0x2E). Depending on the drive and its
-   TapeAlert mode, reading that page can **clear** the flags, which may hide
-   alerts from your backup software. Only enable it if nothing else consumes
-   TapeAlert on that drive.
-3. mtx 1.3.12's `tapeinfo` issues INQUIRY, LOG SENSE, READ BLOCK LIMITS,
-   TEST UNIT READY, MODE SENSE and READ POSITION. That's all reads, no motion.
-   The source also defines an unused `WriteFileMarks()` helper; if your distro
-   ships a patched build, check it before enabling.
+An earlier draft had an opt-in `tapeinfo` collector. It was removed:
+
+1. `tapeinfo` reads the TapeAlert log page (0x2E). Depending on the drive and
+   its TapeAlert mode, reading that page can **clear** the flags, which could
+   hide alerts from backup software. That is a side effect, so it doesn't
+   belong in a read-only exporter.
+2. mtx's Linux backend opens the device `O_RDWR`, so it needs write
+   permission on the sg node.
+
+Enforcement, all covered by tests:
+* The config rejects `"collectors": ["tapeinfo"]` and `tapeinfo_path`.
+* The command builder refuses any executable whose basename isn't `sg_logs`.
+* The exporter has no TapeAlert/tapeinfo metrics.
+* The exporter never imports the offline parser below.
+
+**Offline parser (separate, optional).** `offline/tapeinfo_text.py` parses
+already-captured `tapeinfo` text from stdin into JSON
+(`python3 -m offline.tapeinfo_text < captured.txt`). It runs no commands,
+opens no device and emits no metrics. Because `tapeinfo` prints TapeAlert
+lines only for set flags, it reports `tapealert_support: "unknown"` and the
+listed codes, never a zero count. It never parses the serial number.
 
 ## Setup
 
 ```sh
 # Debian/Ubuntu package names; others vary
 sudo apt install sg3-utils          # sg_logs
-sudo apt install mtx                # only if you enable tapeinfo
 
 lsscsi -g                           # find the /dev/sgN for your tape drive
 cp example-config.json /etc/lto-exporter.json   # then edit
@@ -77,7 +89,6 @@ anywhere.
   "max_output_bytes": 65536,
   "cache_seconds": 30,
   "sg_logs_path": "/usr/bin/sg_logs",
-  "tapeinfo_path": "/usr/sbin/tapeinfo",
   "devices": [
     {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
   ]
@@ -91,10 +102,10 @@ anywhere.
 | `command_timeout_seconds` | 10 | 0.1–120 |
 | `max_output_bytes` | 65536 | 1 KiB–1 MiB |
 | `cache_seconds` | 30 | 0–3600 |
-| `sg_logs_path`, `tapeinfo_path` | as shown | absolute paths |
+| `sg_logs_path` | `/usr/bin/sg_logs` | absolute path, basename must be `sg_logs` |
 | `devices[].name` | (required) | `[A-Za-z][A-Za-z0-9_]{0,31}`, unique |
 | `devices[].path` | (required) | must be or resolve to `/dev/sgN` |
-| `devices[].collectors` | `["sg_logs"]` | subset of `sg_logs`, `tapeinfo` |
+| `devices[].collectors` | `["sg_logs"]` | only `sg_logs` (`tapeinfo` is rejected) |
 
 Note that `/dev/sgN` numbering can change across reboots. A udev-created
 symlink that resolves to the drive's sg node is more stable; the path is
@@ -122,7 +133,6 @@ Run the exporter as a dedicated unprivileged user. It needs:
   depends on the kernel; if `sg_logs` reports an open/permission error, the
   collector shows `status="open_failed"` or `"error"`. Don't fix it by granting
   `CAP_SYS_RAWIO` or write access unless you've thought through the risk.
-* **`tapeinfo` collector:** read-write access to the sg node (see above).
 
 This project changes nothing on the system; the rule above is documentation.
 
@@ -139,11 +149,6 @@ tape_log_parameter_present{device="drive0",direction="read",parameter="rewrites_
 tape_error_counter_total{device="drive0",direction="write",parameter="total_uncorrected"} 0
 tape_error_counter_total{device="drive0",direction="write",parameter="corrected_with_delay"} 3
 tape_bytes_processed_total{device="drive0",direction="write"} 2199023255553
-tape_drive_info{device="drive0",vendor="SYNTHVND",product="LTO-SIM"} 1
-tape_drive_ready{device="drive0"} 1
-tape_data_compression_enabled{device="drive0"} 1
-tape_tapealert_active_flags{device="drive0"} 2
-tape_tapealert_flag{device="drive0",code="20"} 1
 ```
 
 | metric | source |
@@ -152,10 +157,6 @@ tape_tapealert_flag{device="drive0",code="20"} 1
 | `tape_error_counter_total{direction,parameter}` | Write (0x02) / Read (0x03) Error Counter log page, parameter codes 0–4 and 6 |
 | `tape_bytes_processed_total{direction}` | same pages, parameter code 5 |
 | `tape_log_parameter_present{direction,parameter}` | 1/0 per known parameter, emitted only when the page was read |
-| `tape_drive_info{vendor,product}` | tapeinfo `Vendor ID` / `Product ID` (sanitised, ≤32 chars) |
-| `tape_drive_ready` | tapeinfo `Ready` |
-| `tape_data_compression_enabled` | tapeinfo `DataCompEnabled` |
-| `tape_tapealert_active_flags`, `tape_tapealert_flag{code}` | tapeinfo `TapeAlert[N]` lines |
 
 **Missing ≠ zero.** If a collector fails, none of its value series are
 emitted, and `collector_success` is 0 with a `status` that tells you why. If a
@@ -170,7 +171,7 @@ derive one from these numbers without vendor-specific guidance.
 
 ## Supported output formats and limits
 
-Parsed field names and layouts come from public documentation and source:
+Parsed field names and layouts come from public documentation and source.
 
 * **sg_logs**, part of sg3_utils.
   [sg_logs(8)](https://manpages.debian.org/stable/sg3-utils/sg_logs.8.en.html)
@@ -183,11 +184,9 @@ Parsed field names and layouts come from public documentation and source:
   header `Write error counter log page  [0x2]`, then lines `  <name> = <n>`,
   optionally suffixed ` [N GB]`/` [N TB]`. Parameter meanings are from T10 SPC
   "Error counter log pages".
-* **tapeinfo**, part of mtx.
+* The offline-only tapeinfo parser cites
   [tapeinfo(1)](https://manpages.debian.org/stable/mtx/tapeinfo.1.en.html)
-  documents only `tapeinfo -f <device>`. The line formats (`Key: value`,
-  `TapeAlert[N]: message.`) come from `tapeinfo.c` in
-  [mtx 1.3.12](https://sourceforge.net/projects/mtx/).
+  and `tapeinfo.c` in [mtx 1.3.12](https://sourceforge.net/projects/mtx/).
 
 Limits and tolerance:
 
@@ -201,11 +200,10 @@ Limits and tolerance:
   Duplicate parameters: first wins. Output is capped at `max_output_bytes`.
 * Old sg_logs without `--readonly` exits 1 (syntax error), which shows up as
   `status="error"`. Upgrade sg3_utils rather than dropping the flag.
-* `tapeinfo` exits 0 on most partial failures and only prints TapeAlert lines
-  for set flags. So `tape_tapealert_active_flags 0` cannot tell "no alerts"
-  from "TapeAlert unsupported".
-* One scrape runs up to 3 commands per device, sequentially, so worst-case
-  scrape time is about `3 × timeout × devices`. Set Prometheus
+* No TapeAlert, ready-state, compression or drive-identity metrics. That
+  was the cost of removing `tapeinfo`.
+* One scrape runs 2 commands per device, sequentially, so worst-case scrape
+  time is about `2 × timeout × devices`. Set Prometheus
   `scrape_timeout` accordingly, or keep the cache.
 * No TLS/auth. Keep it on loopback or behind a proxy.
 
@@ -217,8 +215,11 @@ python3 -m unittest discover -s tests -t . -v
 ```
 
 The tests drive the real parsers, the HTTP handler (bound to `127.0.0.1:0`),
-command construction and the subprocess runner (timeouts and caps exercised
-with a local Python child, never a tape tool), all with synthetic fixtures.
+command construction, the subprocess runner (timeouts and caps exercised
+with a local Python child, never a tape tool), and the offline tapeinfo text
+parser, all with synthetic fixtures. They also check that a full collection
+spawns only `sg_logs --readonly ...`, that tapeinfo config is rejected, and
+that the exporter never loads the offline module.
 
 ## License
 

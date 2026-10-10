@@ -29,6 +29,8 @@ class UnsafeCommand(ValueError):
 
 
 def _check(argv):
+    if os.path.basename(argv[0]) != "sg_logs":
+        raise UnsafeCommand(f"only sg_logs may be executed, got {argv[0]!r}")
     if any(tok in FORBIDDEN_TOKENS for tok in argv[1:-1]):
         raise UnsafeCommand(f"refusing to build unsafe argv: {argv!r}")
     return argv
@@ -37,11 +39,6 @@ def _check(argv):
 def sg_logs_argv(exe, direction, device_path):
     page = SG_LOGS_PAGES[direction]
     return _check([exe, "--readonly", f"--page={page}", device_path])
-
-
-def tapeinfo_argv(exe, device_path):
-    # tapeinfo(1): the only supported invocation is "tapeinfo -f <device>".
-    return _check([exe, "-f", device_path])
 
 
 @dataclass

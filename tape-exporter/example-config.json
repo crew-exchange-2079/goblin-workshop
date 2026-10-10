@@ -5,7 +5,6 @@
   "max_output_bytes": 65536,
   "cache_seconds": 30,
   "sg_logs_path": "/usr/bin/sg_logs",
-  "tapeinfo_path": "/usr/sbin/tapeinfo",
   "devices": [
     {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
   ]

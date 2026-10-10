@@ -14,7 +14,10 @@ NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")
 # with backup software. Symlinks (e.g. /dev/tape/by-id/...-generic style) are
 # allowed as long as they resolve to /dev/sgN.
 SG_RE = re.compile(r"^/dev/sg[0-9]{1,4}$")
-KNOWN_COLLECTORS = ("sg_logs", "tapeinfo")
+KNOWN_COLLECTORS = ("sg_logs",)
+# Keys from the withdrawn tapeinfo collector. Rejected so nobody believes it
+# is still running.
+REMOVED_KEYS = ("tapeinfo_path",)
 DEFAULT_COLLECTORS = ("sg_logs",)
 MAX_DEVICES = 16
 
@@ -38,7 +41,6 @@ class Config:
     max_output_bytes: int = 65536
     cache_seconds: float = 30.0
     sg_logs_path: str = "/usr/bin/sg_logs"
-    tapeinfo_path: str = "/usr/sbin/tapeinfo"
     devices: tuple = field(default_factory=tuple)
 
 
@@ -75,6 +77,9 @@ def _exe(raw, key, default):
 def parse_config(raw, resolver=os.path.realpath):
     if not isinstance(raw, dict):
         raise ConfigError("config must be a JSON object")
+    for key in REMOVED_KEYS:
+        if key in raw:
+            raise ConfigError(f"{key} is not supported: tapeinfo is never executed")
     addr = raw.get("listen_address", "127.0.0.1")
     if not isinstance(addr, str) or not addr:
         raise ConfigError("listen_address must be a non-empty string")
@@ -104,7 +109,6 @@ def parse_config(raw, resolver=os.path.realpath):
         max_output_bytes=_num(raw, "max_output_bytes", 65536, 1024, 1048576, int),
         cache_seconds=_num(raw, "cache_seconds", 30.0, 0, 3600),
         sg_logs_path=_exe(raw, "sg_logs_path", "/usr/bin/sg_logs"),
-        tapeinfo_path=_exe(raw, "tapeinfo_path", "/usr/sbin/tapeinfo"),
         devices=tuple(devices),
     )
 

@@ -7,10 +7,10 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from lto_exporter import __version__
-from lto_exporter.commands import run_command, sg_logs_argv, tapeinfo_argv
+from lto_exporter.commands import run_command, sg_logs_argv
 from lto_exporter.config import ConfigError, load_config
 from lto_exporter.parsers import (PARAM_LABELS, SG_EXIT_STATUS,
-                                  parse_sg_logs_error_counters, parse_tapeinfo)
+                                  parse_sg_logs_error_counters)
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -22,11 +22,6 @@ HELP = {
     "tape_log_parameter_present": ("gauge", "1 if the drive returned this error-counter parameter, 0 if absent/unparsable."),
     "tape_error_counter_total": ("counter", "SCSI Write/Read Error Counter log page parameter, as reported by the drive (resets with the drive)."),
     "tape_bytes_processed_total": ("counter", "Error Counter log page 'Total bytes processed', as reported by the drive."),
-    "tape_drive_info": ("gauge", "Drive INQUIRY vendor/product from tapeinfo; value is always 1."),
-    "tape_drive_ready": ("gauge", "tapeinfo 'Ready' (TEST UNIT READY): 1 yes, 0 no."),
-    "tape_data_compression_enabled": ("gauge", "tapeinfo 'DataCompEnabled': 1 yes, 0 no."),
-    "tape_tapealert_active_flags": ("gauge", "Number of TapeAlert lines tapeinfo printed (0 can also mean TapeAlert unsupported)."),
-    "tape_tapealert_flag": ("gauge", "Set TapeAlert flag by code (1-64) as printed by tapeinfo."),
 }
 
 def _esc(v):
@@ -108,31 +103,6 @@ class Collector:
                           {"device": dev.name, "direction": direction, "parameter": label},
                           page.values[label])
 
-    def _tapeinfo(self, s, dev):
-        res = self._run(tapeinfo_argv(self.config.tapeinfo_path, dev.path))
-        status = res.status
-        info = None
-        if status == "ok":
-            # tapeinfo exits non-zero via FatalError() on open/sg failures.
-            status = "ok" if res.returncode == 0 else "error"
-        if status == "ok":
-            info = parse_tapeinfo(res.stdout)
-            status = info.status
-        self._record(s, dev, "tapeinfo", status, res.duration)
-        if status != "ok":
-            return
-        d = {"device": dev.name}
-        if info.vendor or info.product:
-            s.add("tape_drive_info", {**d, "vendor": info.vendor or "",
-                                      "product": info.product or ""}, 1)
-        if info.ready is not None:
-            s.add("tape_drive_ready", d, info.ready)
-        if info.compression_enabled is not None:
-            s.add("tape_data_compression_enabled", d, info.compression_enabled)
-        s.add("tape_tapealert_active_flags", d, len(info.tapealert_flags))
-        for code in info.tapealert_flags:
-            s.add("tape_tapealert_flag", {**d, "code": str(code)}, 1)
-
     def collect(self):
         with self._lock:
             now = self.clock()
@@ -144,8 +114,6 @@ class Collector:
             for dev in self.config.devices:
                 if "sg_logs" in dev.collectors:
                     self._sg_logs(s, dev)
-                if "tapeinfo" in dev.collectors:
-                    self._tapeinfo(s, dev)
             self._cached = s.render()
             self._cached_at = self.clock()
             return self._cached
