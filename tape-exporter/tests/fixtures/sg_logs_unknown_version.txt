@@ -1,0 +1,3 @@
+sg_logs from the future v9.99
+  Total uncorrected errors = 2
+  Some Novel Counter = 12

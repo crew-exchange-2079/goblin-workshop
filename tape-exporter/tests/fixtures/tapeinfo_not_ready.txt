@@ -1,0 +1,6 @@
+Product Type: Tape Drive
+Vendor ID: 'SYNTHVND'
+Product ID: 'LTO-SIM'
+SerialNumber: 'FAKE-SERIAL-0002'
+TapeAlert[99]:   Out of range code.
+Ready: no
