@@ -1,0 +1,72 @@
+name: rack-parts
+
+on:
+  push:
+    paths:
+      - "rack-parts/**"
+      - ".github/workflows/rack-parts.yml"
+  pull_request:
+    paths:
+      - "rack-parts/**"
+      - ".github/workflows/rack-parts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rack-parts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: rack-parts
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      # Versions come from the Ubuntu 24.04 archive (OpenSCAD 2021.01, ADMesh 0.98.5)
+      # and are recorded in every manifest.json.
+      - name: Install OpenSCAD and ADMesh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends openscad admesh
+          openscad --version
+          admesh --version
+          python3 --version
+
+      - name: Unit, refusal and render tests
+        run: timeout 600 python3 -m unittest discover -s tests -t . -v
+
+      - name: Render representative matrix
+        run: |
+          mkdir -p build
+          for f in bracket-10in-1u bracket-19in-1u sff-cradle; do
+            timeout 300 python3 -m rackparts generate "examples/$f-synthetic.json" --out "build/$f"
+            timeout 120 python3 -m rackparts check-stl build/$f/*.stl > "build/$f/check-stl.json"
+          done
+
+      - name: Expect refusals for invalid and unsafe inputs
+        run: |
+          for f in tests/fixtures/*.json; do
+            set +e
+            python3 -m rackparts generate "$f" --out "build/refused-$(basename "$f" .json)"
+            rc=$?
+            set -e
+            echo "$f -> exit $rc"
+            test "$rc" -eq 2
+            test ! -e "build/refused-$(basename "$f" .json)"
+          done
+
+      - name: Upload synthetic SCAD/STL/manifests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rack-parts-synthetic-${{ github.sha }}
+          path: rack-parts/build/
+          if-no-files-found: error
+          retention-days: 14

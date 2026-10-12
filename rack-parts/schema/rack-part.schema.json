@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/crew-exchange-2079/goblin-workshop/rack-parts/schema/rack-part.schema.json",
+  "title": "rack-parts input",
+  "description": "Input for the rack-parts generator. All lengths in mm. x-kind says where a value must come from: 'measured' (measure the real rack/device), 'chosen' (design choice), 'tolerance' (clearance you tune), 'label'. Schema bounds are coarse; the generator also runs cross-field geometry checks that the schema cannot express.",
+  "oneOf": [
+    {
+      "title": "rack_bracket",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "rack_width_class",
+        "hand",
+        "rail_hole_center_spacing_mm",
+        "rail_opening_width_mm",
+        "max_overall_width_mm",
+        "rail_hole_z_offsets_mm",
+        "rail_screw_clearance_diameter_mm",
+        "rail_screw_head_diameter_mm",
+        "rail_slot_extra_length_mm",
+        "rail_side_clearance_mm",
+        "device_width_mm",
+        "device_side_gap_mm",
+        "device_setback_mm",
+        "device_bottom_offset_mm",
+        "device_screw_positions_mm",
+        "device_screw_clearance_diameter_mm",
+        "device_screw_head_diameter_mm",
+        "device_screw_head_height_mm",
+        "thickness_mm",
+        "flange_height_mm",
+        "side_flange_depth_mm",
+        "gusset_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "rack_bracket",
+          "description": "Selects the L-shaped rack ear bracket.",
+          "x-kind": "label"
+        },
+        "rack_width_class": {
+          "type": "string",
+          "enum": [
+            "10in",
+            "19in"
+          ],
+          "description": "Only selects a sanity window for rail_hole_center_spacing_mm (catches inch/mm mix-ups). It does not supply any dimension.",
+          "x-kind": "label"
+        },
+        "hand": {
+          "type": "string",
+          "enum": [
+            "right",
+            "left"
+          ],
+          "description": "Which side of the device, viewed from the front. 'left' is the X-mirror of 'right'.",
+          "x-kind": "chosen"
+        },
+        "rail_hole_center_spacing_mm": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 520,
+          "description": "Horizontal centre-to-centre distance between the left and right rail mounting holes.",
+          "x-kind": "measured"
+        },
+        "rail_opening_width_mm": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 500,
+          "description": "Clear horizontal opening between the inner edges of the left and right rails (narrowest point along the depth the bracket occupies).",
+          "x-kind": "measured"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 520,
+          "description": "Widest the pair of front flanges may be (e.g. rack panel width or nearest obstruction).",
+          "x-kind": "measured"
+        },
+        "rail_hole_z_offsets_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Rail hole centres used, measured upward from the bottom edge of the bracket as it will sit in the rack. 1-8 values.",
+          "x-kind": "measured"
+        },
+        "rail_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Through-hole diameter for the rack screw (screw major diameter + your clearance).",
+          "x-kind": "tolerance"
+        },
+        "rail_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 25,
+          "description": "Rack screw (or washer) head diameter; the head must bear fully on the front flange.",
+          "x-kind": "measured"
+        },
+        "rail_slot_extra_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole).",
+          "x-kind": "tolerance"
+        },
+        "rail_side_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap required between the bracket/device-screw heads and the inner rail edge.",
+          "x-kind": "tolerance"
+        },
+        "device_width_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 500,
+          "description": "Device width across the faces the brackets attach to.",
+          "x-kind": "measured"
+        },
+        "device_side_gap_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Gap between the device side and the bracket side flange.",
+          "x-kind": "tolerance"
+        },
+        "device_setback_mm": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 400,
+          "description": "Distance from the bracket front face back to the device front face (negative = device protrudes forward).",
+          "x-kind": "chosen"
+        },
+        "device_bottom_offset_mm": {
+          "type": "number",
+          "minimum": -100,
+          "maximum": 400,
+          "description": "Height of the device bottom above the bracket bottom edge.",
+          "x-kind": "chosen"
+        },
+        "device_screw_positions_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": -100,
+              "maximum": 600
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Device side screw holes as [y, z]: y back from the device front face, z up from the device bottom. 1-8 pairs.",
+          "x-kind": "measured"
+        },
+        "device_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Through-hole diameter in the side flange for the device screw.",
+          "x-kind": "tolerance"
+        },
+        "device_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Device screw head diameter.",
+          "x-kind": "measured"
+        },
+        "device_screw_head_height_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Device screw head height; it sits on the outside of the side flange, next to the rail.",
+          "x-kind": "measured"
+        },
+        "thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Material thickness of both flanges.",
+          "x-kind": "chosen"
+        },
+        "flange_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 400,
+          "description": "Height of the bracket (both flanges). For 19-inch gear this is usually a little under n x 44.45 mm.",
+          "x-kind": "chosen"
+        },
+        "side_flange_depth_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 400,
+          "description": "How far the side flange extends back from the front face.",
+          "x-kind": "chosen"
+        },
+        "gusset_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Leg length of the triangular corner gusset (0 = none).",
+          "x-kind": "chosen"
+        }
+      }
+    },
+    {
+      "title": "sff_cradle",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "device_orientation",
+        "device_width_mm",
+        "device_height_mm",
+        "device_depth_mm",
+        "fit_clearance_mm",
+        "cradle_length_mm",
+        "base_thickness_mm",
+        "wall_thickness_mm",
+        "wall_clear_height_mm",
+        "retention_lip_mm",
+        "shelf_hole_positions_mm",
+        "shelf_screw_clearance_diameter_mm",
+        "shelf_screw_head_diameter_mm",
+        "shelf_screw_head_height_mm",
+        "max_overall_width_mm",
+        "max_overall_depth_mm",
+        "max_overall_height_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "sff_cradle",
+          "description": "Selects the U-shaped small-form-factor PC cradle.",
+          "x-kind": "label"
+        },
+        "device_orientation": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "on_side"
+          ],
+          "description": "'flat': device sits on its bottom. 'on_side': device stands on a side, so its height becomes the cradle width.",
+          "x-kind": "chosen"
+        },
+        "device_width_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 500,
+          "description": "Device width in its normal (flat) pose.",
+          "x-kind": "measured"
+        },
+        "device_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 500,
+          "description": "Device height in its normal (flat) pose.",
+          "x-kind": "measured"
+        },
+        "device_depth_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 600,
+          "description": "Device depth front to back.",
+          "x-kind": "measured"
+        },
+        "fit_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap added on each side of the device inside the cradle (and above it, under the lip).",
+          "x-kind": "tolerance"
+        },
+        "cradle_length_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 600,
+          "description": "Cradle length along the device depth.",
+          "x-kind": "chosen"
+        },
+        "base_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Base plate thickness.",
+          "x-kind": "chosen"
+        },
+        "wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Side wall and lip thickness.",
+          "x-kind": "chosen"
+        },
+        "wall_clear_height_mm": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 500,
+          "description": "Clear height inside the cradle from the base top to the wall top (or to the underside of the lip).",
+          "x-kind": "chosen"
+        },
+        "retention_lip_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60,
+          "description": "Inward lip at the top of each wall (0 = none).",
+          "x-kind": "chosen"
+        },
+        "shelf_hole_positions_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": -300,
+              "maximum": 600
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 1,
+          "maxItems": 12,
+          "description": "Mounting holes as [x, y]: x from the cradle centreline, y back from the cradle front edge. Must match holes you measured on your shelf or panel. 1-12 pairs.",
+          "x-kind": "measured"
+        },
+        "shelf_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Through-hole diameter for the shelf screw.",
+          "x-kind": "tolerance"
+        },
+        "shelf_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 25,
+          "description": "Shelf screw head diameter (counterbored from the top).",
+          "x-kind": "measured"
+        },
+        "shelf_screw_head_height_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Shelf screw head height; the counterbore is this deep so the head sits flush or below the base top.",
+          "x-kind": "measured"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 600,
+          "description": "Available width on the shelf.",
+          "x-kind": "measured"
+        },
+        "max_overall_depth_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 700,
+          "description": "Available depth on the shelf.",
+          "x-kind": "measured"
+        },
+        "max_overall_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 600,
+          "description": "Available height above the shelf.",
+          "x-kind": "measured"
+        }
+      }
+    }
+  ]
+}
