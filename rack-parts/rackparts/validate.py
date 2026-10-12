@@ -830,8 +830,8 @@ def derive_shelf(c):
         orient += ("floor down (as modelled): the rail holes are horizontal round or slotted holes in the standing front plate "
                    "(their tops overhang). ")
     if "front_face_down" in orients:
-        orient += ("front face down (-y to the bed): vent slots become horizontal slots with rounded overhanging "
-                   "ends")
+        orient += ("front face down (-y to the bed): vent slots become vertical slots with rounded overhanging "
+                   "tops (depth becomes build height)")
         if lip_h > 0:
             orient += ("; the rear lip becomes a %.1f mm long horizontal bridge between the side walls, %.1f mm deep, "
                        "with nothing under it: it needs supports or reliable long-span bridging"

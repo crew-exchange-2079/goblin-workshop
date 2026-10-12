@@ -173,6 +173,8 @@ class ShelfRefusals(unittest.TestCase):
             self.assertNotIn("support-free", text.lower())
         text = validate.validate(self.s)[1]["print_orientation_suggestion"]
         self.assertIn("rear lip becomes a 211.0 mm long horizontal bridge", text)
+        self.assertIn("vent slots become vertical slots with rounded overhanging tops", text)
+        self.assertNotIn("horizontal slots", text)
         self.assertNotIn("rear lip", validate.validate(self.s2)[1]["print_orientation_suggestion"])  # no lip
         with open(os.path.join(ROOT, "README.md")) as f:
             readme = f.read()
