@@ -1,0 +1,14 @@
+# EXAMPLE udev rule for lto-exporter. Not installed by this project, and
+# every line is commented out on purpose: adapt the match to your drive
+# first, then uncomment and copy to /etc/udev/rules.d/60-lto-exporter.rules.
+#
+# Gives the dedicated "lto-exporter" group read-only access (0640) to the
+# SCSI generic node of ONE tape drive. Do not add the exporter user to the
+# "disk" group instead: that grants raw access to every disk.
+#
+# Find the attributes with:   udevadm info -a -n /dev/sgN
+# ATTRS{type}=="1" is SCSI sequential-access (tape). The vendor/model values
+# below are placeholders; narrow further with KERNELS=="H:C:T:L" if you have
+# several identical drives.
+#
+# SUBSYSTEM=="scsi_generic", ATTRS{type}=="1", ATTRS{vendor}=="EXAMPLEV", ATTRS{model}=="EXAMPLE-LTO*", GROUP="lto-exporter", MODE="0640"

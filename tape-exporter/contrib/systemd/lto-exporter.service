@@ -1,0 +1,71 @@
+# EXAMPLE unit for lto-exporter. Not installed or enabled by this project.
+#
+# Least privilege:
+#   * DynamicUser: a transient unprivileged UID, no login, no home.
+#   * SupplementaryGroups=lto-exporter is a dedicated group you create; a
+#     udev rule (contrib/udev/) gives that group read access to ONE sg node.
+#     Never use the "disk" (or "tape") group: that grants raw access to every
+#     disk (or every tape device).
+#   * DevicePolicy=closed + one DeviceAllow line, read only. Replace /dev/sg3
+#     with the node lto-exporter pins (it logs "pinned to /dev/sgN" at
+#     startup). systemd turns the path into a major:minor rule when the
+#     service starts, so after an sg renumbering this allow-list and the
+#     exporter's pin both refer to the old node: restart the service.
+#   * No capabilities at all. Do not add CAP_SYS_RAWIO.
+#
+# Install by hand after review, e.g.:
+#   groupadd --system lto-exporter
+#   cp lto-exporter.service /etc/systemd/system/ && systemctl daemon-reload
+#   systemctl start lto-exporter      # enable only once you're happy
+
+[Unit]
+Description=Read-only LTO/SCSI tape Prometheus exporter (lto-exporter)
+Documentation=https://github.com/crew-exchange-2079/goblin-workshop/tree/main/tape-exporter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lto-exporter --config /etc/lto-exporter.json
+Restart=on-failure
+RestartSec=30s
+
+DynamicUser=yes
+SupplementaryGroups=lto-exporter
+UMask=0077
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+DevicePolicy=closed
+DeviceAllow=/dev/sg3 r
+# PrivateDevices=yes would hide /dev/sgN, so it stays off; DevicePolicy above
+# limits device access instead.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Default config listens on 127.0.0.1 only. Widen together with
+# listen_address if Prometheus scrapes from elsewhere (and add TLS/auth in
+# front: the exporter has none).
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target

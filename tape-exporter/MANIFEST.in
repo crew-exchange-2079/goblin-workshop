@@ -1,0 +1,10 @@
+# The sdist carries everything needed to run the test suite and review the
+# release; the wheel installs only the lto_exporter package.
+include README.md LICENSE SECURITY.md CHANGELOG.md example-config.json
+recursive-include tests *.py *.txt *.hex *.md
+recursive-include offline *.py
+recursive-include monitoring *.yml *.json *.md
+recursive-include contrib *.service *.example *.md
+recursive-include ci *.py *.sh *.md *.conf
+recursive-include docs *.md
+global-exclude __pycache__ *.py[cod]

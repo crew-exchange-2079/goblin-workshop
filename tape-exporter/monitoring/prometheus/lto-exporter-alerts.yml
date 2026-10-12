@@ -1,0 +1,91 @@
+# Prometheus alerting rules for lto-exporter.
+#
+# Assumptions you may need to adapt:
+#   * the scrape job is called "lto-exporter" (only used by LTOExporterDown);
+#   * thresholds below are starting points, not vendor guidance. Nothing here
+#     estimates tape or head life.
+#
+# "Unknown is not zero": a failed or unsupported page emits no counter
+# series at all, so error-rate alerts can't fire for it. The collector
+# alerts below are what tell you that data is missing.
+groups:
+  - name: lto-exporter
+    rules:
+      - alert: LTOExporterDown
+        expr: up{job="lto-exporter"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lto-exporter on {{ $labels.instance }} is not being scraped"
+          description: "Prometheus cannot scrape the tape exporter; tape error counters are unknown, not zero."
+
+      - alert: LTOCollectorFailing
+        expr: |
+          max by (instance, device, collector, status) (
+            tape_exporter_collector_status{status!~"ok|unsupported|device_changed|device_mismatch|device_missing"}
+          ) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.collector }} on {{ $labels.device }} failing: {{ $labels.status }}"
+          description: >-
+            The collector has reported status "{{ $labels.status }}" for 15
+            minutes on {{ $labels.instance }}. Its counters are not exported
+            while it fails. See the README status table. (Unsupported pages
+            and device changes have their own alerts.)
+
+      - alert: LTOLogPageUnsupported
+        expr: |
+          max by (instance, device, collector) (
+            tape_exporter_collector_status{status="unsupported"}
+          ) == 1
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.device }} does not support {{ $labels.collector }}"
+          description: "The drive rejected the log page (sg_logs exit 5/9). Those counters are unknown for this drive, not zero."
+
+      - alert: LTODeviceChanged
+        expr: |
+          max by (instance, device, status) (
+            tape_exporter_collector_status{status=~"device_changed|device_mismatch|device_missing"}
+          ) == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.device }}: pinned sg node no longer matches ({{ $labels.status }})"
+          description: "The configured path no longer resolves to the sg node pinned at startup, or that node is no longer a SCSI generic tape device. The exporter stopped querying it. Check the hardware and restart the exporter to re-pin."
+
+      - alert: LTOExporterUnreapedChild
+        expr: max by (instance) (tape_exporter_unreaped_children) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "lto-exporter on {{ $labels.instance }} has {{ $value }} unkillable sg_logs child(ren)"
+          description: "An sg_logs process did not exit after SIGKILL (likely stuck in the kernel on a hung device/HBA). The exporter will not query that device again until the process is gone."
+
+      - alert: LTOUncorrectedErrorsIncreased
+        expr: |
+          increase(tape_error_counter_total{parameter="total_uncorrected"}[1h]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.device }}: uncorrected {{ $labels.direction }} errors increased"
+          description: "The drive reported {{ $value | humanize }} more uncorrected {{ $labels.direction }} errors in the last hour. Check backup job logs and the drive/media."
+
+      - alert: LTOErrorParameterMissing
+        expr: |
+          max by (instance, device, direction, parameter) (
+            tape_log_parameter_present{parameter="total_uncorrected"}
+          ) == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.device }} does not report {{ $labels.parameter }} ({{ $labels.direction }})"
+          description: "The log page was read but this parameter was absent or unparsable. LTOUncorrectedErrorsIncreased cannot fire for it."

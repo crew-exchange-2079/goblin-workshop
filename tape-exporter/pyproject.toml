@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lto-exporter"
+dynamic = ["version"]
+description = "Read-only Prometheus exporter for Linux LTO/SCSI tape drive error-counter log pages (sg_logs)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{name = "lto-exporter contributors"}]
+keywords = ["prometheus", "exporter", "lto", "tape", "scsi", "sg3_utils"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: No Input/Output (Daemon)",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Monitoring",
+]
+dependencies = []
+
+[project.scripts]
+lto-exporter = "lto_exporter.exporter:main"
+
+[tool.setuptools]
+# Only the exporter package ships. The offline tapeinfo parser and the tests
+# stay in the source tree and are deliberately not installed.
+packages = ["lto_exporter"]
+
+[tool.setuptools.dynamic]
+version = {attr = "lto_exporter.__version__"}

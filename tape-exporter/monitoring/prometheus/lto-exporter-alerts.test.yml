@@ -1,0 +1,100 @@
+# promtool test rules lto-exporter-alerts.test.yml
+rule_files:
+  - lto-exporter-alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="lto-exporter",instance="h:9842"}'
+        values: '0x10'
+      - series: 'tape_exporter_collector_status{instance="h:9842",device="drive0",collector="sg_logs_write_errors",status="os_error"}'
+        values: '1x20'
+      - series: 'tape_exporter_collector_status{instance="h:9842",device="drive0",collector="sg_logs_read_errors",status="ok"}'
+        values: '1x20'
+      - series: 'tape_exporter_collector_status{instance="h:9842",device="drive1",collector="sg_logs_read_errors",status="unsupported"}'
+        values: '1x70'
+      - series: 'tape_exporter_collector_status{instance="h:9842",device="drive2",collector="sg_logs_write_errors",status="device_changed"}'
+        values: '1x20'
+      - series: 'tape_exporter_unreaped_children{instance="h:9842"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: LTOExporterDown
+        exp_alerts:
+          - exp_labels: {severity: warning, job: lto-exporter, instance: "h:9842"}
+            exp_annotations:
+              summary: "lto-exporter on h:9842 is not being scraped"
+              description: "Prometheus cannot scrape the tape exporter; tape error counters are unknown, not zero."
+      - eval_time: 16m
+        alertname: LTOCollectorFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "h:9842", device: drive0, collector: sg_logs_write_errors, status: os_error}
+            exp_annotations:
+              summary: "sg_logs_write_errors on drive0 failing: os_error"
+              description: "The collector has reported status \"os_error\" for 15 minutes on h:9842. Its counters are not exported while it fails. See the README status table. (Unsupported pages and device changes have their own alerts.)"
+      - eval_time: 61m
+        alertname: LTOLogPageUnsupported
+        exp_alerts:
+          - exp_labels: {severity: info, instance: "h:9842", device: drive1, collector: sg_logs_read_errors}
+            exp_annotations:
+              summary: "drive1 does not support sg_logs_read_errors"
+              description: "The drive rejected the log page (sg_logs exit 5/9). Those counters are unknown for this drive, not zero."
+      - eval_time: 6m
+        alertname: LTODeviceChanged
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "h:9842", device: drive2, status: device_changed}
+            exp_annotations:
+              summary: "drive2: pinned sg node no longer matches (device_changed)"
+              description: "The configured path no longer resolves to the sg node pinned at startup, or that node is no longer a SCSI generic tape device. The exporter stopped querying it. Check the hardware and restart the exporter to re-pin."
+      - eval_time: 6m
+        alertname: LTOExporterUnreapedChild
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: "h:9842"}
+            exp_annotations:
+              summary: "lto-exporter on h:9842 has 1 unkillable sg_logs child(ren)"
+              description: "An sg_logs process did not exit after SIGKILL (likely stuck in the kernel on a hung device/HBA). The exporter will not query that device again until the process is gone."
+
+  # Counters: an increase fires; a missing series (failed collector) does
+  # not fire and does not count as zero.
+  - interval: 1m
+    input_series:
+      - series: 'tape_error_counter_total{instance="h:9842",device="drive0",direction="write",parameter="total_uncorrected"}'
+        values: '0 0 0 1 1 1'
+      - series: 'tape_error_counter_total{instance="h:9842",device="drive0",direction="read",parameter="total_uncorrected"}'
+        values: '4 4 4 4 4 4'
+      - series: 'tape_log_parameter_present{instance="h:9842",device="drive1",direction="read",parameter="total_uncorrected"}'
+        values: '0x70'
+      - series: 'tape_log_parameter_present{instance="h:9842",device="drive0",direction="read",parameter="total_uncorrected"}'
+        values: '1x70'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LTOUncorrectedErrorsIncreased
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "h:9842", device: drive0, direction: write, parameter: total_uncorrected}
+            exp_annotations:
+              summary: "drive0: uncorrected write errors increased"
+              description: "The drive reported 1 more uncorrected write errors in the last hour. Check backup job logs and the drive/media."
+      - eval_time: 61m
+        alertname: LTOErrorParameterMissing
+        exp_alerts:
+          - exp_labels: {severity: info, instance: "h:9842", device: drive1, direction: read, parameter: total_uncorrected}
+            exp_annotations:
+              summary: "drive1 does not report total_uncorrected (read)"
+              description: "The log page was read but this parameter was absent or unparsable. LTOUncorrectedErrorsIncreased cannot fire for it."
+
+  # Healthy exporter: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="lto-exporter",instance="h:9842"}'
+        values: '1x70'
+      - series: 'tape_exporter_collector_status{instance="h:9842",device="drive0",collector="sg_logs_write_errors",status="ok"}'
+        values: '1x70'
+      - series: 'tape_exporter_unreaped_children{instance="h:9842"}'
+        values: '0x70'
+    alert_rule_test:
+      - {eval_time: 65m, alertname: LTOExporterDown, exp_alerts: []}
+      - {eval_time: 65m, alertname: LTOCollectorFailing, exp_alerts: []}
+      - {eval_time: 65m, alertname: LTOExporterUnreapedChild, exp_alerts: []}
+      - {eval_time: 65m, alertname: LTOUncorrectedErrorsIncreased, exp_alerts: []}

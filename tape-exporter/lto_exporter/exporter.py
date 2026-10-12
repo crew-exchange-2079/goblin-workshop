@@ -19,6 +19,36 @@ from lto_exporter.parsers import (PARAM_LABELS, parse_sg_logs_error_counters,
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 DIRECTIONS = ("write", "read")
+COLLECTORS = tuple(f"sg_logs_{d}_errors" for d in DIRECTIONS)
+
+# Every value the `status` label can take. See README "Collector status".
+COLLECTOR_STATUSES = (
+    "ok",
+    # sg_logs exit status (parsers.SG_EXIT_STATUS)
+    "syntax_error", "not_ready", "unsupported", "file_error", "device_timeout",
+    "os_error", "error",
+    # output parsing
+    "parse_error",
+    # runner (commands.RunResult)
+    "timeout", "output_too_large", "read_error", "not_found", "exec_error",
+    "blocked_unreaped",
+    # per-scrape device re-check (config.check_device)
+    "device_changed", "device_mismatch", "device_missing",
+    # unexpected exception inside the exporter
+    "internal_error",
+)
+
+# Label names per metric family, excluding target labels (instance, job).
+METRIC_LABELS = {
+    "tape_exporter_build_info": ("version",),
+    "tape_exporter_unreaped_children": (),
+    "tape_exporter_collector_success": ("device", "collector"),
+    "tape_exporter_collector_duration_seconds": ("device", "collector"),
+    "tape_exporter_collector_status": ("device", "collector", "status"),
+    "tape_log_parameter_present": ("device", "direction", "parameter"),
+    "tape_error_counter_total": ("device", "direction", "parameter"),
+    "tape_bytes_processed_total": ("device", "direction"),
+}
 
 HELP = {
     "tape_exporter_build_info": ("gauge", "Exporter version."),
