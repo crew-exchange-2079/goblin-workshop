@@ -48,7 +48,7 @@ OpenSCAD 2021.01 can write the same facets in a different order on different run
 
 Refusals happen before any file is written:
 
-- **Data only.** Input is parsed with Python's JSON parser; `NaN`/`Infinity`, duplicate keys, unknown keys, missing keys, booleans or strings where numbers belong, and files over 64 KiB are refused. No value is evaluated or passed to a shell. Only numbers/booleans reach the SCAD file. The only string that reaches a filename is `name`, restricted to `[a-z0-9-]`. Output location comes from `--out` only.
+- **Data only.** Input is parsed with Python's JSON parser; `NaN`/`Infinity`, duplicate keys, unknown keys, missing keys, booleans or strings where numbers belong, numeric literals longer than 32 characters or outside float range, nesting deeper than 4 levels, and files over 64 KiB are refused (exit 2, nothing written). No value is evaluated or passed to a shell. Only numbers/booleans reach the SCAD file. The only string that reaches a filename is `name`, which must fully match `[a-z0-9][a-z0-9-]{0,47}` (no trailing newline or other characters). Output location comes from `--out` only.
 - **Finite, bounded values.** Every number has a range (see table); thicknesses must be strictly positive.
 - **Cross-field geometry.**
   - bracket: side flange + gusset + device-screw head + `rail_side_clearance_mm` must fit inside the measured rail opening; the rail screw shank must clear the side flange/gusset; the rack-screw head must bear on the flange; the pair of ears must fit `max_overall_width_mm`; every hole keeps `min_wall_mm` to every edge and to every other hole; device screw heads must not sit under the front flange/gusset; rail hole spacing must exceed the rail opening; a per-class window catches inch/mm mix-ups.

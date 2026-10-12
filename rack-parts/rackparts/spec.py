@@ -99,6 +99,8 @@ CRADLE = [
     ("max_overall_height_mm", "number", 5, 600, "measured", "Available height above the shelf."),
 ]
 
+NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,47}(?![\s\S])"
+
 PARTS = {"rack_bracket": COMMON + BRACKET, "sff_cradle": COMMON + CRADLE}
 
 # Sanity windows that only catch unit mistakes; NOT standards for 10-inch racks.
@@ -125,7 +127,9 @@ def field_schema(ftype, lo, hi):
     if ftype.startswith("enum:"):
         return {"type": "string", "enum": ftype[5:].split("|")}
     if ftype == "name":
-        return {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"}
+        # "(?![\s\S])" = true end of string in both ECMA-262 and Python re.search
+        # ("$" would also match before a trailing newline in Python).
+        return {"type": "string", "minLength": 1, "maxLength": 48, "pattern": NAME_PATTERN}
     if ftype == "integer":
         return {"type": "integer", "minimum": lo, "maximum": hi}
     if ftype == "number":

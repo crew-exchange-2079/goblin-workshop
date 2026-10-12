@@ -46,7 +46,9 @@
         },
         "name": {
           "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
           "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
           "x-kind": "label"
         },
@@ -286,7 +288,9 @@
         },
         "name": {
           "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
           "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
           "x-kind": "label"
         },

@@ -1,5 +1,5 @@
-import copy
 import json
+import re
 import os
 import shutil
 import struct
@@ -121,6 +121,64 @@ class RefusalTests(unittest.TestCase):
             generate._lit("x); import(\"/etc/passwd")
         with self.assertRaises(ValueError):
             generate._lit(float("nan"))
+
+
+class HostileInputTests(unittest.TestCase):
+    """Malformed input must be refused with exit 2: no traceback, no output directory."""
+
+    def _cli_refuses(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "in.json")
+            with open(src, "w") as f:
+                f.write(text)
+            out = os.path.join(d, "out")
+            r = cli("generate", src, "--out", out, "--scad-only")
+            self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+            self.assertIn("REFUSED", r.stderr)
+            self.assertFalse(os.path.exists(out))
+
+    def test_cli_regressions(self):
+        b = load("bracket-19in-1u-synthetic.json")
+        valid = json.dumps(b)
+        cases = {
+            "name trailing newline": json.dumps(dict(b, name="safe\n")),
+            "name trailing CR": json.dumps(dict(b, name="safe\r")),
+            "name unicode digit": json.dumps(dict(b, name="safe\u0663")),
+            "part list": json.dumps(dict(b, part=[])),
+            "part object": json.dumps(dict(b, part={})),
+            "huge int": valid.replace('"thickness_mm": 4.0', '"thickness_mm": 1' + "0" * 400),
+            "huge float": valid.replace('"thickness_mm": 4.0', '"thickness_mm": 1e400'),
+            "long int literal": valid.replace('"facets": 48', '"facets": 1' + "0" * 5000),
+            "long float literal": valid.replace('"thickness_mm": 4.0', '"thickness_mm": 4.' + "0" * 100),
+            "deep nesting": "[" * 30000 + "]" * 30000,
+            "shallow but too deep": valid.replace('"gusset_mm": 4.0', '"gusset_mm": [[[[[1]]]]]'),
+            "unicode escape breaks scanner?": valid.replace('"name": "', '"name": "\\\"['),
+        }
+        for label, text in cases.items():
+            with self.subTest(label):
+                self._cli_refuses(text)
+
+    def test_every_key_with_hostile_values(self):
+        for ex in EXAMPLES:
+            base = load(ex)
+            for key in base:
+                for bad in ([], {}, None, "x", True, 10 ** 400, -10 ** 400, [[[]]], ["1"], [None]):
+                    if key == "name" and bad == "x":
+                        continue  # a valid name
+                    d = dict(base, **{key: bad})
+                    try:
+                        validate.validate(d)
+                    except validate.ConfigError:
+                        continue
+                    self.fail("%s: %s=%r accepted" % (ex, key, bad))
+
+    def test_name_rule_matches_schema_pattern(self):
+        pat = re.compile(spec.NAME_PATTERN)
+        for name, ok in [("a", True), ("abc-1", True), ("a" * 48, True), ("a" * 49, False), ("safe\n", False),
+                         ("safe\r\n", False), ("-a", False), ("A", False), ("", False), ("a/b", False)]:
+            self.assertEqual(bool(pat.search(name)), ok, repr(name))
+            self.assertEqual(bool(validate.NAME_RE.fullmatch(name)), ok, repr(name))
 
 
 def _box_stl(path, drop_last=False):

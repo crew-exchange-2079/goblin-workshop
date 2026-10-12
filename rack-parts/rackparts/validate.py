@@ -13,7 +13,9 @@ import re
 from . import spec
 
 MAX_INPUT_BYTES = 64 * 1024
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
+MAX_DEPTH = 4            # object -> list -> [y, z] needs 3
+MAX_NUMBER_CHARS = 32    # longest numeric literal accepted
+NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,47}")  # always used with fullmatch
 
 
 class ConfigError(Exception):
@@ -26,6 +28,43 @@ class ConfigError(Exception):
 
 def _reject_constant(name):
     raise ConfigError(["non-finite number literal %s is not allowed" % name])
+
+
+def _parse_number(text):
+    if len(text) > MAX_NUMBER_CHARS:
+        raise ConfigError(["numeric literal longer than %d characters" % MAX_NUMBER_CHARS])
+    v = float(text)
+    if not math.isfinite(v):
+        raise ConfigError(["numeric literal %s is out of range" % text[:MAX_NUMBER_CHARS]])
+    return v
+
+
+def _parse_int(text):
+    if len(text) > MAX_NUMBER_CHARS:
+        raise ConfigError(["numeric literal longer than %d characters" % MAX_NUMBER_CHARS])
+    return int(text)
+
+
+def _check_depth(text):
+    """Refuse deeply nested input before the recursive JSON parser sees it."""
+    depth = 0
+    in_str = esc = False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                raise ConfigError(["input nested deeper than %d levels" % MAX_DEPTH])
+        elif ch in "]}":
+            depth -= 1
 
 
 def _no_duplicates(pairs):
@@ -46,15 +85,21 @@ def load_config(path):
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         raise ConfigError(["input is not UTF-8"])
+    _check_depth(text)
     try:
-        data = json.loads(text, parse_constant=_reject_constant, object_pairs_hook=_no_duplicates)
-    except json.JSONDecodeError as e:
-        raise ConfigError(["invalid JSON: %s" % e])
+        data = json.loads(text, parse_constant=_reject_constant, object_pairs_hook=_no_duplicates,
+                          parse_float=_parse_number, parse_int=_parse_int)
+    except (ValueError, RecursionError) as e:  # JSONDecodeError is a ValueError
+        raise ConfigError(["invalid JSON: %s" % str(e)[:200]])
     return data
 
 
 def _is_num(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return False
+    if isinstance(v, int):  # ints from Python callers can exceed float range
+        return abs(v) <= 2 ** 53
+    return math.isfinite(v)
 
 
 def _check_num(name, v, lo, hi, problems):
@@ -75,7 +120,7 @@ def check_fields(data):
     if not isinstance(data, dict):
         raise ConfigError(["top level must be a JSON object"])
     part = data.get("part")
-    if part not in spec.PARTS:
+    if not isinstance(part, str) or part not in spec.PARTS:
         raise ConfigError(["part must be one of %s" % sorted(spec.PARTS)])
     fields = spec.PARTS[part]
     known = {f[0] for f in fields}
@@ -91,14 +136,14 @@ def check_fields(data):
         if ftype.startswith("const:"):
             want = ftype[6:]
             want = int(want) if want.isdigit() else want
-            if v != want or isinstance(v, bool):
+            if type(v) is not type(want) or v != want:
                 problems.append("%s must be %r" % (name, want))
         elif ftype.startswith("enum:"):
             if v not in ftype[5:].split("|"):
                 problems.append("%s must be one of %s" % (name, ftype[5:].split("|")))
         elif ftype == "name":
-            if not isinstance(v, str) or not NAME_RE.match(v):
-                problems.append("name must match %s" % NAME_RE.pattern)
+            if not isinstance(v, str) or not NAME_RE.fullmatch(v):
+                problems.append("name must be 1-48 chars of [a-z0-9-], starting with a letter or digit")
         elif ftype == "integer":
             if not isinstance(v, int) or isinstance(v, bool):
                 problems.append("%s must be an integer" % name)
