@@ -1,0 +1,332 @@
+# lto-exporter
+
+A small, read-only Prometheus exporter for Linux LTO / SCSI tape drives.
+Python 3.10+ standard library only. No cloud services, accounts or telemetry.
+
+It runs exactly one external tool, `sg_logs` from sg3_utils, without a
+shell, and parses its text output:
+
+```
+sg_logs --readonly --page=0x2 /dev/sgN   # Write Error Counter log page
+sg_logs --readonly --page=0x3 /dev/sgN   # Read Error Counter log page
+```
+
+**`tapeinfo` (mtx) is never executed** and can't be enabled. See
+[Why no tapeinfo](#why-no-tapeinfo).
+
+> **Status: v0.1.0 release candidate.** Tested with unit tests, real
+> `sg_logs` 1.46 output (decoded offline from synthetic pages) and, in CI,
+> against an **mhvtl emulated** drive (see [Integration test](#integration-test-mhvtl)).
+> It has **not** been run against real tape hardware. Treat the first
+> deployment as a trial. See [SECURITY.md](SECURITY.md) and
+> [CHANGELOG.md](CHANGELOG.md).
+
+## Safety model
+
+* **One fixed command shape.** `commands._check()` accepts only
+  `[<sg_logs_path>, --readonly, --page=0x2|0x3, /dev/sgN]`: exactly four
+  arguments, each validated, including the last. `run_command()` calls it
+  itself, so code that builds its own argv can't bypass it. No LOG SELECT,
+  `--reset`, `--select`, `--sp`, other pages (TapeAlert 0x2E included), tape
+  motion, writes, load/unload or MODE SELECT are ever constructed.
+* **Explicit allowlist, no `/dev` scan.** Up to 16 devices, each given by name
+  and path in the config.
+* **Only `/dev/sgN` (SCSI generic) nodes.** `/dev/stN` rewinds on close;
+  `/dev/stN`/`nstN` are exclusive-open and could make a backup job fail with
+  `EBUSY`. Symlinks are allowed if they resolve to `/dev/sgN`.
+* **Pinning and re-checking (point-in-time only).** The configured path is
+  resolved once at startup and the resulting `/dev/sgN` is pinned; commands
+  only ever run against that pinned node. Before each collection the
+  exporter re-resolves the configured path (must still give the pinned
+  node), and checks the pinned node is a character device with major 21
+  (SCSI generic) whose sysfs peripheral type is 1 (tape). If not, it runs
+  nothing for that device and reports `device_changed`, `device_mismatch` or
+  `device_missing`. **This does not prevent kernel device replacement:** if
+  the drive disappears and another tape device takes the same sg number
+  between the check and `sg_logs`' `open()`, the command reaches the new
+  device. The command is still the read-only LOG SENSE above.
+* **Bounded execution.** `shell=False`, stdin from `/dev/null`, stderr
+  discarded, fixed `PATH`/`LC_ALL=C` environment, per-command timeout and
+  output cap (child is SIGKILLed when exceeded). After SIGKILL the exporter
+  waits at most 2 s. **SIGKILL does not guarantee termination**: a process
+  stuck in the kernel (D state, e.g. a hung HBA) can't be reaped. Such
+  children are counted in `tape_exporter_unreaped_children`, and no new
+  command is spawned for that device (nor at all once 4 are stuck) until the
+  kernel lets them go. Pipes are always closed.
+* **Rate limiting.** Results are cached for `cache_seconds` (default 30) and
+  collections are serialised, so frequent scrapes don't hammer the drive.
+* **Low-cardinality labels.** `device` is your configured alias, never the
+  path or serial.
+* **Quiet HTTP.** Device output, errors and tracebacks are never echoed into
+  HTTP responses or logs; client disconnects are handled; each connection
+  has a 30 s socket timeout.
+
+### Why no tapeinfo
+
+An earlier draft had an opt-in `tapeinfo` collector. It was removed:
+
+1. `tapeinfo` reads the TapeAlert log page (0x2E). Depending on the drive and
+   its TapeAlert mode, reading that page can **clear** the flags, which could
+   hide alerts from backup software. (The mhvtl emulator does exactly this:
+   `ssc_log_sense()` clears TapeAlert flags on a full-length read.)
+2. mtx's Linux backend opens the device `O_RDWR`, so it needs write
+   permission on the sg node.
+
+Enforcement, all covered by tests:
+* The config rejects `"collectors": ["tapeinfo"]` and `tapeinfo_path`.
+* The command check refuses any executable whose basename isn't `sg_logs`
+  and any page other than 0x2/0x3.
+* The exporter has no TapeAlert/tapeinfo metrics.
+* The exporter never imports the offline parser below, and the wheel does
+  not ship it.
+
+**Offline parser (separate, optional, source tree only).**
+`offline/tapeinfo_text.py` parses already-captured `tapeinfo` text from stdin
+into JSON (`python3 -m offline.tapeinfo_text < captured.txt`). It runs no
+commands, opens no device and emits no metrics. Because `tapeinfo` prints
+TapeAlert lines only for set flags, it reports `tapealert_support: "unknown"`
+and the listed codes, never a zero count. It never parses the serial number.
+
+## Install and run
+
+```sh
+# Debian/Ubuntu package names; others vary
+sudo apt install sg3-utils          # sg_logs
+
+python3 -m venv /opt/lto-exporter
+/opt/lto-exporter/bin/pip install ./tape-exporter     # or the built wheel
+lsscsi -g                           # find the /dev/sgN for your tape drive
+cp example-config.json /etc/lto-exporter.json         # then edit
+/opt/lto-exporter/bin/lto-exporter --config /etc/lto-exporter.json
+curl -s http://127.0.0.1:9842/metrics
+```
+
+`python3 -m lto_exporter` works too (from this directory without
+installing). `--listen-address` and `--port` override the config and are
+validated the same way (port 0–65535). Port 9842 is just a default; it isn't
+registered anywhere.
+
+Startup fails (exit 2) on any config error, including an `sg_logs_path` that
+is missing, not executable, not named `sg_logs`, or a symlink to some other
+program. It exits 1 if it can't bind.
+
+Examples, **not installed or enabled by this project**:
+[`contrib/systemd/lto-exporter.service`](contrib/systemd/lto-exporter.service)
+(DynamicUser, no capabilities, `DevicePolicy=closed` with one read-only
+`DeviceAllow`, loopback-only IP policy) and
+[`contrib/udev/60-lto-exporter.rules.example`](contrib/udev/60-lto-exporter.rules.example).
+
+## Configuration
+
+```json
+{
+  "listen_address": "127.0.0.1",
+  "port": 9842,
+  "command_timeout_seconds": 10,
+  "max_output_bytes": 65536,
+  "cache_seconds": 30,
+  "sg_logs_path": "/usr/bin/sg_logs",
+  "devices": [
+    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
+  ]
+}
+```
+
+| key | default | limits |
+|-----|---------|--------|
+| `listen_address` | `127.0.0.1` | host name or IP (IPv6 OK); put a reverse proxy in front if you need TLS/auth |
+| `port` | `9842` | integer 0–65535 (0 = ephemeral) |
+| `command_timeout_seconds` | 10 | 0.1–120 |
+| `max_output_bytes` | 65536 | integer, 1 KiB–1 MiB |
+| `cache_seconds` | 30 | 0–3600 |
+| `sg_logs_path` | `/usr/bin/sg_logs` | absolute, no whitespace/control chars, basename `sg_logs`; checked executable at startup |
+| `devices[].name` | (required) | `[A-Za-z][A-Za-z0-9_]{0,31}` exactly (no trailing newline), unique |
+| `devices[].path` | (required) | absolute `/dev/` path, no whitespace/control chars, must be or resolve to `/dev/sgN`; two entries may not pin the same node |
+| `devices[].collectors` | `["sg_logs"]` | only `sg_logs` (`tapeinfo` is rejected) |
+
+`/dev/sgN` numbering can change across reboots and hot-plug. A udev-created
+symlink that resolves to the drive's sg node is more stable, but it is
+resolved **once at startup**; if it later points elsewhere the exporter
+reports `device_changed` and stops querying that device until restarted.
+
+## Permissions (no root needed)
+
+Run the exporter as a dedicated unprivileged user. It needs:
+
+* Read access to the drive's `/dev/sgN` only. sg nodes are usually
+  `root:disk` (or `root:tape`) `0660`. Use a narrow udev rule that gives a
+  dedicated group read-only access to *that drive only* (see
+  `contrib/udev/`). **Never add the user to `disk`** (raw access to every
+  disk) or `tape` (every tape device).
+* Linux filters `SG_IO` on read-only file descriptors for unprivileged
+  callers to a list of non-modifying commands; INQUIRY and LOG SENSE are on
+  it. The CI integration run exercises exactly this (unprivileged user,
+  read-only node, 0640). If your kernel refuses, the collector shows
+  `os_error` or `error`. Don't "fix" it with `CAP_SYS_RAWIO` or write access.
+
+## Metrics
+
+Sample output from the synthetic fixtures (`tests/fixtures/`), abridged:
+
+```
+tape_exporter_build_info{version="0.1.0"} 1
+tape_exporter_collector_success{device="drive0",collector="sg_logs_write_errors"} 1
+tape_exporter_collector_duration_seconds{device="drive0",collector="sg_logs_write_errors"} 0.12
+tape_exporter_collector_status{device="drive0",collector="sg_logs_write_errors",status="ok"} 1
+tape_log_parameter_present{device="drive0",direction="read",parameter="rewrites_or_rereads"} 0
+tape_log_errors_total{device="drive0",direction="write",parameter="total_uncorrected"} 0
+tape_log_errors_total{device="drive0",direction="write",parameter="corrected_with_delay"} 3
+tape_bytes_processed_total{device="drive0",direction="write"} 2199023255553
+tape_exporter_unreaped_children 0
+```
+
+| metric | labels | source |
+|--------|--------|--------|
+| `tape_exporter_build_info` | `version` | exporter |
+| `tape_exporter_unreaped_children` | – | exporter: killed `sg_logs` children not yet reaped |
+| `tape_exporter_collector_success`, `tape_exporter_collector_duration_seconds` | `device`, `collector` | exporter |
+| `tape_exporter_collector_status` | `device`, `collector`, `status` | exporter, see below |
+| `tape_log_errors_total` | `device`, `direction`, `parameter` | Write (0x02) / Read (0x03) Error Counter log page, parameter codes 0–4 and 6 |
+| `tape_bytes_processed_total` | `device`, `direction` | same pages, parameter code 5 |
+| `tape_log_parameter_present` | `device`, `direction`, `parameter` | 1/0 per known parameter, emitted only when the page was read |
+
+`collector` ∈ `sg_logs_write_errors`, `sg_logs_read_errors`; `direction` ∈
+`write`, `read`; `parameter` ∈ `corrected_without_delay`,
+`corrected_with_delay`, `rewrites_or_rereads`, `total_corrected`,
+`correction_algorithm_processed`, `total_uncorrected` (and
+`bytes_processed` on `tape_log_parameter_present` only).
+
+### Collector status
+
+| status | meaning |
+|--------|---------|
+| `ok` | page read and its header recognised |
+| `unsupported` | sg_logs exit 5 (illegal request) or 9 (invalid opcode): the drive doesn't support the page. Its counters are **unknown, not zero** |
+| `not_ready` | exit 2, 12 or 13 (sense key NOT READY, incl. standby/unavailable) |
+| `unit_attention` | exit 6: the drive reported UNIT ATTENTION (e.g. after power-on/reset); usually clears on the next scrape |
+| `os_error` | exit 50–96: an OS errno (`50 + errno`), usually from `open()` of the node, e.g. 52 = ENOENT, 63 = EACCES |
+| `file_error` | exit 15 |
+| `device_timeout` | exit 33: the SCSI command timed out inside sg_logs |
+| `syntax_error` | exit 1, e.g. an sg_logs too old for `--readonly` (upgrade sg3_utils; don't drop the flag) |
+| `error` | any other non-zero exit (e.g. 99) |
+| `parse_error` | exit 0 but the expected page header wasn't found |
+| `timeout` | the exporter's own timeout fired; child killed |
+| `output_too_large` | output exceeded `max_output_bytes`; child killed |
+| `read_error` | reading the child's output failed |
+| `not_found` / `exec_error` | sg_logs couldn't be started |
+| `blocked_unreaped` | an earlier child for this device (or 4 children overall) is still unreaped; nothing was spawned |
+| `device_changed` | the configured path no longer resolves to the pinned node |
+| `device_mismatch` | the pinned node isn't a char device 21:N with sysfs type 1 (or sysfs unreadable) |
+| `device_missing` | the pinned node doesn't exist |
+| `internal_error` | unexpected exception in the exporter (details not exposed) |
+
+Exit codes were checked against sg3_utils `include/sg_lib.h` and
+`sg_convert_errno()` in `lib/sg_lib.c` (git
+`1929463554c5dc749c5a89bcefb2c88a08d45575`) and by running the Ubuntu 24.04
+`sg3-utils` 1.46 binary: an open failure is **not** exit 15 but `50 + errno`
+(a missing node exits 52). Earlier drafts mapped 15 to `open_failed`; that
+status no longer exists.
+
+**Missing ≠ zero.** If a collector fails, none of its value series are
+emitted, and `collector_success` is 0 with a `status` that tells you why. If a
+page is read but a parameter is absent or malformed, its value series is
+omitted and `tape_log_parameter_present` is 0.
+
+Counters are whatever the drive reports. They can reset on drive power-cycle,
+reset or firmware behaviour, and Prometheus `rate()`/`increase()` handle
+that. **This exporter does not estimate remaining tape or head life**, and
+you shouldn't derive one from these numbers without vendor-specific
+guidance.
+
+## Dashboards and alerts
+
+* [`monitoring/grafana/lto-exporter-dashboard.json`](monitoring/grafana/lto-exporter-dashboard.json):
+  Grafana dashboard (uid `lto-exporter-v1`, schemaVersion 39) with
+  `datasource`, `instance` and `device` variables.
+* [`monitoring/prometheus/lto-exporter-alerts.yml`](monitoring/prometheus/lto-exporter-alerts.yml):
+  alert rules, with promtool unit tests in `lto-exporter-alerts.test.yml`.
+  `LTOExporterDown` assumes the scrape job is named `lto-exporter`.
+  Thresholds are starting points, not vendor guidance.
+
+Validation: `ci/check_monitoring.py` checks every dashboard and alert query
+against the metric names, label names and label values the exporter really
+emits (and is unit-tested to catch mismatches); CI runs `promtool check
+rules`, `promtool test rules`, and `promtool check rules` on every dashboard
+query; the mhvtl job evaluates all of them against a live Prometheus that
+scraped the exporter. The dashboard has **not** been loaded into a Grafana
+instance by this project.
+
+## Supported output formats and limits
+
+* **sg_logs**, part of sg3_utils.
+  [sg_logs(8)](https://manpages.debian.org/stable/sg3-utils/sg_logs.8.en.html)
+  covers `--page` and `--readonly`. The text layout comes from
+  `show_error_counter_page()` in
+  [`src/sg_logs.c`](https://github.com/doug-gilbert/sg3_utils/blob/main/src/sg_logs.c):
+  header `Write error counter log page  [0x2]` (1.46 prints `... error
+  counter page  [0x2]`, without "log"; both accepted), then lines
+  `  <name> = <n>`, optionally suffixed ` [N GB]`/` [N TB]`. Parameter
+  meanings are from T10 SPC "Error counter log pages".
+  `tests/fixtures/sg3_utils_1.46/` holds real 1.46 output for synthetic pages.
+* The offline-only tapeinfo parser cites
+  [tapeinfo(1)](https://manpages.debian.org/stable/mtx/tapeinfo.1.en.html)
+  and `tapeinfo.c` in [mtx 1.3.12](https://sourceforge.net/projects/mtx/).
+
+Limits and tolerance:
+
+* Only the English text output is parsed (forced with `LC_ALL=C`). The
+  `--json`/`--hex` modes of newer sg_logs are not used.
+* **Headerless output fails closed.** Values are only taken from lines under
+  the expected header (right direction *and* page code). Output without it
+  (e.g. an unknown sg_logs version that changed the header) is `parse_error`,
+  and lines after any other page header (Verify 0x5, Read Reverse 0x4, …)
+  are ignored. Unknown and vendor-specific parameter lines are ignored.
+* Values must be decimal and ≤ 2^64−1, otherwise they count as missing.
+  Duplicate parameters: first wins. Output is capped at `max_output_bytes`.
+* No TapeAlert, ready-state, compression or drive-identity metrics. That
+  was the cost of removing `tapeinfo`.
+* One scrape runs 2 commands per device, sequentially, under one lock. Worst
+  case is about `2 × (command_timeout_seconds + 2 s) × devices`. Set
+  Prometheus `scrape_timeout` accordingly, or keep the cache.
+* No TLS/auth. Keep it on loopback or behind a proxy.
+
+## Tests
+
+```sh
+cd tape-exporter
+python3 -m unittest discover -s tests -t . -v
+```
+
+The tests drive the real parsers (including real sg3_utils 1.46 output), the
+HTTP handler (bound to `127.0.0.1:0`; disconnects, 404/500), command
+validation in every argv position, the bounded runner (timeouts, caps and a
+simulated unkillable D-state child; real children are a local Python
+process, never a tape tool), config/CLI validation, per-scrape device
+re-checks, the monitoring assets, the service example and the integration
+verdict logic. CI (`.github/workflows/tape-exporter-ci.yml`) runs them on
+Python 3.10–3.13, plus packaging and promtool checks.
+
+### Integration test (mhvtl)
+
+`.github/workflows/tape-exporter-mhvtl.yml` runs
+[`ci/mhvtl/run_integration.sh`](ci/mhvtl/run_integration.sh) on a
+disposable GitHub-hosted VM. It builds [mhvtl](https://github.com/markh794/mhvtl)
+at a pinned commit, `insmod`s its kernel module, starts **one** emulated
+IBM ULT3580-TD8 drive with a synthetic serial and **no media**, and
+identifies it only if its SCSI host is the `mhvtl` pseudo adapter *and* the
+serial matches. The exporter then runs as an unprivileged user with read
+access to that node only, under `strace`, and the run fails unless every
+exec, `open()`, `ioctl()` and SCSI CDB is the expected read-only one (INQUIRY
+and LOG SENSE of pages 0x02/0x03 with SP=0) and the metrics agree with what
+the emulator reports in its Supported Log Pages page. Evidence (identify
+JSON, strace, metrics, summary) is uploaded as the `mhvtl-evidence`
+artifact.
+
+mhvtl's error-counter pages are static zeros: a passing run proves the
+command path, permissions and parsing against a real kernel SCSI stack, not
+that the numbers mean anything for real drives. The script refuses to run
+outside CI unless `LTO_MHVTL_I_UNDERSTAND=yes`; only run it on a throwaway VM.
+
+## License
+
+MIT, see [LICENSE](LICENSE). This covers the code in this directory only.

@@ -1,0 +1,5 @@
+Read error counter page  [0x3]
+  Errors corrected without substantial delay = 5
+  Total bytes processed = 1073741825
+  Total uncorrected errors = 2
+  Reserved or vendor specific [0x8000] = 99

@@ -1,0 +1,26 @@
+# mhvtl device.conf for lto-exporter CI. Every identifier is synthetic.
+# One library entry (needed only for the media home directory; no
+# vtllibrary daemon is started) and ONE tape drive. No media is created or
+# loaded, so no tape motion is possible.
+
+VERSION: 5
+
+Library: 10 CHANNEL: 00 TARGET: 00 LUN: 00
+ Vendor identification: STK
+ Product identification: L700
+ Unit serial number: GWCILIB001
+ NAA: 10:22:33:44:ab:00:00:00
+ Home directory: @HOME@
+ PERSIST: False
+ Backoff: 400
+
+Drive: 11 CHANNEL: 00 TARGET: 01 LUN: 00
+ Library ID: 10 Slot: 01
+ Vendor identification: IBM
+ Product identification: ULT3580-TD8
+ Product revision level: 0105
+ Unit serial number: @SERIAL@
+ NAA: 10:22:33:44:ab:00:01:00
+ Compression: factor 1 enabled 1
+ Compression type: lzo
+ Backoff: 400

@@ -1,0 +1,109 @@
+name: tape-exporter CI
+
+on:
+  push:
+    paths: ["tape-exporter/**", ".github/workflows/tape-exporter-*.yml"]
+  pull_request:
+    paths: ["tape-exporter/**", ".github/workflows/tape-exporter-*.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tape-exporter-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: tape-exporter
+
+env:
+  PROM_VERSION: "3.14.0"
+  PROM_SHA256: "f665c6da19eb7ba399c915d30c7d9793c9b417bf8a749b504bc470678631478d"
+
+jobs:
+  test:
+    name: unit tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: unittest (dev mode, ResourceWarning is an error)
+        run: python -X dev -W error::ResourceWarning -m unittest discover -s tests -t . -v
+
+  package:
+    name: packaging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: build sdist + wheel
+        run: |
+          python -m pip install --disable-pip-version-check "build==1.2.2.post1" "twine==6.1.0"
+          python -m build
+          python -m twine check --strict dist/*
+          python ci/check_package.py dist
+      - name: install wheel into a clean venv and run the entry point
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install --disable-pip-version-check --no-deps dist/*.whl
+          /tmp/wheel-venv/bin/lto-exporter --version
+          /tmp/wheel-venv/bin/lto-exporter --help
+          cd /tmp && /tmp/wheel-venv/bin/python -c "import lto_exporter, importlib.util; assert importlib.util.find_spec('offline') is None; print(lto_exporter.__file__)"
+          echo '{"devices": [{"name": "d", "path": "/dev/st0"}]}' > /tmp/bad.json
+          set +e; /tmp/wheel-venv/bin/lto-exporter --config /tmp/bad.json; rc=$?; set -e
+          test "$rc" = 2
+      - name: test suite from the unpacked sdist
+        run: |
+          mkdir /tmp/sdist && tar -xzf dist/lto_exporter-*.tar.gz -C /tmp/sdist
+          cd /tmp/sdist/lto_exporter-* && python -m unittest discover -s tests -t . -q
+
+  monitoring:
+    name: Prometheus rules, dashboard queries, systemd example
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: fetch pinned promtool
+        working-directory: ${{ runner.temp }}
+        run: |
+          f="prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          curl -fsSLo "$f" "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/$f"
+          echo "${PROM_SHA256}  $f" | sha256sum -c -
+          tar -xzf "$f"
+          echo "PROMTOOL=$RUNNER_TEMP/prometheus-${PROM_VERSION}.linux-amd64/promtool" >> "$GITHUB_ENV"
+      - name: promtool check + unit-test alert rules
+        run: |
+          "$PROMTOOL" check rules monitoring/prometheus/lto-exporter-alerts.yml
+          cd monitoring/prometheus && "$PROMTOOL" test rules lto-exporter-alerts.test.yml
+      - name: dashboard/alert queries use real metrics and labels; dashboard PromQL parses
+        run: |
+          python3 ci/check_monitoring.py --emit-promql "$RUNNER_TEMP/dashboard-queries.yml"
+          "$PROMTOOL" check rules "$RUNNER_TEMP/dashboard-queries.yml"
+      - name: exporter output passes promtool check metrics (lint)
+        run: |
+          python3 -c "from tests.test_exporter import cfg, collector, full_runner; print(collector(cfg(), full_runner()).collect(), end='')" > "$RUNNER_TEMP/metrics.txt"
+          "$PROMTOOL" check metrics < "$RUNNER_TEMP/metrics.txt"
+      - name: systemd example unit verifies (not installed or started)
+        run: |
+          sed 's#^ExecStart=/usr/local/bin/lto-exporter#ExecStart=/bin/true#' \
+            contrib/systemd/lto-exporter.service > "$RUNNER_TEMP/lto-exporter.service"
+          systemd-analyze verify "$RUNNER_TEMP/lto-exporter.service"
+          systemd-analyze security --offline=yes --threshold=3.0 "$RUNNER_TEMP/lto-exporter.service" | tail -1

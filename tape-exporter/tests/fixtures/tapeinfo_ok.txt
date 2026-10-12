@@ -1,0 +1,23 @@
+Product Type: Tape Drive
+Vendor ID: 'SYNTHVND'
+Product ID: 'LTO-SIM         '
+Revision: '0001'
+Attached Changer API: No
+SerialNumber: 'FAKE-SERIAL-0001'
+TapeAlert[3]:   Hard Error: Uncorrectable read/write error.
+TapeAlert[20]:   Clean Now: The tape drive neads cleaning NOW.
+MinBlock: 1
+MaxBlock: 8388608
+SCSI ID: 5
+SCSI LUN: 0
+Ready: yes
+BufferedMode: yes
+Medium Type: 0x78
+Density Code: 0x5a
+BlockSize: 0
+DataCompEnabled: yes
+DataCompCapable: yes
+DataDeCompEnabled: yes
+CompType: 0x1
+DeCompType: 0x1
+Block Position: 0

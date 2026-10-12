@@ -1,0 +1,11 @@
+{
+  "listen_address": "127.0.0.1",
+  "port": 9842,
+  "command_timeout_seconds": 10,
+  "max_output_bytes": 65536,
+  "cache_seconds": 30,
+  "sg_logs_path": "/usr/bin/sg_logs",
+  "devices": [
+    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
+  ]
+}

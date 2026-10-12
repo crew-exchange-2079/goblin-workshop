@@ -1,0 +1,6 @@
+    SYNTHVND  LTO-SIM           0001
+Read error counter log page  [0x3]
+  Errors corrected without substantial delay = 5
+  Total rewrites or rereads = banana
+  Total bytes processed = 1073741825 [1 GB]
+  Reserved or vendor specific [0x8000] = 99

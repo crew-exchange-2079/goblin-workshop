@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "invalid-size-zero-thickness",
+  "units": "mm",
+  "part": "rack_bracket",
+  "facets": 48,
+  "min_wall_mm": 2.0,
+  "rack_width_class": "19in",
+  "hand": "right",
+  "rail_hole_center_spacing_mm": 465.1,
+  "rail_opening_width_mm": 450.0,
+  "max_overall_width_mm": 482.6,
+  "rail_hole_z_offsets_mm": [
+    5.955,
+    21.83,
+    37.705
+  ],
+  "rail_screw_clearance_diameter_mm": 6.6,
+  "rail_screw_head_diameter_mm": 12.0,
+  "rail_slot_extra_length_mm": 4.0,
+  "rail_side_clearance_mm": 1.0,
+  "device_width_mm": 430.0,
+  "device_side_gap_mm": 0.5,
+  "device_setback_mm": 5.0,
+  "device_bottom_offset_mm": 1.0,
+  "device_screw_positions_mm": [
+    [
+      20.0,
+      15.0
+    ],
+    [
+      60.0,
+      15.0
+    ]
+  ],
+  "device_screw_clearance_diameter_mm": 3.4,
+  "device_screw_head_diameter_mm": 6.0,
+  "device_screw_head_height_mm": 2.5,
+  "thickness_mm": 0.0,
+  "flange_height_mm": 9000,
+  "side_flange_depth_mm": 90.0,
+  "gusset_mm": 4.0
+}

@@ -1,0 +1,9 @@
+    SYNTHVND  LTO-SIM           0001
+Write error counter log page  [0x2]
+  Errors corrected without substantial delay = 0
+  Errors corrected with possible delays = 3
+  Total rewrites or rereads = 17
+  Total errors corrected = 3
+  Total times correction algorithm processed = 21
+  Total bytes processed = 2199023255553 [2 TB]
+  Total uncorrected errors = 0
