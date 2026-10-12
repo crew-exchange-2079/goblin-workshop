@@ -165,6 +165,20 @@ class ShelfRefusals(unittest.TestCase):
         self.assertIn("at least vent_slot_width", why(dict(self.s, vent_slot_length_mm=4.0)))
         self.assertIsNone(refused(dict(self.s, vent_slot_count=0, vent_slot_length_mm=4.0)))  # unused when 0
 
+    def test_orientation_text_lists_overhangs(self):
+        # Only bed fit is checked; no orientation may be described as support-free.
+        for d in (self.s, self.s2):
+            text = validate.validate(d)[1]["print_orientation_suggestion"]
+            self.assertNotIn("no support", text.lower())
+            self.assertNotIn("support-free", text.lower())
+        text = validate.validate(self.s)[1]["print_orientation_suggestion"]
+        self.assertIn("rear lip becomes a 211.0 mm long horizontal bridge", text)
+        self.assertNotIn("rear lip", validate.validate(self.s2)[1]["print_orientation_suggestion"])  # no lip
+        with open(os.path.join(ROOT, "README.md")) as f:
+            readme = f.read()
+        self.assertNotIn("support-free", readme)
+        self.assertIn("neither orientation is claimed to print without supports", readme)
+
     def test_build_volume(self):
         self.assertIn("build volume", why(dict(self.s, build_plate_x_mm=250.0, build_plate_y_mm=250.0)))
         # front-face-down needs height t + D: too short a printer, but floor-down still fits

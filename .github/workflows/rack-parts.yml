@@ -24,6 +24,9 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
+        # Explicit "shell: bash" makes GitHub run "bash --noprofile --norc -eo pipefail {0}". Without it the
+        # default is "bash -e {0}" (no pipefail), and "unittest | tee" would hide a failing test.
+        shell: bash
         working-directory: rack-parts
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -40,11 +43,25 @@ jobs:
           admesh --version
           python3 --version
 
+      # Proves the pipeline below cannot mask a failure: the same "unittest ... | tee" construction is run on a
+      # deliberately failing test and must exit non-zero.
+      - name: Smoke - a failing test must fail the tee pipeline
+        run: |
+          set -o pipefail
+          smoke="$(mktemp -d)"
+          printf 'import unittest\n\n\nclass Smoke(unittest.TestCase):\n    def test_fails(self):\n        self.fail("deliberate")\n' > "$smoke/test_smoke.py"
+          if python3 -m unittest discover -s "$smoke" -t "$smoke" -v 2>&1 | tee "$smoke/log"; then
+            echo "pipeline exited 0 on a failing test: failures would be masked"; exit 1
+          fi
+          grep -q "FAILED (failures=1)" "$smoke/log"
+          echo "ok: failing test made the pipeline fail"
+
       # RACKPARTS_REQUIRE_RENDER=1: shelf/PDU render tests fail instead of skipping if a tool is missing.
       - name: Unit, refusal and render tests
         env:
           RACKPARTS_REQUIRE_RENDER: "1"
         run: |
+          set -o pipefail
           timeout 900 python3 -m unittest discover -s tests -t . -v 2>&1 | tee /tmp/rack-tests.log
           if grep -nE "skipped|SKIP" /tmp/rack-tests.log; then echo "a test was skipped; skips do not count as passes"; exit 1; fi
 

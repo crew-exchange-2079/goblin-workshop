@@ -824,14 +824,20 @@ def derive_shelf(c):
     if p:
         raise ConfigError(p)
 
-    orient = "UNVALIDATED suggestion: "
-    if "front_face_down" in orients:
-        orient += ("print front face down (rotate so -y points to the bed): the floor and walls grow straight up, "
-                   "vent slots become vertical slots with short rounded tops, and the front gets the bed finish. ")
-    else:
-        orient += "front-face-down does not fit your build volume. "
+    # Overhangs are listed per orientation; neither is claimed to print without supports.
+    orient = "UNVALIDATED suggestion; fitting orientations and their overhangs: "
     if "floor_down" in orients:
-        orient += ("Floor down (as modelled) also fits; rail holes are then horizontal holes in a standing plate. ")
+        orient += ("floor down (as modelled): the rail holes are horizontal round or slotted holes in the standing front plate "
+                   "(their tops overhang). ")
+    if "front_face_down" in orients:
+        orient += ("front face down (-y to the bed): vent slots become horizontal slots with rounded overhanging "
+                   "ends")
+        if lip_h > 0:
+            orient += ("; the rear lip becomes a %.1f mm long horizontal bridge between the side walls, %.1f mm deep, "
+                       "with nothing under it: it needs supports or reliable long-span bridging"
+                       % (2 * inner_half, lip_h))
+        orient += ". "
+    orient += "Check your slicer's overhang preview. "
     orient += "Not tested on any physical printer."
     return {
         "module": "rack_shelf",
