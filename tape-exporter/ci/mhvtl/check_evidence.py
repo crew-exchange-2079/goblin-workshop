@@ -208,7 +208,7 @@ def analyse_metrics(v, evidence, sg):
         status = [l["status"] for n, l, _ in rows
                   if n == "tape_exporter_collector_status" and l.get("collector") == coll]
         counters = {l["parameter"]: int(val) for n, l, val in rows
-                    if n == "tape_error_counter_total" and l.get("direction") == direction}
+                    if n == "tape_log_errors_total" and l.get("direction") == direction}
         bytes_ = [int(val) for n, l, val in rows
                   if n == "tape_bytes_processed_total" and l.get("direction") == direction]
         if bytes_:

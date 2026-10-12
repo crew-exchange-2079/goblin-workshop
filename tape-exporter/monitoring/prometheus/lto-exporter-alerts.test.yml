@@ -60,9 +60,9 @@ tests:
   # not fire and does not count as zero.
   - interval: 1m
     input_series:
-      - series: 'tape_error_counter_total{instance="h:9842",device="drive0",direction="write",parameter="total_uncorrected"}'
+      - series: 'tape_log_errors_total{instance="h:9842",device="drive0",direction="write",parameter="total_uncorrected"}'
         values: '0 0 0 1 1 1'
-      - series: 'tape_error_counter_total{instance="h:9842",device="drive0",direction="read",parameter="total_uncorrected"}'
+      - series: 'tape_log_errors_total{instance="h:9842",device="drive0",direction="read",parameter="total_uncorrected"}'
         values: '4 4 4 4 4 4'
       - series: 'tape_log_parameter_present{instance="h:9842",device="drive1",direction="read",parameter="total_uncorrected"}'
         values: '0x70'

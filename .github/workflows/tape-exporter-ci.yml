@@ -97,6 +97,10 @@ jobs:
         run: |
           python3 ci/check_monitoring.py --emit-promql "$RUNNER_TEMP/dashboard-queries.yml"
           "$PROMTOOL" check rules "$RUNNER_TEMP/dashboard-queries.yml"
+      - name: exporter output passes promtool check metrics (lint)
+        run: |
+          python3 -c "from tests.test_exporter import cfg, collector, full_runner; print(collector(cfg(), full_runner()).collect(), end='')" > "$RUNNER_TEMP/metrics.txt"
+          "$PROMTOOL" check metrics < "$RUNNER_TEMP/metrics.txt"
       - name: systemd example unit verifies (not installed or started)
         run: |
           sed 's#^ExecStart=/usr/local/bin/lto-exporter#ExecStart=/bin/true#' \

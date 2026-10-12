@@ -46,7 +46,7 @@ METRIC_LABELS = {
     "tape_exporter_collector_duration_seconds": ("device", "collector"),
     "tape_exporter_collector_status": ("device", "collector", "status"),
     "tape_log_parameter_present": ("device", "direction", "parameter"),
-    "tape_error_counter_total": ("device", "direction", "parameter"),
+    "tape_log_errors_total": ("device", "direction", "parameter"),
     "tape_bytes_processed_total": ("device", "direction"),
 }
 
@@ -57,7 +57,7 @@ HELP = {
     "tape_exporter_collector_duration_seconds": ("gauge", "Wall time of the collector command."),
     "tape_exporter_collector_status": ("gauge", "1 for the collector's current result class."),
     "tape_log_parameter_present": ("gauge", "1 if the drive returned this error-counter parameter, 0 if absent/unparsable."),
-    "tape_error_counter_total": ("counter", "SCSI Write/Read Error Counter log page parameter, as reported by the drive (resets with the drive)."),
+    "tape_log_errors_total": ("counter", "SCSI Write/Read Error Counter log page parameter, as reported by the drive (resets with the drive)."),
     "tape_bytes_processed_total": ("counter", "Error Counter log page 'Total bytes processed', as reported by the drive."),
 }
 
@@ -156,7 +156,7 @@ class Collector:
                           {"device": dev.name, "direction": direction},
                           page.values[label])
                 else:
-                    s.add("tape_error_counter_total",
+                    s.add("tape_log_errors_total",
                           {"device": dev.name, "direction": direction, "parameter": label},
                           page.values[label])
 

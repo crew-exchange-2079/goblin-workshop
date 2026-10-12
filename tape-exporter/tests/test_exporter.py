@@ -331,7 +331,7 @@ class UnreapedChildTests(unittest.TestCase):
             self.assertIn("tape_exporter_unreaped_children 1", body)
             self.assertIn('collector="sg_logs_write_errors",status="blocked_unreaped"} 1', body)
             self.assertIn('collector="sg_logs_read_errors",status="blocked_unreaped"} 1', body)
-            self.assertNotIn("tape_error_counter_total", body)
+            self.assertNotIn("tape_log_errors_total", body)
         finally:
             srv.shutdown()
             srv.server_close()
@@ -597,10 +597,10 @@ def full_runner():
 class CollectorTests(unittest.TestCase):
     def test_metrics_and_no_serial_or_path(self):
         out = collector(cfg(), full_runner()).collect()
-        self.assertIn('tape_error_counter_total{device="drive0",direction="write",parameter="total_uncorrected"} 0', out)
+        self.assertIn('tape_log_errors_total{device="drive0",direction="write",parameter="total_uncorrected"} 0', out)
         self.assertIn('tape_bytes_processed_total{device="drive0",direction="write"} 2199023255553', out)
         self.assertIn('tape_log_parameter_present{device="drive0",direction="read",parameter="rewrites_or_rereads"} 0', out)
-        self.assertNotIn('tape_error_counter_total{device="drive0",direction="read",parameter="rewrites_or_rereads"}', out)
+        self.assertNotIn('tape_log_errors_total{device="drive0",direction="read",parameter="rewrites_or_rereads"}', out)
         self.assertIn("tape_exporter_unreaped_children 0", out)
         self.assertNotIn("tapeinfo", out)
         self.assertNotIn("tapealert", out)
@@ -614,7 +614,7 @@ class CollectorTests(unittest.TestCase):
         out = collector(cfg(), runner).collect()
         self.assertIn('tape_exporter_collector_status{device="drive0",collector="sg_logs_write_errors",status="timeout"} 1', out)
         self.assertIn('tape_exporter_collector_status{device="drive0",collector="sg_logs_read_errors",status="unsupported"} 1', out)
-        self.assertNotIn("tape_error_counter_total", out)
+        self.assertNotIn("tape_log_errors_total", out)
         self.assertNotIn("tape_log_parameter_present", out)
 
     def test_open_failure_is_os_error_not_zero(self):
@@ -624,13 +624,13 @@ class CollectorTests(unittest.TestCase):
         out = collector(cfg(), runner).collect()
         self.assertIn('collector="sg_logs_write_errors",status="os_error"} 1', out)
         self.assertIn('collector="sg_logs_read_errors",status="os_error"} 1', out)
-        self.assertNotIn("tape_error_counter_total", out)
+        self.assertNotIn("tape_log_errors_total", out)
 
     def test_stdout_ignored_on_nonzero_exit(self):
         runner = FakeRunner({"--page=0x2": RunResult("ok", 99, fx("sg_logs_write_ok.txt"), 0.01)})
         out = collector(cfg(), runner).collect()
         self.assertIn('collector="sg_logs_write_errors",status="error"} 1', out)
-        self.assertNotIn("tape_error_counter_total", out)
+        self.assertNotIn("tape_log_errors_total", out)
 
     def test_cache(self):
         t = [0.0]
@@ -666,7 +666,7 @@ class HttpTests(unittest.TestCase):
             self.assertEqual(r.status, 200)
             self.assertTrue(r.headers["Content-Type"].startswith("text/plain; version=0.0.4"))
             body = r.read().decode()
-        self.assertIn("# TYPE tape_error_counter_total counter", body)
+        self.assertIn("# TYPE tape_log_errors_total counter", body)
         self.assertIn("tape_exporter_build_info", body)
 
     def test_404(self):

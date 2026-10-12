@@ -26,7 +26,7 @@ class MonitoringAssetTests(unittest.TestCase):
 
     def test_checker_catches_mismatches(self):
         bad = {
-            'tape_error_counter_total{parameter="total_uncorrected_errors"}': "never emitted",
+            'tape_log_errors_total{parameter="total_uncorrected_errors"}': "never emitted",
             'tape_exporter_collector_status{status="open_failed"}': "never emitted",
             'tape_bytes_processed_total{parameter="bytes_processed"}': "no label",
             'tape_drive_temperature_celsius': "unknown metric",

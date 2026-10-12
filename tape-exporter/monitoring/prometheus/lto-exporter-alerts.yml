@@ -71,7 +71,7 @@ groups:
 
       - alert: LTOUncorrectedErrorsIncreased
         expr: |
-          increase(tape_error_counter_total{parameter="total_uncorrected"}[1h]) > 0
+          increase(tape_log_errors_total{parameter="total_uncorrected"}[1h]) > 0
         labels:
           severity: warning
         annotations:

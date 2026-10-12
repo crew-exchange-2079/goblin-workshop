@@ -23,7 +23,7 @@ from check_evidence import supported_pages  # noqa: E402
 
 ALWAYS_DATA = ("tape_exporter_collector_success", "tape_exporter_collector_status",
                "tape_exporter_unreaped_children", "tape_exporter_collector_duration_seconds")
-COUNTER_DATA = ("tape_error_counter_total", "tape_bytes_processed_total")
+COUNTER_DATA = ("tape_log_errors_total", "tape_bytes_processed_total")
 
 
 def get(url, path, **params):

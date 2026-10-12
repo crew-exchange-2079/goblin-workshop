@@ -254,7 +254,7 @@
             "uid": "${datasource}"
           },
           "refId": "A",
-          "expr": "increase(tape_error_counter_total{instance=~\"$instance\",device=~\"$device\",parameter=\"total_uncorrected\"}[1h])",
+          "expr": "increase(tape_log_errors_total{instance=~\"$instance\",device=~\"$device\",parameter=\"total_uncorrected\"}[1h])",
           "legendFormat": "{{device}} {{direction}}"
         }
       ],
@@ -301,7 +301,7 @@
             "uid": "${datasource}"
           },
           "refId": "A",
-          "expr": "increase(tape_error_counter_total{instance=~\"$instance\",device=~\"$device\",parameter=\"total_corrected\"}[1h])",
+          "expr": "increase(tape_log_errors_total{instance=~\"$instance\",device=~\"$device\",parameter=\"total_corrected\"}[1h])",
           "legendFormat": "{{device}} {{direction}}"
         }
       ],
@@ -348,7 +348,7 @@
             "uid": "${datasource}"
           },
           "refId": "A",
-          "expr": "increase(tape_error_counter_total{instance=~\"$instance\",device=~\"$device\",parameter=\"rewrites_or_rereads\"}[1h])",
+          "expr": "increase(tape_log_errors_total{instance=~\"$instance\",device=~\"$device\",parameter=\"rewrites_or_rereads\"}[1h])",
           "legendFormat": "{{device}} {{direction}}"
         }
       ],
