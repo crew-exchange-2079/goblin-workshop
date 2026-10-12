@@ -1,9 +1,12 @@
 # rack-parts
 
-Parametric OpenSCAD generator for two printable rack parts:
+Parametric OpenSCAD generator for five printable rack parts:
 
 - **`rack_bracket`** – an L-shaped rack ear: a front flange that screws to the rack rails and a side flange that screws to a device's side. One bracket per run (`hand: right|left`).
 - **`sff_cradle`** – a U-shaped cradle that holds a small-form-factor PC (or any box) flat or on its side, with a retention lip, and screws down to a shelf/panel through counterbored holes.
+- **`switch_cradle`** – a drop-in cradle for a small network switch: front/rear stop tabs, side walls, a strap over the top, side vent windows cut where you measured the switch's vents, rounded base vent slots, open front/rear for cables, and counterbored shelf holes. Port areas you measure are checked to stay clear.
+- **`blanking_panel`** – a flat 10-inch or 19-inch rack panel with slotted holes at the rail positions you measured, and optional stiffening ribs behind it.
+- **`cable_panel`** – the same panel with horizontal stadium-shaped cable pass-throughs whose edges are rounded (quarter-round) on both faces.
 
 You describe the part in a JSON file. The CLI validates it, writes a self-contained `.scad`, renders an STL with headless OpenSCAD, checks the mesh, and writes a `manifest.json`. Geometry and validation are deterministic, stdlib-only Python; no network or model/API service is used. The JSON schema is meant to be fillable by a person or an agent, but **every dimension must come from your own measurements**.
 
@@ -18,7 +21,14 @@ cd rack-parts
 python3 -m rackparts generate examples/bracket-19in-1u-synthetic.json --out build/bracket-19in
 python3 -m rackparts generate examples/bracket-10in-1u-synthetic.json --out build/bracket-10in
 python3 -m rackparts generate examples/sff-cradle-synthetic.json      --out build/sff-cradle
+python3 -m rackparts generate examples/switch-cradle-synthetic.json   --out build/switch-cradle
+python3 -m rackparts generate examples/blank-10in-1u-synthetic.json   --out build/blank-10in-1u
+python3 -m rackparts generate examples/blank-19in-1u-synthetic.json   --out build/blank-19in-1u
+python3 -m rackparts generate examples/cable-10in-1u-synthetic.json   --out build/cable-10in-1u
+python3 -m rackparts generate examples/cable-19in-2u-synthetic.json   --out build/cable-19in-2u
 ```
+
+The 19-inch panel examples are 482.6 mm wide and **do not fit a typical 220–256 mm build plate**; they set `allow_oversize_print: true` so the geometry can still be inspected. See [Build plate and full-width panels](#build-plate-and-full-width-panels).
 
 Other commands:
 
@@ -30,7 +40,7 @@ python3 -m rackparts check-stl build/x/x.stl          # mesh checks on any STL
 python3 -m unittest discover -s tests -t .            # test suite (render tests skip without openscad)
 ```
 
-Exit codes: `0` ok, `2` input refused, `3` output directory already exists / tool failure, `4` rendered mesh rejected.
+Exit codes: `0` ok, `2` input refused (including an `--out` path containing a newline or other control character), `3` output directory already exists / tool failure, `4` rendered mesh rejected.
 
 ### Outputs
 
@@ -53,8 +63,12 @@ Refusals happen before any file is written:
 - **Cross-field geometry.**
   - bracket: side flange + gusset + device-screw head + `rail_side_clearance_mm` must fit inside the measured rail opening; the rail screw shank must clear the side flange/gusset; the rack-screw head must bear on the flange; the pair of ears must fit `max_overall_width_mm`; every hole keeps `min_wall_mm` to every edge and to every other hole; device screw heads must not sit under the front flange/gusset; rail hole spacing must exceed the rail opening; a per-class window catches inch/mm mix-ups.
   - cradle: counterbore depth must leave `min_wall_mm` of base; counterbores may not cut into walls; the lip may not press on the device; outer size must fit the stated space; holes keep `min_wall_mm` to edges and each other.
+  - switch cradle: stop tabs must overlap the switch face by at least `min_wall_mm` beyond `fit_clearance_mm` and at least one strap slot must sit over the switch (refused as *missing retention* otherwise); stop tabs may not cover any measured front/rear port rectangle; port and vent rectangles must lie on the switch face; a side vent window is cut for every vent rectangle and must leave wall at the cradle ends and `min_wall_mm` to strap slots and other windows; strap bar ≥ `min_wall_mm`; base vent slots keep `min_wall_mm` to each other, the walls and the stop tabs; counterbores may not run under a stop tab, into a wall, or within `min_wall_mm` of a vent slot; outer size must fit the stated space and the build plate.
+  - panels: rail hole spacing must exceed the rail opening and fall in the per-class sanity window; the panel must be wider than the opening; screw heads must bear fully on the panel horizontally and holes keep `min_wall_mm` to the top/bottom edge and to each other; stiffening ribs stay inside the rail opening minus `rail_side_clearance_mm`, may not reach the rail screw shanks, are at least `min_wall_mm` thick and leave open height; the face must fit the build plate in either rotation unless `allow_oversize_print` is true.
+  - cable panel: the opening neck must be at least `cable_bundle_diameter_mm` tall (*obstructed cable path* otherwise); the edge radius is > 0.4 mm and at most half the panel thickness; height ≤ width; every opening, measured at its flared face size, stays inside the rail opening minus `rail_side_clearance_mm`, `min_wall_mm` clear of rail-screw heads, panel edges and ribs, and `min_wall_mm` from every other opening.
   - Holes are modelled slightly larger than the stated diameter so the `facets`-sided polygon still clears it.
 - **Rendered mesh.** OpenSCAD warnings/errors are fatal. The STL must be non-empty, have no zero-area facets, be a closed and consistently oriented manifold (every edge used exactly twice, in opposite directions), have positive volume, be a single connected shell, and its measured bounding box must equal the validator's prediction within 0.01 mm. ADMesh (read-only run) must report one part and zero repairs.
+- **Rounded edges (cable panel).** A test reads the rendered STL and confirms the opening is `cut_h + 2 × radius` tall at both faces, `cut_h` at the neck, and on the quarter circle in between (each of the 6 straight steps per edge ends exactly on the arc; between the ends the chord removes slightly more material than a true round).
 - **Not checked:** general triangle-triangle self-intersection (CSG through CGAL is not expected to produce it, and ADMesh is a second opinion, but no dedicated test exists), wall thickness of the printed result, strength, and real-world fit.
 
 ## Rack dimensions: standard vs. measure-it-yourself
@@ -87,20 +101,101 @@ Even for 19-inch racks you must still **measure**: rail type (square cage-nut, r
 
 Tolerances (`*_clearance_*`, `fit_clearance_mm`, `rail_side_clearance_mm`, `device_side_gap_mm`, `min_wall_mm`) are deliberately user-configurable; the example values are rough starting points, not recommendations for any printer.
 
+### Checked by the tool vs. measured by you
+
+| property | checked by the tool | you must measure / decide |
+|---|---|---|
+| input is finite, bounded, typed, no unknown/duplicate keys, safe name, no overwrite | yes | – |
+| holes/slots keep `min_wall_mm` to edges and each other; no zero-thickness features | yes (in the model) | whether `min_wall_mm` is enough for your printer/material |
+| retention features present (stop tabs overlap the switch, strap over the top) | yes | strap/cable tie type and that you actually fit it |
+| measured port/vent rectangles stay unobstructed by the cradle | yes, against the rectangles you enter | every port, LED, button, vent and cable bend radius on the real switch |
+| cable openings pass `cable_bundle_diameter_mm` and stay inside the rail opening | yes | connector/bundle size, cable bend radius behind the panel |
+| rail hole positions, spacing, rail opening, panel width | consistency only (and a coarse inch/mm window) | every value, on your rack, at the U you use |
+| fits the stated build plate | yes (refused, or flagged with `allow_oversize_print`) | your printer's real usable area |
+| mesh is closed, oriented, one shell, bbox as designed | yes (own checker + ADMesh) | – |
+| strength, load, stiffness, heat, fire, creep | **no** – no rating of any kind | whether a printed part is appropriate at all |
+
+## Switch cradle and panels: measuring
+
+**Switch cradle** (top view, then front view). The cradle length is derived: `device_depth_mm + 2 × fit_clearance_mm + 2 × wall_thickness_mm`.
+
+```
+ top view (y grows toward the rear)          front view of the switch face (device frame)
+ +--+-----------------------------+--+       z ^
+ |  |[tab]                   [tab]|  |  y=0    |   +-------------------------------+  device_height_mm
+ |  |  .......................... |  |         |   |   [ front_port_zone x0..x1 ] |
+ |W |  : switch footprint       : |W |         |   |   [   z0..z1               ] |
+ |A |  :  ||  ||  ||  base vents: |A |         |   +--[tab]---------------[tab]---+  stop_tab_height_mm
+ |L |  :  ||  ||  ||            : |L |         0---+---------------0---------------+---> x
+ |L |  :........................: |L |           -width/2      centreline      +width/2
+ |  |[tab]                   [tab]|  |  y=L
+ +--+-----------------------------+--+     side view: the side_vent_zone_mm rectangle [y0,y1,z0,z1]
+   strap crosses the top and wraps        (y from the switch front face, z from its bottom) is cut
+   around the bar above each strap slot    through both walls; the strap slot sits just above the
+                                           switch top, with strap_bar_height_mm of wall above it.
+```
+
+Measure with calipers: switch width/height/depth (with feet if they stay on); every front and rear region that must stay clear (ports, LEDs, reset button, power jack) as `[x0, x1, z0, z1]` from the switch centreline and bottom; side vent regions as `[y0, y1, z0, z1]` from the front face and bottom; your strap's width and thickness (add clearance); the shelf's hole positions; the free space on the shelf. Leave a port list empty (`[]`) only if that face really has nothing to keep clear. Insert the switch from above, then fit the strap.
+
+**Panels** (front view). Rail holes are mirrored left/right at `±rail_hole_center_spacing_mm / 2`, all at the heights in `rail_hole_z_offsets_mm` measured from the panel's bottom edge.
+
+```
+ |<--------------------------- panel_width_mm --------------------------->|
+ +------------------------------------------------------------------------+ panel_height_mm
+ |  (o=)    .-----------------.        .-----------------.          (=o)  |
+ |          (  pass-through   )        (                 )                |
+ |  (o=)    '-----------------'        '-----------------'          (=o)  |
+ +------------------------------------------------------------------------+ z = 0
+     |<----------- rail_hole_center_spacing_mm (hole centres) ------->|
+          |<----------- rail_opening_width_mm (between rails) ---->|
+ (o=) slotted rail hole: rail_screw_clearance_diameter_mm + rail_slot_extra_length_mm
+ cross-section through an opening:  front face  )====(  back face  -> each face edge is a
+ quarter round of pass_through_edge_radius_mm; the narrowest part is pass_through_height_mm.
+```
+
+The stiffening ribs (if `stiffener_depth_mm` > 0) run along the top and bottom edges of the back face, between `±(rail_opening_width_mm / 2 − rail_side_clearance_mm)`. For a 10-inch rack, **all** of these values are vendor-specific: there is no universal 10-inch hole pattern, and the 10-inch examples use invented values.
+
+### Build plate and full-width panels
+
+A 19-inch panel is 482.6 mm wide. Few hobby printers can print that in one piece; even the diagonal of a 256 × 256 mm plate is only 362 mm. The tool does **not** split panels or add joints: a split panel needs a joint that is validated and assembled, and that is not offered here. Instead:
+
+- `build_plate_x_mm` / `build_plate_y_mm` are required. A panel whose face does not fit in either rotation is refused unless `allow_oversize_print` is `true`.
+- With `allow_oversize_print: true` the STL is still generated as one piece, `manifest.json` records `"fits_build_plate": false`, and the orientation note starts with a warning. You then need a large-format printer or another process (e.g. cutting from sheet); the SCAD file is the source to adapt.
+- 10-inch panels (~254 mm) fit some 256 mm plates face-down; the example states a 256 × 256 mm plate and fits.
+
+## Slicer starting settings (untested)
+
+> These are **starting points only. None of them has been tried on a printer.** Print a fit coupon first: e.g. in your slicer, cut the model to a thin strip that contains one rail hole and one pass-through (panel) or one stop tab and one shelf hole (cradle), check it against the real rack/switch/screws, then adjust the `tolerance` parameters. There is no load, heat or fire certification.
+
+| setting | starting point | trade-off |
+|---|---|---|
+| orientation | panels: front face down (stiffeners up, no supports); switch cradle: base down as modelled; bracket/SFF cradle: see above | face-down panels get a flat, smooth face; layer lines then run across the panel's thickness |
+| layer height | 0.2 mm (0.4 mm nozzle) | 0.12–0.16 mm renders the rounded pass-through edges more smoothly at the cost of time |
+| walls / perimeters | 4 (≥ 1.6 mm) | holes and slots are mostly walls; more walls → stiffer, more accurate holes |
+| top / bottom layers | 5 / 5 | – |
+| infill | 25–40 % gyrid or grid | panels carry little load; cradles benefit from more around the screw holes |
+| supports | none for panels or switch cradle | vent-window and strap-slot tops are bridges; enable supports if your printer bridges poorly over the window length |
+| brim | 5–8 mm for long panels | long thin panels tend to lift at the corners, especially in ABS/ASA |
+| material | PETG or ASA as a starting point | PLA is stiff and easy but softens at modest temperatures (behind warm equipment it may creep); PETG tolerates more heat and is tougher; ASA/ABS tolerate more heat still but warp – use an enclosure. Check the material against the temperature inside **your** rack. |
+
 ## Slicer orientation (unvalidated)
 
 The manifest includes a suggestion; none of it has been tested on a printer.
 
 - Bracket: lay the side flange flat on the bed so layer lines run along the flange; the front flange then stands vertically. Alternatively print front-flange-down. Either way the inner corner sees bending loads across layers in some direction — consider the gusset, more perimeters, or a stronger material, and decide for yourself whether a printed part is appropriate at all.
 - Cradle: base down as modelled; the retention lip is an overhang that likely needs supports or a chamfer you add.
+- Switch cradle: base down as modelled; vent-window and strap-slot tops are bridges.
+- Panels: front face down; stiffeners point up and need no supports.
+
+Practical starting slicer settings for all parts are in [Slicer starting settings (untested)](#slicer-starting-settings-untested).
 
 ## Parameters
 
 All lengths are millimetres and **all keys are required** (no hidden defaults). `kind`: *measured* – measure the real rack/device; *chosen* – a design choice; *tolerance* – a clearance you tune; *label* – metadata. Machine-readable form with the same text: [`schema/rack-part.schema.json`](schema/rack-part.schema.json) (JSON Schema 2020-12, `x-kind` annotations). Schema ranges are coarse; the cross-field checks above are only enforced by the CLI.
 
-Bracket frame: x = 0 at the device-side face of the side flange (+x toward the rail), y = 0 at the front face (+y into the rack), z = 0 at the bottom edge. Cradle frame: x centred, y = 0 at the front edge, z = 0 at the base bottom.
+Bracket frame: x = 0 at the device-side face of the side flange (+x toward the rail), y = 0 at the front face (+y into the rack), z = 0 at the bottom edge. Cradle frame (SFF and switch): x centred, y = 0 at the front edge, z = 0 at the base bottom. Panel frame: x centred on the rack centreline, y = 0 at the front face (+y into the rack), z = 0 at the bottom edge. Switch port rectangles use the device face frame: x from the switch centreline (viewed from the front, also for the rear face), z up from the switch bottom.
 
-**Common (both parts)**
+**Common (all parts)**
 
 | parameter | kind | allowed | meaning |
 |---|---|---|---|
@@ -161,6 +256,73 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `max_overall_depth_mm` | measured | 20 – 700 | Available depth on the shelf. |
 | `max_overall_height_mm` | measured | 5 – 600 | Available height above the shelf. |
 
+**`switch_cradle`**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `switch_cradle` | Selects a drop-in cradle for a small network switch: front/rear stop tabs, strap slots, vent windows, base vent slots and counterbored shelf holes. |
+| `device_width_mm` | measured | 30 – 300 | Switch width (left to right, viewed from the front). |
+| `device_height_mm` | measured | 10 – 100 | Switch height, including feet if they stay on. |
+| `device_depth_mm` | measured | 30 – 300 | Switch depth, front face to rear face (excluding plugs). |
+| `fit_clearance_mm` | tolerance | 0 – 5 | Gap added on every side of the switch inside the cradle (left/right, front/back, and above it under the strap slot). |
+| `base_thickness_mm` | chosen | >1 – 15 | Base plate thickness. |
+| `wall_thickness_mm` | chosen | >1 – 15 | Side wall thickness; also the front/rear stop tab thickness. |
+| `stop_tab_width_mm` | chosen | 1 – 60 | How far each front/rear stop tab reaches inward from its side wall. Must overlap the device face by at least min_wall_mm beyond fit_clearance_mm. |
+| `stop_tab_height_mm` | chosen | 1 – 60 | Height of the stop tabs above the base top. |
+| `front_port_zone_mm` | measured | 0–4 `[a0,a1,b0,b1]`, each -200 – 200 | Front-face regions that must stay unobstructed (ports, LEDs, buttons) as [x0, x1, z0, z1]. 0-4 rectangles. |
+| `rear_port_zone_mm` | measured | 0–4 `[a0,a1,b0,b1]`, each -200 – 200 | Rear-face regions that must stay unobstructed (power jack, ports) as [x0, x1, z0, z1]. 0-4 rectangles. |
+| `side_vent_zone_mm` | measured | 0–4 `[a0,a1,b0,b1]`, each -10 – 310 | Side vent regions as [y0, y1, z0, z1]: y back from the device front face, z up from the device bottom. A window of exactly this size is cut through both side walls. 0-4 rectangles. |
+| `strap_slot_y_mm` | chosen | 1–4 values, each 0 – 300 | Centre of each strap slot pair, measured back from the device front face. The strap crosses the top of the switch and wraps around the bar above each slot. 1-4 values. |
+| `strap_slot_length_mm` | tolerance | 3 – 60 | Slot length along the depth: strap width + your clearance. |
+| `strap_slot_height_mm` | tolerance | 1 – 10 | Slot height: strap thickness + your clearance. |
+| `strap_bar_height_mm` | chosen | >1 – 20 | Height of the wall material above each strap slot that the strap wraps around. |
+| `base_vent_slot_count` | chosen | 0 – 40 | Number of rounded vent slots in the base under the switch (0 = none). |
+| `base_vent_slot_width_mm` | chosen | >1 – 20 | Width of each base vent slot. |
+| `base_vent_slot_length_mm` | chosen | 2 – 300 | Length of each base vent slot (along the depth, centred on the cradle). |
+| `base_vent_slot_pitch_mm` | chosen | 2 – 60 | Centre-to-centre spacing of base vent slots. |
+| `shelf_hole_positions_mm` | measured | 1–12 `[x,y]`, each -300 – 600 | Mounting holes as [x, y]: x from the cradle centreline, y back from the cradle front edge. Must match holes you measured on your shelf or panel. 1-12 pairs. |
+| `shelf_screw_clearance_diameter_mm` | tolerance | >1 – 12 | Through-hole diameter for the shelf screw. |
+| `shelf_screw_head_diameter_mm` | measured | >1 – 25 | Shelf screw head diameter (counterbored from the top). |
+| `shelf_screw_head_height_mm` | measured | 0 – 15 | Shelf screw head height; the counterbore is this deep so the head sits flush or below the base top. |
+| `max_overall_width_mm` | measured | 20 – 600 | Available width on the shelf. |
+| `max_overall_depth_mm` | measured | 20 – 700 | Available depth on the shelf. |
+| `max_overall_height_mm` | measured | 5 – 600 | Available height above the shelf. |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+
+**`blanking_panel`** and **`cable_panel`** (shared)
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `blanking_panel` | Selects a flat blanking panel that screws to measured rail holes. |
+| `part` | label | `cable_panel` | Selects a rack panel with rounded (stadium-shaped, edge-filleted) cable pass-throughs. |
+| `rack_width_class` | label | `10in` \| `19in` | Only selects a sanity window for rail_hole_center_spacing_mm (catches inch/mm mix-ups). It does not supply any dimension; there is no universal 10-inch hole pattern. |
+| `rail_hole_center_spacing_mm` | measured | 150 – 520 | Horizontal centre-to-centre distance between the left and right rail mounting holes. |
+| `rail_opening_width_mm` | measured | 100 – 500 | Clear horizontal opening between the inner edges of the rails over the depth the panel's stiffeners occupy. |
+| `panel_width_mm` | measured | 120 – 520 | Overall panel width: the space available in front of the rails (19-inch nominal 482.6; 10-inch: measure). |
+| `panel_height_mm` | chosen | 10 – 400 | Panel height. Usually a little under n x 44.45 mm so neighbouring panels do not touch. |
+| `panel_thickness_mm` | chosen | >1 – 10 | Front plate thickness. |
+| `rail_hole_z_offsets_mm` | measured | 1–8 values, each 0 – 400 | Rail hole centres used, measured upward from the panel bottom edge as it will sit in the rack. The same heights are used on the left and right rail. 1-8 values. |
+| `rail_screw_clearance_diameter_mm` | tolerance | >1 – 12 | Through-hole diameter for the rack screw (screw major diameter + your clearance). |
+| `rail_screw_head_diameter_mm` | measured | >1 – 25 | Rack screw (or washer) head diameter; the head must bear fully on the panel. |
+| `rail_slot_extra_length_mm` | tolerance | 0 – 15 | Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole). |
+| `rail_side_clearance_mm` | tolerance | 0 – 10 | Gap kept between the stiffening ribs behind the panel and the inner rail edge. |
+| `stiffener_depth_mm` | chosen | 0 – 40 | Depth of the two horizontal stiffening ribs along the top and bottom edges of the back face (0 = flat plate). Ribs stop inside the rail opening. |
+| `stiffener_thickness_mm` | chosen | >1 – 10 | Vertical thickness of each stiffening rib (ignored when stiffener_depth_mm is 0, but still required). |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+| `allow_oversize_print` | chosen | `true` \| `false` | false: refuse a panel whose face does not fit the build plate in either rotation. true: generate it anyway and flag it in the manifest; no split/joint is produced, so you need a larger printer or another process. |
+
+**`cable_panel`** only
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `pass_through_centers_mm` | chosen | 1–8 `[x,z]`, each -260 – 400 | Pass-through centres as [x, z]: x from the rack centreline (+x to the right, viewed from the front), z up from the panel bottom edge. 1-8 pairs. |
+| `pass_through_width_mm` | chosen | 5 – 400 | Narrowest (mid-thickness) width of each horizontal stadium opening, end to end. |
+| `pass_through_height_mm` | chosen | 5 – 200 | Narrowest (mid-thickness) height of each opening; also the diameter of its round ends. Must not exceed the width. |
+| `pass_through_edge_radius_mm` | chosen | >0.4 – 10 | Radius of the rounded edge on both faces around each opening; at most half the panel thickness. The opening on each face is wider and taller than the neck by twice this radius. |
+| `cable_bundle_diameter_mm` | measured | 1 – 150 | Largest connector or cable bundle diameter that must pass through; the opening neck must be at least this tall. |
+
 ## Example fixtures (synthetic)
 
 | file | what it is |
@@ -168,16 +330,26 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `examples/bracket-19in-1u-synthetic.json` | right bracket, EIA-310 nominal rail spacing/opening and 1U hole pattern, for a made-up 430 mm wide box with made-up side screws |
 | `examples/bracket-10in-1u-synthetic.json` | left bracket for a made-up 10-inch rack (236.5 mm hole spacing, 220 mm opening are invented sample values, not a standard) and a made-up 200 mm wide box |
 | `examples/sff-cradle-synthetic.json` | cradle for a made-up 180 × 60 × 190 mm box, flat, on a made-up shelf hole pattern |
-| `tests/fixtures/*.json` | inputs that must be refused (zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN) |
+| `examples/switch-cradle-synthetic.json` | switch cradle for a made-up 160 × 28 × 100 mm switch with made-up port and vent zones |
+| `examples/blank-10in-1u-synthetic.json` | 10-inch 1U blanking panel; 236.5 mm hole spacing, 220 mm opening and 254 mm width are invented sample values, not a 10-inch standard; fits a 256 mm plate |
+| `examples/blank-19in-1u-synthetic.json` | 19-inch 1U blanking panel from EIA-310 nominal summary values; **does not fit** the stated 256 mm plate (`allow_oversize_print: true`) |
+| `examples/cable-10in-1u-synthetic.json` | 10-inch 1U cable panel, two 70 × 16 mm pass-throughs with 1.5 mm rounded edges (same invented rack values as above) |
+| `examples/cable-19in-2u-synthetic.json` | 19-inch 2U cable panel, three 100 × 30 mm pass-throughs; **does not fit** the stated plate (`allow_oversize_print: true`) |
+| `tests/fixtures/*.json` | inputs that must be refused (zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN, stop tab over a port, missing retention, vent window against a strap slot, oversize panel without the flag, overlapping rail holes, overlapping pass-throughs, edge radius over half the thickness, cable bundle larger than the opening) |
+
+"Synthetic" means the numbers were made up (or, for 19-inch rails, taken from standard summaries) to exercise the generator. A **real fit** needs your own measurements of your rack, switch, screws, straps and printer, plus a printed fit coupon.
 
 ## Limitations
 
 - No strength, load, temperature or fire rating; no claim that a printed part can safely carry any device. Rack-mounted equipment can be heavy; use the device's own rack kit or a proper shelf when in doubt.
 - No physical print, rack installation, or hardware test has been done. Fit depends on your measurements, printer, material and slicer.
-- Only two part shapes; no cage-nut, threaded-insert, vent, cable or rear-support features.
+- Five part shapes. No cage-nut, threaded-insert or rear-support features. Panels are single pieces: there is no split/joint option, so 19-inch panels need a large printer or another process (see above).
+- Switch cradle: port/vent clearance is checked only against the rectangles you enter, not against cable bend radius or plug bodies; the strap is your own hardware; insertion is from above.
+- Cable panel: the rounded edge is a 6-step polygonal approximation of a quarter round (each step ends on the arc); there are no brush strips or covers.
+- Starting slicer settings are untested suggestions.
 - Self-intersection is not tested directly (see above).
 - Not every bad idea is detectable: the validator checks the relationships listed above, nothing more.
 
 ## License and provenance
 
-MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above.
+MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above. The switch cradle, blanking panel and cable panel are generic CAD written for this repository under the same MIT license; they are not derived from any vendor's design, and no switch or rack vendor's dimensions are included.

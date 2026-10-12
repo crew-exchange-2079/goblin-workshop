@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "unsafe-holes-blank-panel",
+  "units": "mm",
+  "part": "blanking_panel",
+  "facets": 48,
+  "min_wall_mm": 2.0,
+  "rack_width_class": "19in",
+  "rail_hole_center_spacing_mm": 465.1,
+  "rail_opening_width_mm": 450.0,
+  "panel_width_mm": 482.6,
+  "panel_height_mm": 43.66,
+  "panel_thickness_mm": 3.0,
+  "rail_hole_z_offsets_mm": [
+    5.955,
+    9.0
+  ],
+  "rail_screw_clearance_diameter_mm": 6.6,
+  "rail_screw_head_diameter_mm": 12.0,
+  "rail_slot_extra_length_mm": 3.0,
+  "rail_side_clearance_mm": 1.5,
+  "stiffener_depth_mm": 8.0,
+  "stiffener_thickness_mm": 3.0,
+  "build_plate_x_mm": 256.0,
+  "build_plate_y_mm": 256.0,
+  "allow_oversize_print": true
+}

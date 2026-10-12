@@ -21,7 +21,7 @@ concurrency:
 jobs:
   render-and-check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: rack-parts
@@ -41,14 +41,31 @@ jobs:
           python3 --version
 
       - name: Unit, refusal and render tests
-        run: timeout 600 python3 -m unittest discover -s tests -t . -v
+        run: timeout 900 python3 -m unittest discover -s tests -t . -v
 
       - name: Render representative matrix
         run: |
           mkdir -p build
-          for f in bracket-10in-1u bracket-19in-1u sff-cradle; do
+          for f in bracket-10in-1u bracket-19in-1u sff-cradle switch-cradle \
+                   blank-10in-1u blank-19in-1u cable-10in-1u cable-19in-2u; do
             timeout 300 python3 -m rackparts generate "examples/$f-synthetic.json" --out "build/$f"
             timeout 120 python3 -m rackparts check-stl build/$f/*.stl > "build/$f/check-stl.json"
+          done
+
+      - name: Render small/large/boundary cases
+        run: |
+          mkdir -p build/boundary-inputs
+          python3 -c "
+          import json
+          from tests.test_families import boundary_cases
+          for c in boundary_cases():
+              with open('build/boundary-inputs/%s.json' % c['name'], 'x') as f:
+                  json.dump(c, f, indent=2)
+          "
+          for f in build/boundary-inputs/*.json; do
+            n=$(basename "$f" .json)
+            timeout 300 python3 -m rackparts generate "$f" --out "build/boundary-$n"
+            timeout 120 python3 -m rackparts check-stl build/boundary-$n/*.stl > "build/boundary-$n/check-stl.json"
           done
 
       - name: Expect refusals for invalid and unsafe inputs
@@ -62,6 +79,18 @@ jobs:
             test "$rc" -eq 2
             test ! -e "build/refused-$(basename "$f" .json)"
           done
+
+      - name: Summarise geometry
+        run: |
+          python3 -c "
+          import glob, json
+          print('| part | shells | volume mm3 | bbox size mm | admesh ok |')
+          print('|---|---|---|---|---|')
+          for m in sorted(glob.glob('build/*/manifest.json')):
+              r = json.load(open(m))['mesh']
+              print('| %s | %d | %.3f | %s | %s |' % (m.split('/')[1], r['shells'], r['volume_mm3'],
+                    ' x '.join('%g' % v for v in r['bbox_size']), r['admesh']['ok']))
+          " | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload synthetic SCAD/STL/manifests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
