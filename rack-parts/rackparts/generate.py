@@ -128,6 +128,7 @@ def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, tim
             "derived": geo["derived"],
             "expected_bbox_mm": geo["expected_bbox"],
             "print_orientation_suggestion": geo["print_orientation_suggestion"],
+            **({"physical_use": geo["physical_use"]} if "physical_use" in geo else {}),
             "files": {"scad": {"path": os.path.basename(scad_path), "sha256": sha256_file(scad_path),
                                "bytes": os.path.getsize(scad_path)}},
         }
