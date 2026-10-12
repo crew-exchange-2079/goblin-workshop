@@ -70,7 +70,7 @@ jobs:
             MHVTL_SRC="$GITHUB_WORKSPACE/mhvtl" LTO_VENV=/opt/lto-ci/venv \
             EVIDENCE="$RUNNER_TEMP/evidence" \
             PROMETHEUS_DIR="$RUNNER_TEMP/prometheus-${PROM_VERSION}.linux-amd64" \
-            timeout 540 src/tape-exporter/ci/mhvtl/run_integration.sh
+            timeout -k 10 540 src/tape-exporter/ci/mhvtl/run_integration.sh
       - name: job summary
         if: always()
         run: |

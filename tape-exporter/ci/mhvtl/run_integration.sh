@@ -31,16 +31,33 @@ log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$EVIDENCE/run.l
 fail() { log "FAIL: $*"; exit 1; }
 
 VTLTAPE_PID=""; EXPORTER_PID=""; PROM_PID=""
+# Bounded wait for a pid to go away (works for non-children too).
+wait_gone() { local pid=$1 n=${2:-20}; while [ "$n" -gt 0 ] && kill -0 "$pid" 2>/dev/null; do sleep 1; n=$((n-1)); done; ! kill -0 "$pid" 2>/dev/null; }
+
+stop_exporter() {
+  # Signal the exporter itself (runs as $EXPORTER_USER), not just strace,
+  # then give strace a bounded time to flush and exit.
+  pkill -TERM -u "$EXPORTER_USER" 2>/dev/null
+  if [ -n "$EXPORTER_PID" ]; then
+    wait_gone "$EXPORTER_PID" 15 || { pkill -KILL -u "$EXPORTER_USER"; kill -KILL "$EXPORTER_PID"; wait_gone "$EXPORTER_PID" 5; }
+  fi
+  EXPORTER_PID=""
+}
+
 cleanup() {
   set +e
   log "cleanup"
-  [ -n "$PROM_PID" ] && kill "$PROM_PID" 2>/dev/null
-  [ -n "$EXPORTER_PID" ] && kill "$EXPORTER_PID" 2>/dev/null
-  [ -n "$VTLTAPE_PID" ] && kill "$VTLTAPE_PID" 2>/dev/null
-  sleep 2
-  [ -n "$VTLTAPE_PID" ] && kill -9 "$VTLTAPE_PID" 2>/dev/null
+  [ -n "$PROM_PID" ] && { kill "$PROM_PID"; wait_gone "$PROM_PID" 10 || kill -9 "$PROM_PID"; }
+  stop_exporter
+  if [ -n "$VTLTAPE_PID" ]; then
+    kill "$VTLTAPE_PID" 2>/dev/null
+    wait_gone "$VTLTAPE_PID" 10 || kill -9 "$VTLTAPE_PID" 2>/dev/null
+    wait_gone "$VTLTAPE_PID" 5 || log "vtltape did not exit"
+  fi
+  ps -eo pid,user,stat,wchan:32,args | grep -E "vtltape|lto-exporter|sg_logs|strace|prometheus" | grep -v grep > "$EVIDENCE/ps_at_cleanup.txt"
   if grep -q '^mhvtl ' /proc/modules; then
-    rmmod mhvtl && log "mhvtl module removed" || log "rmmod mhvtl failed (runner is discarded anyway)"
+    # rmmod can block in the kernel; bound it and leave it to the disposable VM.
+    timeout -k 5 20 rmmod mhvtl && log "mhvtl module removed" || log "rmmod mhvtl failed/timed out (VM is discarded)"
   fi
   chmod -R a+rX "$EVIDENCE" 2>/dev/null
 }
@@ -142,11 +159,11 @@ strace -f -y -o "$EVIDENCE/strace.txt" -xx -s 256 -qq \
   > "$EVIDENCE/exporter.stdout" 2> "$EVIDENCE/exporter.stderr" &
 EXPORTER_PID=$!
 for _ in $(seq 1 30); do
-  curl -fsS "http://127.0.0.1:$PORT/" >/dev/null 2>&1 && break
+  curl -fsS --max-time 60 "http://127.0.0.1:$PORT/" >/dev/null 2>&1 && break
   sleep 1
 done
 for i in 1 2 3; do
-  curl -fsS -o "$EVIDENCE/metrics_$i.txt" "http://127.0.0.1:$PORT/metrics" || fail "scrape $i failed"
+  curl -fsS --max-time 60 -o "$EVIDENCE/metrics_$i.txt" "http://127.0.0.1:$PORT/metrics" || fail "scrape $i failed"
   sleep 1
 done
 cat "$EVIDENCE/metrics_3.txt"
@@ -168,14 +185,17 @@ YML
     > "$EVIDENCE/prometheus.log" 2>&1 &
   PROM_PID=$!
   sleep 25
-  python3 "$HERE/query_prometheus.py" --url http://127.0.0.1:19090 \
+  log "querying Prometheus"
+  timeout -k 5 120 python3 "$HERE/query_prometheus.py" --url http://127.0.0.1:19090 \
     --supported "$EVIDENCE/supported_pages.txt" --out "$EVIDENCE/prometheus_queries.json" \
     || fail "dashboard/alert queries against live Prometheus"
-  kill "$PROM_PID"; PROM_PID=""
+  kill "$PROM_PID"; wait_gone "$PROM_PID" 10 || kill -9 "$PROM_PID"; PROM_PID=""
 fi
 
-kill "$EXPORTER_PID"; wait "$EXPORTER_PID" 2>/dev/null || true; EXPORTER_PID=""
+log "stopping exporter"
+stop_exporter
 
+log "exporter stopped; computing verdict"
 # ---- 6. verdict ----------------------------------------------------------
-python3 "$HERE/check_evidence.py" --evidence "$EVIDENCE" --sg "$SG" \
+timeout -k 5 60 python3 "$HERE/check_evidence.py" --evidence "$EVIDENCE" --sg "$SG" \
   --sg-logs "$(command -v sg_logs)"
