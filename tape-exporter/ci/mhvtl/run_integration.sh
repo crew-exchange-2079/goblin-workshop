@@ -121,9 +121,18 @@ lsscsi -H > "$EVIDENCE/lsscsi_hosts.txt" 2>&1 || true
 # ---- 3. what does the emulator claim to support? (harness, not exporter)
 # LOG SENSE of the Supported Log Pages page (0x00). Read-only, but it is
 # the harness that runs it, outside the exporter's strace.
+# A freshly created drive answers its first command with UNIT ATTENTION
+# (power on/reset), so retry a few times; every attempt is kept.
 set +e
-sg_logs --readonly --page=0x0 "$SG" > "$EVIDENCE/supported_pages.txt" 2>&1
-echo "$?" > "$EVIDENCE/supported_pages.rc"
+for attempt in 1 2 3; do
+  sg_logs --readonly --page=0x0 "$SG" > "$EVIDENCE/supported_pages.txt" 2>&1
+  rc=$?
+  cp "$EVIDENCE/supported_pages.txt" "$EVIDENCE/supported_pages.attempt$attempt.txt"
+  echo "attempt $attempt rc=$rc" >> "$EVIDENCE/supported_pages.attempts"
+  [ "$rc" = 0 ] && break
+  sleep 1
+done
+echo "$rc" > "$EVIDENCE/supported_pages.rc"
 for pg in 0x2 0x3; do
   sg_logs --readonly --page=$pg "$SG" > "$EVIDENCE/harness_sg_logs_$pg.txt" 2>&1
   echo "$?" > "$EVIDENCE/harness_sg_logs_$pg.rc"

@@ -203,6 +203,7 @@ tape_exporter_unreaped_children 0
 | `ok` | page read and its header recognised |
 | `unsupported` | sg_logs exit 5 (illegal request) or 9 (invalid opcode): the drive doesn't support the page. Its counters are **unknown, not zero** |
 | `not_ready` | exit 2, 12 or 13 (sense key NOT READY, incl. standby/unavailable) |
+| `unit_attention` | exit 6: the drive reported UNIT ATTENTION (e.g. after power-on/reset); usually clears on the next scrape |
 | `os_error` | exit 50–96: an OS errno (`50 + errno`), usually from `open()` of the node, e.g. 52 = ENOENT, 63 = EACCES |
 | `file_error` | exit 15 |
 | `device_timeout` | exit 33: the SCSI command timed out inside sg_logs |

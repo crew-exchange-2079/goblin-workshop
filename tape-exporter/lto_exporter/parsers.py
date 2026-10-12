@@ -13,7 +13,7 @@ Sources for every parsed field (public; checked against sg3_utils git
     Parameter codes 0x0-0x6 of the Write (0x2) and Read (0x3) Error Counter
     log pages are defined by T10 SPC ("Error counter log pages").
   * Exit status, include/sg_lib.h: 0 ok, 1 syntax error, 2 not ready,
-    5 illegal request, 9 invalid opcode, 12/13 not ready (standby /
+    5 illegal request, 6 unit attention, 9 invalid opcode, 12/13 not ready (standby /
     unavailable), 15 file error, 33 command timeout, 99 other.
     An open() failure is NOT 15: sg_logs.c returns sg_convert_errno(errno)
     (lib/sg_lib.c), i.e. 50 + errno for errno < 47, else 50. For example a
@@ -52,7 +52,7 @@ _U64_MAX = 2**64 - 1
 
 
 def _sg_exit_status():
-    m = {0: "ok", 1: "syntax_error", 2: "not_ready", 12: "not_ready",
+    m = {0: "ok", 1: "syntax_error", 2: "not_ready", 6: "unit_attention", 12: "not_ready",
          13: "not_ready", 5: "unsupported", 9: "unsupported",
          15: "file_error", 33: "device_timeout"}
     for rc in range(50, 97):

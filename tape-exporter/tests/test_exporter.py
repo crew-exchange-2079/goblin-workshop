@@ -557,7 +557,7 @@ class SgLogsParserTests(unittest.TestCase):
                   9: "unsupported", 12: "not_ready", 13: "not_ready",
                   15: "file_error", 33: "device_timeout",
                   50: "os_error", 52: "os_error", 63: "os_error", 66: "os_error",
-                  96: "os_error", 97: "error", 99: "error", 3: "error", 6: "error"}
+                  96: "os_error", 97: "error", 99: "error", 3: "error", 6: "unit_attention"}
         for rc, status in expect.items():
             self.assertEqual(sg_exit_status(rc), status, rc)
         self.assertNotIn(None, SG_EXIT_STATUS)

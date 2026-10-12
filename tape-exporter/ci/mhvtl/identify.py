@@ -80,7 +80,7 @@ def main():
         ok = stat.S_ISCHR(st.st_mode) and os.major(st.st_rdev) == 21 and dev == m["sg_dev"]
         result["virtual_evidence"] = {
             "scsi_host_proc_name": m["proc_name"],
-            "sysfs_path_is_pseudo_bus": "/pseudo" in m["sysfs_device"],
+            "sysfs_device": m["sysfs_device"],
             "mhvtl_module_loaded": any(l.startswith("mhvtl ") for l in open("/proc/modules")),
         }
     result["ok"] = ok

@@ -25,7 +25,7 @@ COLLECTORS = tuple(f"sg_logs_{d}_errors" for d in DIRECTIONS)
 COLLECTOR_STATUSES = (
     "ok",
     # sg_logs exit status (parsers.SG_EXIT_STATUS)
-    "syntax_error", "not_ready", "unsupported", "file_error", "device_timeout",
+    "syntax_error", "not_ready", "unit_attention", "unsupported", "file_error", "device_timeout",
     "os_error", "error",
     # output parsing
     "parse_error",

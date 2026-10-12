@@ -29,7 +29,9 @@ LTO/SCSI tape drives, via `sg_logs --readonly`.
   device replacement.
 * **Exit-status mapping** checked against sg3_utils source and binary:
   open failures exit `50 + errno` (new `os_error`), not 15 (`file_error`).
-  `open_failed` is gone; `syntax_error` (1) and `not_ready` for 12/13 added.
+  `open_failed` is gone; `syntax_error` (1), `unit_attention` (6) and `not_ready` for 12/13
+  added (the mhvtl run showed a fresh drive answering the first command
+  with UNIT ATTENTION).
 * **Parser fails closed** when the expected header (direction + page code)
   is missing, and no longer attributes lines under another page's header
   (e.g. Verify 0x5) to the requested page.
