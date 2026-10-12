@@ -1,0 +1,2 @@
+Verify error counter page  [0x5]
+  Total uncorrected errors = 7

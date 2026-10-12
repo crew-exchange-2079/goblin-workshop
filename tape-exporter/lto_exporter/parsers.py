@@ -1,19 +1,30 @@
-"""Tolerant parser for sg_logs error-counter page text output.
+"""Strict-header, tolerant-body parser for sg_logs error-counter page text.
 
-Sources for every parsed field (public):
+Sources for every parsed field (public; checked against sg3_utils git
+1929463554c5dc749c5a89bcefb2c88a08d45575 and the Ubuntu 24.04 sg3-utils
+1.46 binary):
   * sg_logs(8), sg3_utils: https://sg.danny.cz/sg/sg_logs.html and
     https://manpages.debian.org/stable/sg3-utils/sg_logs.8.en.html
     The text layout comes from show_error_counter_page() in
     https://github.com/doug-gilbert/sg3_utils/blob/main/src/sg_logs.c :
-    header "<Write|Read> error counter log page  [0xN]" then one line per
-    parameter "  <name> = <decimal>[ [N GB|TB]]".
+    header "<Write|Read> error counter log page  [0xN]" (sg3_utils 1.46
+    prints "... error counter page  [0xN]", without "log"), then one line
+    per parameter "  <name> = <decimal>[ [N GB|TB]]".
     Parameter codes 0x0-0x6 of the Write (0x2) and Read (0x3) Error Counter
     log pages are defined by T10 SPC ("Error counter log pages").
-  * sg3_utils(8) EXIT STATUS / include/sg_lib.h: 0 ok, 2 not ready,
-    5 illegal request, 9 invalid opcode, 15 file error, 33 timeout.
+  * Exit status, include/sg_lib.h: 0 ok, 1 syntax error, 2 not ready,
+    5 illegal request, 9 invalid opcode, 12/13 not ready (standby /
+    unavailable), 15 file error, 33 command timeout, 99 other.
+    An open() failure is NOT 15: sg_logs.c returns sg_convert_errno(errno)
+    (lib/sg_lib.c), i.e. 50 + errno for errno < 47, else 50. For example a
+    missing node exits 52 (ENOENT) and a permission problem 63 (EACCES).
 
-Anything not recognised is ignored. A value that is absent or malformed is
-reported as missing, never as zero.
+Fail closed: output is only accepted if it contains the header of the
+expected page (direction *and* page code). Headerless output, or output
+whose header names another page (e.g. "Verify error counter page [0x5]",
+"Read Reverse error counter page [0x4]"), is a parse_error. Lines under the
+expected header that aren't a known parameter are ignored. A value that is
+absent or malformed is reported as missing, never as zero.
 """
 
 import re
@@ -31,13 +42,29 @@ ERROR_COUNTER_PARAMS = {
 }
 _BY_TEXT = {text.lower(): label for text, label in ERROR_COUNTER_PARAMS.values()}
 PARAM_LABELS = tuple(label for _, label in ERROR_COUNTER_PARAMS.values())
+PAGE_CODES = {"write": 0x2, "read": 0x3}
 
-_HEADER_RE = re.compile(r"^\s*(write|read) error counter(?: log)? page\b", re.I)
-_PARAM_RE = re.compile(r"^\s+(.+?)\s*=\s*([0-9]{1,20})(?:\s+\[[^\]]*\])?\s*$")
+# Any page header: starts at column 0 and ends with "[0xN]" (optional ":").
+_ANY_HEADER_RE = re.compile(r"(\S.*?)\s+\[0x([0-9a-fA-F]{1,2})\]:?\s*")
+_EC_HEADER_RE = re.compile(r"(Write|Read) error counter(?: log)? page", re.I)
+_PARAM_RE = re.compile(r"\s+(.+?)\s*=\s*([0-9]{1,20})(?:\s+\[[^\]\n]*\])?\s*")
 _U64_MAX = 2**64 - 1
 
-SG_EXIT_STATUS = {0: "ok", 2: "not_ready", 5: "unsupported", 9: "unsupported",
-                  15: "open_failed", 33: "device_timeout"}
+
+def _sg_exit_status():
+    m = {0: "ok", 1: "syntax_error", 2: "not_ready", 12: "not_ready",
+         13: "not_ready", 5: "unsupported", 9: "unsupported",
+         15: "file_error", 33: "device_timeout"}
+    for rc in range(50, 97):
+        m[rc] = "os_error"
+    return m
+
+
+SG_EXIT_STATUS = _sg_exit_status()
+
+
+def sg_exit_status(returncode):
+    return SG_EXIT_STATUS.get(returncode, "error")
 
 
 @dataclass
@@ -46,19 +73,27 @@ class ErrorCounterPage:
     values: dict = field(default_factory=dict)   # label -> int (present only)
 
 
+def _is_expected_header(title, code, expected_direction):
+    m = _EC_HEADER_RE.fullmatch(title)
+    return (m is not None and m.group(1).lower() == expected_direction
+            and int(code, 16) == PAGE_CODES[expected_direction])
+
+
 def parse_sg_logs_error_counters(text, expected_direction):
+    if expected_direction not in PAGE_CODES:
+        raise ValueError(f"unknown direction {expected_direction!r}")
     values = {}
     header_seen = False
-    other_header = False
+    in_expected = False
     for line in text.splitlines():
-        m = _HEADER_RE.match(line)
-        if m:
-            other_header = m.group(1).lower() != expected_direction
-            header_seen = header_seen or not other_header
+        h = _ANY_HEADER_RE.fullmatch(line)
+        if h:
+            in_expected = _is_expected_header(h.group(1), h.group(2), expected_direction)
+            header_seen = header_seen or in_expected
             continue
-        if other_header:
+        if not in_expected:
             continue
-        m = _PARAM_RE.match(line)
+        m = _PARAM_RE.fullmatch(line)
         if not m:
             continue
         label = _BY_TEXT.get(m.group(1).lower())
@@ -67,6 +102,6 @@ def parse_sg_logs_error_counters(text, expected_direction):
         val = int(m.group(2))
         if val <= _U64_MAX:
             values[label] = val
-    if not header_seen and not values:
+    if not header_seen:
         return ErrorCounterPage("parse_error")
     return ErrorCounterPage("ok", values)
