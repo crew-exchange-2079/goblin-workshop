@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "synthetic-pdu-compact",
+  "units": "mm",
+  "part": "pdu_mount",
+  "facets": 48,
+  "min_wall_mm": 2.0,
+  "device_length_mm": 160.0,
+  "device_width_mm": 40.0,
+  "device_height_mm": 30.0,
+  "fit_clearance_mm": 0.5,
+  "top_face_keepouts_mm": [
+    [
+      30.0,
+      130.0,
+      4.0,
+      36.0
+    ]
+  ],
+  "side_face_keepouts_mm": [],
+  "base_face_keepouts_mm": [],
+  "keepout_margin_mm": 4.0,
+  "end_clearance_mm": 5.0,
+  "bracket_x_positions_mm": [
+    14.0,
+    146.0
+  ],
+  "bracket_length_mm": 18.0,
+  "base_thickness_mm": 2.5,
+  "wall_thickness_mm": 2.5,
+  "strap_width_mm": 10.0,
+  "strap_thickness_mm": 1.5,
+  "strap_clearance_mm": 0.8,
+  "strap_bar_height_mm": 3.0,
+  "ear_width_mm": 10.0,
+  "mount_screw_clearance_diameter_mm": 3.6,
+  "mount_screw_head_diameter_mm": 7.0,
+  "max_overall_width_mm": 80.0,
+  "max_overall_height_mm": 50.0,
+  "build_plate_x_mm": 180.0,
+  "build_plate_y_mm": 180.0,
+  "build_plate_z_mm": 180.0
+}

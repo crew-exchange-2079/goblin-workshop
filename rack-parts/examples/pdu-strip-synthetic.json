@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "name": "synthetic-pdu-strip-6",
+  "units": "mm",
+  "part": "pdu_mount",
+  "facets": 48,
+  "min_wall_mm": 2.0,
+  "device_length_mm": 300.0,
+  "device_width_mm": 55.0,
+  "device_height_mm": 40.0,
+  "fit_clearance_mm": 0.8,
+  "top_face_keepouts_mm": [
+    [
+      55.0,
+      140.0,
+      5.0,
+      50.0
+    ],
+    [
+      180.0,
+      265.0,
+      5.0,
+      50.0
+    ],
+    [
+      270.0,
+      286.0,
+      15.0,
+      40.0
+    ]
+  ],
+  "side_face_keepouts_mm": [
+    [
+      200.0,
+      260.0,
+      10.0,
+      30.0
+    ]
+  ],
+  "base_face_keepouts_mm": [
+    [
+      5.0,
+      15.0,
+      5.0,
+      50.0
+    ],
+    [
+      285.0,
+      295.0,
+      5.0,
+      50.0
+    ]
+  ],
+  "keepout_margin_mm": 5.0,
+  "end_clearance_mm": 10.0,
+  "bracket_x_positions_mm": [
+    34.0,
+    160.0
+  ],
+  "bracket_length_mm": 24.0,
+  "base_thickness_mm": 3.0,
+  "wall_thickness_mm": 3.0,
+  "strap_width_mm": 12.0,
+  "strap_thickness_mm": 2.0,
+  "strap_clearance_mm": 1.0,
+  "strap_bar_height_mm": 4.0,
+  "ear_width_mm": 12.0,
+  "mount_screw_clearance_diameter_mm": 4.5,
+  "mount_screw_head_diameter_mm": 8.5,
+  "max_overall_width_mm": 110.0,
+  "max_overall_height_mm": 60.0,
+  "build_plate_x_mm": 220.0,
+  "build_plate_y_mm": 220.0,
+  "build_plate_z_mm": 250.0
+}

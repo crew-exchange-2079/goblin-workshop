@@ -13,8 +13,8 @@ SCHEMA_VERSION = 1
 
 # (name, type, min, max, kind, description)
 # type: "number" | "integer" | "bool" | "enum:<a>|<b>" | "name"
-#       | "z_list" | "y_list" | "yz_list" | "xy_list" | "xz_list" | "rect_list"
-# rect_list entries are [a0, a1, b0, b1] rectangles (a0 < a1, b0 < b1; checked in validate.py).
+#       | "z_list" | "y_list" | "x_list" | "yz_list" | "xy_list" | "xz_list" | "rect_list" | "keepout_list"
+# rect_list / keepout_list entries are [a0, a1, b0, b1] rectangles (a0 < a1, b0 < b1; checked in validate.py).
 # For "number", min is exclusive when written as ("gt", value).
 
 COMMON = [
@@ -127,7 +127,7 @@ PANEL_COMMON = [
     ("rail_slot_extra_length_mm", "number", 0, 15, "tolerance",
      "Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole)."),
     ("rail_side_clearance_mm", "number", 0, 10, "tolerance",
-     "Gap kept between the stiffening ribs behind the panel and the inner rail edge."),
+     "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge."),
     ("stiffener_depth_mm", "number", 0, 40, "chosen",
      "Depth of the two horizontal stiffening ribs along the top and bottom edges of the back face (0 = flat plate). "
      "Ribs stop inside the rail opening."),
@@ -214,18 +214,100 @@ SWITCH = [
     ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
 ]
 
+# Rack shelf frame: x centred on the rack centreline, y = 0 at the front face (+y into the rack),
+# z = 0 at the bottom edge of the front plate (the floor's underside is flush with it).
+SHELF = [
+    ("part", "const:rack_shelf", None, None, "label",
+     "Selects a shallow ventilated shelf: a front plate on measured rail holes with a cantilevered floor, "
+     "side walls, optional rear lip and vent slots. Only 10-inch is generated; 19-inch is refused (deferred)."),
+] + PANEL_COMMON[:11] + [
+    ("rack_clear_depth_mm", "number", 20, 1000, "measured",
+     "Free depth behind the panel front face (to rear rails, door, wall or cables) at the shelf's height."),
+    ("shelf_depth_mm", "number", 40, 250, "chosen",
+     "Floor depth behind the front plate. The shelf hangs only from the front rail screws; keep it shallow."),
+    ("floor_thickness_mm", "number", ("gt", 1.0), 10, "chosen", "Floor thickness (at least min_wall_mm)."),
+    ("side_wall_height_mm", "number", 3, 300, "chosen",
+     "Height of the two side walls above the floor top. They are the shelf's main stiffeners."),
+    ("side_wall_thickness_mm", "number", ("gt", 1.0), 10, "chosen", "Side wall (and rear lip) thickness."),
+    ("rear_lip_height_mm", "number", 0, 300, "chosen",
+     "Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm."),
+    ("vent_slot_count", "integer", 0, 40, "chosen", "Number of rounded vent slots through the floor (0 = none)."),
+    ("vent_slot_width_mm", "number", ("gt", 1.0), 20, "chosen", "Width of each vent slot (across the rack)."),
+    ("vent_slot_length_mm", "number", 2, 250, "chosen",
+     "Length of each vent slot along the depth, centred on the floor between front plate and rear lip."),
+    ("vent_slot_pitch_mm", "number", 2, 60, "chosen", "Centre-to-centre spacing of vent slots across the rack."),
+    ("device_width_mm", "number", 10, 500, "measured", "Width of the device that will sit on the shelf."),
+    ("device_depth_mm", "number", 10, 600, "measured", "Depth of that device, including anything sticking out at the back."),
+    ("device_height_mm", "number", 5, 400, "measured", "Height of that device including feet."),
+    ("fit_clearance_mm", "number", 0, 10, "tolerance",
+     "Gap required between the device and each side wall, and between the device and the rear lip."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+    ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
+]
+
+# PDU mount frame (one bracket): x along the strip length, centred on the bracket; y across the strip,
+# centred; z = 0 on the mounting surface. Strip-face rectangles use x measured from the strip's left
+# end (viewed from the face opposite the base, i.e. the "top" face) and the second axis across that face.
+PDU = [
+    ("part", "const:pdu_mount", None, None, "label",
+     "Selects an external strap-retained power-strip/PDU bracket. One bracket is generated; print one per "
+     "entry in bracket_x_positions_mm. Non-electrical accessory: it never touches outlets, switches, vents or "
+     "the cord exit, and needs no change to the strip's case."),
+    ("device_length_mm", "number", 60, 700, "measured", "Strip body length (end to end, excluding cord and plugs)."),
+    ("device_width_mm", "number", 15, 150, "measured", "Strip body width across the face that rests on the bracket base."),
+    ("device_height_mm", "number", 10, 100, "measured", "Strip body height from the face on the base to the opposite (top) face."),
+    ("fit_clearance_mm", "number", 0, 5, "tolerance",
+     "Gap between the strip and each side wall, and between the strip top and the strap slot bottom."),
+    ("top_face_keepouts_mm", "keepout_list", 0, 700, "measured",
+     "Regions on the face opposite the base (usually outlets, switch, LEDs, including plug bodies) as "
+     "[x0, x1, y0, y1]: x from the strip's left end, y across the face from its near (-y) edge. 0-12 rectangles."),
+    ("side_face_keepouts_mm", "keepout_list", 0, 700, "measured",
+     "Regions on either long side face (vents, switch, side outlets, side cord exit) as [x0, x1, z0, z1]: "
+     "z up from the base face. Applied to both sides. 0-12 rectangles."),
+    ("base_face_keepouts_mm", "keepout_list", 0, 700, "measured",
+     "Regions on the face resting on the base (vents, labels you need to read, feet) as [x0, x1, y0, y1]. "
+     "0-12 rectangles."),
+    ("keepout_margin_mm", "number", 0, 30, "tolerance",
+     "Extra distance kept along the strip between each bracket (and its strap) and every keepout region."),
+    ("end_clearance_mm", "number", 0, 150, "measured",
+     "Minimum distance from each bracket to both strip ends (cord exit, strain relief, end switches)."),
+    ("bracket_x_positions_mm", "x_list", 0, 700, "chosen",
+     "Bracket centres along the strip, from its left end. 2-4 values (one bracket would let the strip pivot)."),
+    ("bracket_length_mm", "number", 8, 100, "chosen", "Bracket length along the strip."),
+    ("base_thickness_mm", "number", ("gt", 1.0), 15, "chosen", "Base plate and ear thickness."),
+    ("wall_thickness_mm", "number", ("gt", 1.0), 15, "chosen", "Side wall thickness."),
+    ("strap_width_mm", "number", 3, 60, "measured", "Width of the strap you will use (hook-and-loop, tie)."),
+    ("strap_thickness_mm", "number", ("gt", 0.2), 10, "measured", "Strap thickness."),
+    ("strap_clearance_mm", "number", 0, 5, "tolerance", "Added to strap width and thickness to size the wall slots."),
+    ("strap_bar_height_mm", "number", ("gt", 1.0), 20, "chosen",
+     "Wall material above each strap slot that the strap wraps around."),
+    ("ear_width_mm", "number", 4, 60, "chosen", "Width of the screw ear on each side of the walls."),
+    ("mount_screw_clearance_diameter_mm", "number", ("gt", 1.0), 10, "tolerance",
+     "Through-hole diameter for the mounting screw, one per ear."),
+    ("mount_screw_head_diameter_mm", "number", ("gt", 1.0), 20, "measured",
+     "Mounting screw (or washer) head diameter; it must bear on the ear clear of the wall."),
+    ("max_overall_width_mm", "number", 20, 600, "measured", "Available width on the mounting surface across the strip."),
+    ("max_overall_height_mm", "number", 10, 300, "measured",
+     "Available height off the mounting surface (e.g. gap to a door or side panel), including the strap loop."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+    ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
+]
+
 NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,47}(?![\s\S])"
 
 PARTS = {"rack_bracket": COMMON + BRACKET, "sff_cradle": COMMON + CRADLE,
-         "switch_cradle": COMMON + SWITCH, "blanking_panel": COMMON + BLANKING, "cable_panel": COMMON + CABLE}
+         "switch_cradle": COMMON + SWITCH, "blanking_panel": COMMON + BLANKING, "cable_panel": COMMON + CABLE,
+         "rack_shelf": COMMON + SHELF, "pdu_mount": COMMON + PDU}
 
 # Sanity windows that only catch unit mistakes; NOT standards for 10-inch racks.
 RAIL_SPACING_WINDOW = {"10in": (180.0, 270.0), "19in": (430.0, 500.0)}
 
-LIST_LIMITS = {"z_list": (1, 8), "y_list": (1, 4), "yz_list": (1, 8), "xy_list": (1, 12), "xz_list": (1, 8),
-               "rect_list": (0, 4)}
-SCALAR_LISTS = ("z_list", "y_list")   # lists of numbers; the others are lists of fixed-size lists
-TUPLE_SIZE = {"yz_list": 2, "xy_list": 2, "xz_list": 2, "rect_list": 4}
+LIST_LIMITS = {"z_list": (1, 8), "y_list": (1, 4), "x_list": (2, 4), "yz_list": (1, 8), "xy_list": (1, 12),
+               "xz_list": (1, 8), "rect_list": (0, 4), "keepout_list": (0, 12)}
+SCALAR_LISTS = ("z_list", "y_list", "x_list")   # lists of numbers; the others are lists of fixed-size lists
+TUPLE_SIZE = {"yz_list": 2, "xy_list": 2, "xz_list": 2, "rect_list": 4, "keepout_list": 4}
 
 
 def _number_schema(lo, hi):

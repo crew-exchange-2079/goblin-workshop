@@ -404,28 +404,16 @@ def _seg_dist_h(c1, c2, half):
     return math.hypot(dx, c1[1] - c2[1])
 
 
-FILLET_STEPS = 6  # straight-sided steps used to approximate each quarter-round edge
-
-
-def derive_panel(c):
-    """Blanking or cable panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
-    p = []
-    cable = c["part"] == "cable_panel"
+def _rail_front_checks(c, W, H, p):
+    """Rail-hole checks shared by every part whose front plate screws to the rails (panels, shelf)."""
     fn = c["facets"]
     w = c["min_wall_mm"]
-    W = c["panel_width_mm"]
-    H = c["panel_height_mm"]
-    t = c["panel_thickness_mm"]
     S = c["rail_hole_center_spacing_mm"]
     opening = c["rail_opening_width_mm"]
     rd = hole_d(c["rail_screw_clearance_diameter_mm"], fn)
     rr = rd / 2
     slot = c["rail_slot_extra_length_mm"]
     head = c["rail_screw_head_diameter_mm"]
-    side_clr = c["rail_side_clearance_mm"]
-    rib_depth = c["stiffener_depth_mm"]
-    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
-
     lo, hi = spec.RAIL_SPACING_WINDOW[c["rack_width_class"]]
     if not lo <= S <= hi:
         p.append("rail_hole_center_spacing_mm %g is outside the %s sanity window %g-%g mm "
@@ -450,6 +438,32 @@ def derive_panel(c):
                      "(panel height %g, hole dia %.2f)" % (i, z, H, rd))
     _spacing_ok([(0.0, z) for z in c["rail_hole_z_offsets_mm"]], rd + w, "rail holes", p)
 
+    return rd, rr
+
+
+FILLET_STEPS = 6  # straight-sided steps used to approximate each quarter-round edge
+
+
+def derive_panel(c):
+    """Blanking or cable panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
+    p = []
+    cable = c["part"] == "cable_panel"
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    opening = c["rail_opening_width_mm"]
+    rd = hole_d(c["rail_screw_clearance_diameter_mm"], fn)
+    rr = rd / 2
+    slot = c["rail_slot_extra_length_mm"]
+    head = c["rail_screw_head_diameter_mm"]
+    side_clr = c["rail_side_clearance_mm"]
+    rib_depth = c["stiffener_depth_mm"]
+    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
+
+    _rail_front_checks(c, W, H, p)
     rib_half = opening / 2 - side_clr
     shank_inner = S / 2 - slot / 2 - rr
     if rib_depth > 0:
@@ -713,9 +727,261 @@ def derive_switch(c):
         ),
     }
 
+PHYSICAL_USE = ("UNVALIDATED: geometry only. Not printed, fitted, load-, heat-, fire- or electrically tested; "
+                "no rating of any kind is given or implied.")
+
+
+def derive_shelf(c):
+    """Shallow ventilated 10-inch shelf. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
+    p = []
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    opening = c["rail_opening_width_mm"]
+    slot = c["rail_slot_extra_length_mm"]
+    side_clr = c["rail_side_clearance_mm"]
+    D = c["shelf_depth_mm"]
+    tf = c["floor_thickness_mm"]
+    wall_h = c["side_wall_height_mm"]
+    tw = c["side_wall_thickness_mm"]
+    lip_h = c["rear_lip_height_mm"]
+    lip_t = tw if lip_h > 0 else 0.0
+    clr = c["fit_clearance_mm"]
+
+    if c["rack_width_class"] == "19in":
+        # Deferred, not silently oversized: a ~483 mm one-piece shelf does not fit common build plates and
+        # no bolt-together joint is implemented or geometrically checked here.
+        raise ConfigError(["rack_shelf for 19in racks is deferred and refused: the front plate is too wide for "
+                           "common build plates and no bolt-together split joint is implemented or checked; "
+                           "use rack_width_class 10in or a commercial 19-inch shelf"])
+    rd, rr = _rail_front_checks(c, W, H, p)
+
+    half = opening / 2 - side_clr            # floor/wall outer half-width
+    inner_half = half - tw                   # usable half-width between the walls
+    shank_inner = S / 2 - slot / 2 - rr
+    if inner_half <= w:
+        p.append("rail_opening_width_mm minus rail_side_clearance_mm and side walls leaves no floor")
+    if shank_inner < half - 1e-9:
+        p.append("shelf side wall (half-width %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
+                 % (half, shank_inner))
+    if tf < w - 1e-9 or tw < w - 1e-9:
+        p.append("floor_thickness_mm and side_wall_thickness_mm must be at least min_wall_mm %g" % w)
+    if tf + wall_h > H + 1e-9:
+        p.append("side walls (floor %g + wall %g mm) rise above the front plate (panel_height_mm %g) into the "
+                 "rack space above" % (tf, wall_h, H))
+    if lip_h > wall_h + 1e-9:
+        p.append("rear_lip_height_mm %g exceeds side_wall_height_mm %g" % (lip_h, wall_h))
+    if t + D > c["rack_clear_depth_mm"] + 1e-9:
+        p.append("shelf reaches %.2f mm behind the front face but rack_clear_depth_mm is %g" % (t + D, c["rack_clear_depth_mm"]))
+
+    # the measured device must sit on the floor between the walls, in front of the lip, inside the shelf's units
+    dw, dd, dh = c["device_width_mm"], c["device_depth_mm"], c["device_height_mm"]
+    if dw + 2 * clr > 2 * inner_half + 1e-9:
+        p.append("device does not fit: device_width_mm %g + 2 x fit_clearance_mm needs %.2f mm but the walls "
+                 "leave %.2f mm" % (dw, dw + 2 * clr, 2 * inner_half))
+    if dd + (clr if lip_h > 0 else 0.0) > D - lip_t + 1e-9:
+        p.append("device does not fit: device_depth_mm %g%s exceeds the usable floor depth %.2f mm (no overhang "
+                 "is allowed)" % (dd, " + fit_clearance_mm" if lip_h > 0 else "", D - lip_t))
+    if tf + dh > H + 1e-9:
+        p.append("device top (floor %g + device %g mm) would rise above the shelf's own panel height %g into the "
+                 "rack space above" % (tf, dh, H))
+
+    # floor vents: rounded slots along the depth, centred across the rack
+    n = c["vent_slot_count"]
+    vw = c["vent_slot_width_mm"]
+    vl = c["vent_slot_length_mm"]
+    pitch = c["vent_slot_pitch_mm"]
+    vents = []
+    if n > 0:
+        if vl < vw - 1e-9:
+            p.append("vent_slot_length_mm must be at least vent_slot_width_mm")
+        if n > 1 and pitch - vw < w - 1e-9:
+            p.append("vent slots %g mm wide at %g mm pitch leave less than min_wall_mm between them" % (vw, pitch))
+        span = (n - 1) * pitch + vw
+        if span > 2 * inner_half - 2 * w + 1e-9:
+            p.append("vent slots span %.2f mm but only %.2f mm fits between the side walls with min_wall_mm"
+                     % (span, 2 * inner_half - 2 * w))
+        y_mid = t + (D - lip_t) / 2
+        vy0, vy1 = y_mid - vl / 2, y_mid + vl / 2
+        if vy0 < t + w - 1e-9 or vy1 > t + D - lip_t - w + 1e-9:
+            p.append("vent slots (length %g) leave less than min_wall_mm to the front plate / rear edge" % vl)
+        for k in range(n):
+            vents.append([(k - (n - 1) / 2) * pitch, vy0, vy1])
+
+    # printing: either front face down (floor and walls stand up) or floor down (front plate stands up)
+    Z = c["build_plate_z_mm"]
+    orients = []
+    if _fits_plate(W, H, c) and t + D <= Z + 1e-9:
+        orients.append("front_face_down")
+    if _fits_plate(W, t + D, c) and H <= Z + 1e-9:
+        orients.append("floor_down")
+    if not orients:
+        p.append("shelf (%g wide x %g deep x %g tall) fits the %g x %g x %g mm build volume in neither "
+                 "front-face-down nor floor-down orientation; no split is produced"
+                 % (W, t + D, H, c["build_plate_x_mm"], c["build_plate_y_mm"], Z))
+    if p:
+        raise ConfigError(p)
+
+    orient = "UNVALIDATED suggestion: "
+    if "front_face_down" in orients:
+        orient += ("print front face down (rotate so -y points to the bed): the floor and walls grow straight up, "
+                   "vent slots become vertical slots with short rounded tops, and the front gets the bed finish. ")
+    else:
+        orient += "front-face-down does not fit your build volume. "
+    if "floor_down" in orients:
+        orient += ("Floor down (as modelled) also fits; rail holes are then horizontal holes in a standing plate. ")
+    orient += "Not tested on any physical printer."
+    return {
+        "module": "rack_shelf",
+        "args": {
+            "w": W, "h": H, "t": t, "hole_x": S / 2, "hole_zs": list(c["rail_hole_z_offsets_mm"]),
+            "rail_d": rd, "slot_len": slot, "half": half, "depth": D, "t_floor": tf, "wall_h": wall_h,
+            "t_wall": tw, "lip_h": lip_h, "vents": vents, "vent_w": vw, "fn": c["facets"],
+        },
+        "derived": {
+            "front_plate_mm": [W, H],
+            "overall_depth_mm": t + D,
+            "rail_hole_x_mm": [-S / 2, S / 2],
+            "modelled_rail_hole_diameter_mm": rd,
+            "floor_outer_width_mm": 2 * half,
+            "usable_width_between_walls_mm": 2 * inner_half,
+            "usable_floor_depth_mm": D - lip_t,
+            "clear_height_above_floor_within_panel_mm": H - tf,
+            "printable_orientations": orients,
+            "build_volume_mm": [c["build_plate_x_mm"], c["build_plate_y_mm"], Z],
+        },
+        "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, t + D, H]},
+        "print_orientation_suggestion": orient,
+        "physical_use": {
+            "status": PHYSICAL_USE,
+            "required_before_use": [
+                "Fit coupon: first print a blanking_panel with identical rail_* and panel_* values (stiffener_depth_mm "
+                "0) and confirm it screws to your rails without forcing.",
+                "Owner inspection: print the shelf, look for layer splits at the front-plate/floor/wall joints, and "
+                "test it empty, then with the device, before leaving anything on it unattended.",
+                "The shelf hangs only from the front rail screws (cantilever). No load rating exists; keep heavy "
+                "or hot devices off it.",
+            ],
+        },
+    }
+
+
+def derive_pdu(c):
+    """One strap-retained power-strip bracket. Frame: x along the strip (bracket centred), y across, z up."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    Ld = c["device_length_mm"]
+    dw, dh = c["device_width_mm"], c["device_height_mm"]
+    clr = c["fit_clearance_mm"]
+    L = c["bracket_length_mm"]
+    tb = c["base_thickness_mm"]
+    tw = c["wall_thickness_mm"]
+    s_len = c["strap_width_mm"] + c["strap_clearance_mm"]
+    s_h = c["strap_thickness_mm"] + c["strap_clearance_mm"]
+    bar = c["strap_bar_height_mm"]
+    ear = c["ear_width_mm"]
+    hd = hole_d(c["mount_screw_clearance_diameter_mm"], fn)
+    head = c["mount_screw_head_diameter_mm"]
+    margin = c["keepout_margin_mm"]
+    end_clr = c["end_clearance_mm"]
+
+    inner_w = dw + 2 * clr
+    outer_w = inner_w + 2 * tw + 2 * ear
+    z_slot = tb + dh + clr                  # strap slot bottom: the strap only touches the top face
+    wall_h = z_slot + s_h + bar
+    hole_y = inner_w / 2 + tw + ear / 2     # ear hole centre, both sides
+
+    if tb < w - 1e-9 or tw < w - 1e-9 or bar < w - 1e-9:
+        p.append("base_thickness_mm, wall_thickness_mm and strap_bar_height_mm must be at least min_wall_mm %g" % w)
+    if s_len > L - 2 * w + 1e-9:
+        p.append("strap slot %.2f mm (strap width + clearance) leaves less than min_wall_mm of wall at the bracket "
+                 "ends (bracket_length_mm %g)" % (s_len, L))
+    if head < c["mount_screw_clearance_diameter_mm"]:
+        p.append("mount_screw_head_diameter_mm must be at least mount_screw_clearance_diameter_mm")
+    if head > ear + 1e-9 or head > L + 1e-9:
+        p.append("unsafe screw clearance: a %g mm screw head does not bear fully on the %g x %g mm ear clear of "
+                 "the wall" % (head, ear, L))
+    if ear / 2 - hd / 2 < w - 1e-9 or L / 2 - hd / 2 < w - 1e-9:
+        p.append("mount screw hole (%.2f mm) leaves less than min_wall_mm in the ear" % hd)
+
+    # keepouts: the bracket, its walls and its strap cover the strip's whole cross-section along [x0, x1]
+    faces = (("top_face_keepouts_mm", dw, "outlet/top"), ("side_face_keepouts_mm", dh, "side"),
+             ("base_face_keepouts_mm", dw, "base"))
+    keepouts = []
+    for key, across, label in faces:
+        for i, (x0, x1, a0, a1) in enumerate(_rects(key, c[key], p)):
+            if x0 < -1e-9 or x1 > Ld + 1e-9 or a0 < -1e-9 or a1 > across + 1e-9:
+                p.append("%s[%d] lies outside the %g x %g mm face" % (key, i, Ld, across))
+            keepouts.append((key, i, label, x0, x1))
+    spans = []
+    for i, xc in enumerate(c["bracket_x_positions_mm"]):
+        x0, x1 = xc - L / 2, xc + L / 2
+        spans.append((x0, x1))
+        if x0 < end_clr - 1e-9 or x1 > Ld - end_clr + 1e-9:
+            p.append("cord/end clearance: bracket %d (x %.2f..%.2f) is closer than end_clearance_mm %g to a strip "
+                     "end (length %g)" % (i, x0, x1, end_clr, Ld))
+        for key, k, label, k0, k1 in keepouts:
+            if _overlap(x0, x1, k0, k1, margin):
+                p.append("keepout violated: bracket %d and its strap (x %.2f..%.2f) come within keepout_margin_mm "
+                         "%g of %s[%d] (x %g..%g, %s face)" % (i, x0, x1, margin, key, k, k0, k1, label))
+    for i in range(len(spans)):
+        for j in range(i + 1, len(spans)):
+            if _overlap(spans[i][0], spans[i][1], spans[j][0], spans[j][1]):
+                p.append("brackets %d and %d overlap along the strip" % (i, j))
+
+    if outer_w > c["max_overall_width_mm"] + 1e-9:
+        p.append("bracket width %.2f exceeds max_overall_width_mm %g" % (outer_w, c["max_overall_width_mm"]))
+    strap_top = wall_h + c["strap_thickness_mm"]
+    if strap_top > c["max_overall_height_mm"] + 1e-9:
+        p.append("bracket height with the strap looped over the bar (%.2f) exceeds max_overall_height_mm %g"
+                 % (strap_top, c["max_overall_height_mm"]))
+    if not (_fits_plate(L, outer_w, c) and wall_h <= c["build_plate_z_mm"] + 1e-9):
+        p.append("bracket %.2f x %.2f x %.2f mm does not fit the %g x %g x %g mm build volume base-down"
+                 % (L, outer_w, wall_h, c["build_plate_x_mm"], c["build_plate_y_mm"], c["build_plate_z_mm"]))
+    if p:
+        raise ConfigError(p)
+    n = len(c["bracket_x_positions_mm"])
+    return {
+        "module": "pdu_mount",
+        "args": {
+            "length": L, "inner_w": inner_w, "t_base": tb, "t_wall": tw, "ear": ear, "wall_h": wall_h,
+            "slot_z0": z_slot, "slot_len": s_len, "slot_h": s_h, "hole_y": hole_y, "hole_d": hd, "fn": fn,
+        },
+        "derived": {
+            "brackets_to_print": n,
+            "bracket_spans_along_strip_mm": [list(sp) for sp in spans],
+            "inner_width_mm": inner_w,
+            "outer_width_mm": outer_w,
+            "overall_height_mm": wall_h,
+            "height_with_strap_loop_mm": strap_top,
+            "strap_slot_mm": [s_len, s_h],
+            "strap_slot_bottom_z_mm": z_slot,
+            "mount_hole_y_mm": [-hole_y, hole_y],
+            "modelled_mount_hole_diameter_mm": hd,
+        },
+        "expected_bbox": {"min": [-L / 2, -outer_w / 2, 0.0], "max": [L / 2, outer_w / 2, wall_h]},
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print %d copies base-down as modelled. The strap slot tops are %.1f mm "
+            "bridges. Not tested on any physical printer." % (n, s_len)),
+        "physical_use": {
+            "status": PHYSICAL_USE + " Non-electrical accessory: it does not open, drill, cover or modify the strip.",
+            "required_before_use": [
+                "Fit coupon: print ONE bracket first, seat the unplugged strip in it, strap it, and confirm the strip "
+                "is not squeezed, every outlet/switch/vent stays uncovered and the cord exit is free.",
+                "Owner inspection: with plugs inserted, check that no plug body, cord or strap is pinched or bent "
+                "against the bracket; re-check after a few days (straps creep).",
+                "Mount only to a surface and with screws you have judged suitable; no holding force is rated.",
+            ],
+        },
+    }
+
 
 DERIVE = {"rack_bracket": derive_bracket, "sff_cradle": derive_cradle, "switch_cradle": derive_switch,
-          "blanking_panel": derive_panel, "cable_panel": derive_panel}
+          "blanking_panel": derive_panel, "cable_panel": derive_panel,
+          "rack_shelf": derive_shelf, "pdu_mount": derive_pdu}
 
 
 def validate(data):

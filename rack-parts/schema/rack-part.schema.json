@@ -919,7 +919,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 10,
-          "description": "Gap kept between the stiffening ribs behind the panel and the inner rail edge.",
+          "description": "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge.",
           "x-kind": "tolerance"
         },
         "stiffener_depth_mm": {
@@ -1109,7 +1109,7 @@
           "type": "number",
           "minimum": 0,
           "maximum": 10,
-          "description": "Gap kept between the stiffening ribs behind the panel and the inner rail edge.",
+          "description": "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge.",
           "x-kind": "tolerance"
         },
         "stiffener_depth_mm": {
@@ -1188,6 +1188,576 @@
           "minimum": 1,
           "maximum": 150,
           "description": "Largest connector or cable bundle diameter that must pass through; the opening neck must be at least this tall.",
+          "x-kind": "measured"
+        }
+      }
+    },
+    {
+      "title": "rack_shelf",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "rack_width_class",
+        "rail_hole_center_spacing_mm",
+        "rail_opening_width_mm",
+        "panel_width_mm",
+        "panel_height_mm",
+        "panel_thickness_mm",
+        "rail_hole_z_offsets_mm",
+        "rail_screw_clearance_diameter_mm",
+        "rail_screw_head_diameter_mm",
+        "rail_slot_extra_length_mm",
+        "rail_side_clearance_mm",
+        "rack_clear_depth_mm",
+        "shelf_depth_mm",
+        "floor_thickness_mm",
+        "side_wall_height_mm",
+        "side_wall_thickness_mm",
+        "rear_lip_height_mm",
+        "vent_slot_count",
+        "vent_slot_width_mm",
+        "vent_slot_length_mm",
+        "vent_slot_pitch_mm",
+        "device_width_mm",
+        "device_depth_mm",
+        "device_height_mm",
+        "fit_clearance_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm",
+        "build_plate_z_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "rack_shelf",
+          "description": "Selects a shallow ventilated shelf: a front plate on measured rail holes with a cantilevered floor, side walls, optional rear lip and vent slots. Only 10-inch is generated; 19-inch is refused (deferred).",
+          "x-kind": "label"
+        },
+        "rack_width_class": {
+          "type": "string",
+          "enum": [
+            "10in",
+            "19in"
+          ],
+          "description": "Only selects a sanity window for rail_hole_center_spacing_mm (catches inch/mm mix-ups). It does not supply any dimension; there is no universal 10-inch hole pattern.",
+          "x-kind": "label"
+        },
+        "rail_hole_center_spacing_mm": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 520,
+          "description": "Horizontal centre-to-centre distance between the left and right rail mounting holes.",
+          "x-kind": "measured"
+        },
+        "rail_opening_width_mm": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 500,
+          "description": "Clear horizontal opening between the inner edges of the rails over the depth the panel's stiffeners occupy.",
+          "x-kind": "measured"
+        },
+        "panel_width_mm": {
+          "type": "number",
+          "minimum": 120,
+          "maximum": 520,
+          "description": "Overall panel width: the space available in front of the rails (19-inch nominal 482.6; 10-inch: measure).",
+          "x-kind": "measured"
+        },
+        "panel_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 400,
+          "description": "Panel height. Usually a little under n x 44.45 mm so neighbouring panels do not touch.",
+          "x-kind": "chosen"
+        },
+        "panel_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Front plate thickness.",
+          "x-kind": "chosen"
+        },
+        "rail_hole_z_offsets_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Rail hole centres used, measured upward from the panel bottom edge as it will sit in the rack. The same heights are used on the left and right rail. 1-8 values.",
+          "x-kind": "measured"
+        },
+        "rail_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Through-hole diameter for the rack screw (screw major diameter + your clearance).",
+          "x-kind": "tolerance"
+        },
+        "rail_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 25,
+          "description": "Rack screw (or washer) head diameter; the head must bear fully on the panel.",
+          "x-kind": "measured"
+        },
+        "rail_slot_extra_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole).",
+          "x-kind": "tolerance"
+        },
+        "rail_side_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge.",
+          "x-kind": "tolerance"
+        },
+        "rack_clear_depth_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Free depth behind the panel front face (to rear rails, door, wall or cables) at the shelf's height.",
+          "x-kind": "measured"
+        },
+        "shelf_depth_mm": {
+          "type": "number",
+          "minimum": 40,
+          "maximum": 250,
+          "description": "Floor depth behind the front plate. The shelf hangs only from the front rail screws; keep it shallow.",
+          "x-kind": "chosen"
+        },
+        "floor_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Floor thickness (at least min_wall_mm).",
+          "x-kind": "chosen"
+        },
+        "side_wall_height_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 300,
+          "description": "Height of the two side walls above the floor top. They are the shelf's main stiffeners.",
+          "x-kind": "chosen"
+        },
+        "side_wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Side wall (and rear lip) thickness.",
+          "x-kind": "chosen"
+        },
+        "rear_lip_height_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 300,
+          "description": "Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm.",
+          "x-kind": "chosen"
+        },
+        "vent_slot_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Number of rounded vent slots through the floor (0 = none).",
+          "x-kind": "chosen"
+        },
+        "vent_slot_width_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Width of each vent slot (across the rack).",
+          "x-kind": "chosen"
+        },
+        "vent_slot_length_mm": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 250,
+          "description": "Length of each vent slot along the depth, centred on the floor between front plate and rear lip.",
+          "x-kind": "chosen"
+        },
+        "vent_slot_pitch_mm": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 60,
+          "description": "Centre-to-centre spacing of vent slots across the rack.",
+          "x-kind": "chosen"
+        },
+        "device_width_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 500,
+          "description": "Width of the device that will sit on the shelf.",
+          "x-kind": "measured"
+        },
+        "device_depth_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Depth of that device, including anything sticking out at the back.",
+          "x-kind": "measured"
+        },
+        "device_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 400,
+          "description": "Height of that device including feet.",
+          "x-kind": "measured"
+        },
+        "fit_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap required between the device and each side wall, and between the device and the rear lip.",
+          "x-kind": "tolerance"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        },
+        "build_plate_z_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Usable build height.",
+          "x-kind": "measured"
+        }
+      }
+    },
+    {
+      "title": "pdu_mount",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "device_length_mm",
+        "device_width_mm",
+        "device_height_mm",
+        "fit_clearance_mm",
+        "top_face_keepouts_mm",
+        "side_face_keepouts_mm",
+        "base_face_keepouts_mm",
+        "keepout_margin_mm",
+        "end_clearance_mm",
+        "bracket_x_positions_mm",
+        "bracket_length_mm",
+        "base_thickness_mm",
+        "wall_thickness_mm",
+        "strap_width_mm",
+        "strap_thickness_mm",
+        "strap_clearance_mm",
+        "strap_bar_height_mm",
+        "ear_width_mm",
+        "mount_screw_clearance_diameter_mm",
+        "mount_screw_head_diameter_mm",
+        "max_overall_width_mm",
+        "max_overall_height_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm",
+        "build_plate_z_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "pdu_mount",
+          "description": "Selects an external strap-retained power-strip/PDU bracket. One bracket is generated; print one per entry in bracket_x_positions_mm. Non-electrical accessory: it never touches outlets, switches, vents or the cord exit, and needs no change to the strip's case.",
+          "x-kind": "label"
+        },
+        "device_length_mm": {
+          "type": "number",
+          "minimum": 60,
+          "maximum": 700,
+          "description": "Strip body length (end to end, excluding cord and plugs).",
+          "x-kind": "measured"
+        },
+        "device_width_mm": {
+          "type": "number",
+          "minimum": 15,
+          "maximum": 150,
+          "description": "Strip body width across the face that rests on the bracket base.",
+          "x-kind": "measured"
+        },
+        "device_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 100,
+          "description": "Strip body height from the face on the base to the opposite (top) face.",
+          "x-kind": "measured"
+        },
+        "fit_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Gap between the strip and each side wall, and between the strip top and the strap slot bottom.",
+          "x-kind": "tolerance"
+        },
+        "top_face_keepouts_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 700
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": "Regions on the face opposite the base (usually outlets, switch, LEDs, including plug bodies) as [x0, x1, y0, y1]: x from the strip's left end, y across the face from its near (-y) edge. 0-12 rectangles.",
+          "x-kind": "measured"
+        },
+        "side_face_keepouts_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 700
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": "Regions on either long side face (vents, switch, side outlets, side cord exit) as [x0, x1, z0, z1]: z up from the base face. Applied to both sides. 0-12 rectangles.",
+          "x-kind": "measured"
+        },
+        "base_face_keepouts_mm": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 700
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": "Regions on the face resting on the base (vents, labels you need to read, feet) as [x0, x1, y0, y1]. 0-12 rectangles.",
+          "x-kind": "measured"
+        },
+        "keepout_margin_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "Extra distance kept along the strip between each bracket (and its strap) and every keepout region.",
+          "x-kind": "tolerance"
+        },
+        "end_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 150,
+          "description": "Minimum distance from each bracket to both strip ends (cord exit, strain relief, end switches).",
+          "x-kind": "measured"
+        },
+        "bracket_x_positions_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 700
+          },
+          "minItems": 2,
+          "maxItems": 4,
+          "description": "Bracket centres along the strip, from its left end. 2-4 values (one bracket would let the strip pivot).",
+          "x-kind": "chosen"
+        },
+        "bracket_length_mm": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 100,
+          "description": "Bracket length along the strip.",
+          "x-kind": "chosen"
+        },
+        "base_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 15,
+          "description": "Base plate and ear thickness.",
+          "x-kind": "chosen"
+        },
+        "wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 15,
+          "description": "Side wall thickness.",
+          "x-kind": "chosen"
+        },
+        "strap_width_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 60,
+          "description": "Width of the strap you will use (hook-and-loop, tie).",
+          "x-kind": "measured"
+        },
+        "strap_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.2,
+          "maximum": 10,
+          "description": "Strap thickness.",
+          "x-kind": "measured"
+        },
+        "strap_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Added to strap width and thickness to size the wall slots.",
+          "x-kind": "tolerance"
+        },
+        "strap_bar_height_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Wall material above each strap slot that the strap wraps around.",
+          "x-kind": "chosen"
+        },
+        "ear_width_mm": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 60,
+          "description": "Width of the screw ear on each side of the walls.",
+          "x-kind": "chosen"
+        },
+        "mount_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Through-hole diameter for the mounting screw, one per ear.",
+          "x-kind": "tolerance"
+        },
+        "mount_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Mounting screw (or washer) head diameter; it must bear on the ear clear of the wall.",
+          "x-kind": "measured"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 600,
+          "description": "Available width on the mounting surface across the strip.",
+          "x-kind": "measured"
+        },
+        "max_overall_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Available height off the mounting surface (e.g. gap to a door or side panel), including the strap loop.",
+          "x-kind": "measured"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        },
+        "build_plate_z_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Usable build height.",
           "x-kind": "measured"
         }
       }
