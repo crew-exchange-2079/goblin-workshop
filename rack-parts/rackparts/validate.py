@@ -144,6 +144,9 @@ def check_fields(data):
         elif ftype == "name":
             if not isinstance(v, str) or not NAME_RE.fullmatch(v):
                 problems.append("name must be 1-48 chars of [a-z0-9-], starting with a letter or digit")
+        elif ftype == "bool":
+            if not isinstance(v, bool):
+                problems.append("%s must be true or false" % name)
         elif ftype == "integer":
             if not isinstance(v, int) or isinstance(v, bool):
                 problems.append("%s must be an integer" % name)
@@ -157,10 +160,10 @@ def check_fields(data):
                 problems.append("%s must be a list of %d-%d entries" % (name, n_lo, n_hi))
                 continue
             for i, item in enumerate(v):
-                if ftype == "z_list":
+                if ftype in spec.SCALAR_LISTS:
                     _check_num("%s[%d]" % (name, i), item, lo, hi, problems)
-                elif not isinstance(item, list) or len(item) != 2:
-                    problems.append("%s[%d] must be a 2-element list" % (name, i))
+                elif not isinstance(item, list) or len(item) != spec.TUPLE_SIZE[ftype]:
+                    problems.append("%s[%d] must be a %d-element list" % (name, i, spec.TUPLE_SIZE[ftype]))
                 else:
                     for j, c in enumerate(item):
                         _check_num("%s[%d][%d]" % (name, i, j), c, lo, hi, problems)
@@ -369,8 +372,352 @@ def derive_cradle(c):
     }
 
 
+def _fits_plate(a, b, c):
+    """True if an a x b footprint fits the build plate in either rotation."""
+    px, py = c["build_plate_x_mm"], c["build_plate_y_mm"]
+    return (a <= px + 1e-9 and b <= py + 1e-9) or (a <= py + 1e-9 and b <= px + 1e-9)
+
+
+def _rects(name, rects, problems):
+    out = []
+    for i, (a0, a1, b0, b1) in enumerate(rects):
+        if not (a0 < a1 and b0 < b1):
+            problems.append("%s[%d] must be [lo, hi, lo, hi] with lo < hi in both axes" % (name, i))
+        out.append((a0, a1, b0, b1))
+    return out
+
+
+def _overlap(a0, a1, b0, b1, gap=0.0):
+    """Open intervals [a0,a1] and [b0,b1] are closer than ``gap`` (overlap if gap == 0)."""
+    return a0 < b1 + gap - 1e-9 and b0 < a1 + gap - 1e-9
+
+
+def _point_rect_dist(px, py, x0, x1, y0, y1):
+    dx = max(x0 - px, 0.0, px - x1)
+    dy = max(y0 - py, 0.0, py - y1)
+    return math.hypot(dx, dy)
+
+
+def _seg_dist_h(c1, c2, half):
+    """Distance between two horizontal segments of half-length ``half`` centred at c1, c2 (x, z)."""
+    dx = max(0.0, abs(c1[0] - c2[0]) - 2 * half)
+    return math.hypot(dx, c1[1] - c2[1])
+
+
+FILLET_STEPS = 6  # straight-sided steps used to approximate each quarter-round edge
+
+
+def derive_panel(c):
+    """Blanking or cable panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
+    p = []
+    cable = c["part"] == "cable_panel"
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    opening = c["rail_opening_width_mm"]
+    rd = hole_d(c["rail_screw_clearance_diameter_mm"], fn)
+    rr = rd / 2
+    slot = c["rail_slot_extra_length_mm"]
+    head = c["rail_screw_head_diameter_mm"]
+    side_clr = c["rail_side_clearance_mm"]
+    rib_depth = c["stiffener_depth_mm"]
+    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
+
+    lo, hi = spec.RAIL_SPACING_WINDOW[c["rack_width_class"]]
+    if not lo <= S <= hi:
+        p.append("rail_hole_center_spacing_mm %g is outside the %s sanity window %g-%g mm "
+                 "(check units; this window is not a standard)" % (S, c["rack_width_class"], lo, hi))
+    if S <= opening:
+        p.append("rail_hole_center_spacing_mm (%g) must exceed rail_opening_width_mm (%g): "
+                 "holes are in the rails, outside the opening" % (S, opening))
+    if W <= opening:
+        p.append("panel_width_mm (%g) must exceed rail_opening_width_mm (%g) so the panel covers the rails"
+                 % (W, opening))
+    if head < c["rail_screw_clearance_diameter_mm"]:
+        p.append("rail_screw_head_diameter_mm must be at least rail_screw_clearance_diameter_mm")
+    outer_hole_edge = S / 2 + slot / 2 + max(head / 2, rr + w)
+    if outer_hole_edge > W / 2 + 1e-9:
+        p.append("rail hole/head at x=+-%.2f reaches %.2f mm from the centre but the panel half-width is %.2f "
+                 "(needs head bearing and min_wall_mm to the side edge)" % (S / 2, outer_hole_edge, W / 2))
+    for i, z in enumerate(c["rail_hole_z_offsets_mm"]):
+        # Vertically only hole + min_wall is required: on 1U EIA spacing a 12 mm head overhangs the edge
+        # slightly, as it does on commercial panels. Horizontally the head must bear fully (checked above).
+        if z - rr < w - 1e-9 or z + rr > H - w + 1e-9:
+            p.append("rail_hole_z_offsets_mm[%d]=%g leaves less than min_wall_mm to the panel edge "
+                     "(panel height %g, hole dia %.2f)" % (i, z, H, rd))
+    _spacing_ok([(0.0, z) for z in c["rail_hole_z_offsets_mm"]], rd + w, "rail holes", p)
+
+    rib_half = opening / 2 - side_clr
+    shank_inner = S / 2 - slot / 2 - rr
+    if rib_depth > 0:
+        if rib_half <= 0:
+            p.append("rail_side_clearance_mm leaves no room for stiffeners inside the rail opening")
+        if shank_inner < rib_half - 1e-9:
+            p.append("stiffener (half-width %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
+                     % (rib_half, shank_inner))
+        if rib_t < w - 1e-9:
+            p.append("stiffener_thickness_mm %g is thinner than min_wall_mm %g" % (rib_t, w))
+        if 2 * rib_t > H - w + 1e-9:
+            p.append("two stiffeners of %g mm leave less than min_wall_mm of open height in a %g mm panel" % (rib_t, H))
+
+    cuts = []
+    cut_len = cut_h = fillet = 0.0
+    face = {}
+    if cable:
+        cut_len = c["pass_through_width_mm"]
+        cut_h = c["pass_through_height_mm"]
+        fillet = c["pass_through_edge_radius_mm"]
+        if cut_h > cut_len + 1e-9:
+            p.append("pass_through_height_mm (%g) must not exceed pass_through_width_mm (%g)" % (cut_h, cut_len))
+        if 2 * fillet > t + 1e-9:
+            p.append("pass_through_edge_radius_mm %g is more than half the panel thickness %g" % (fillet, t))
+        if cut_h < c["cable_bundle_diameter_mm"] - 1e-9:
+            p.append("obstructed cable path: pass_through_height_mm %g is smaller than cable_bundle_diameter_mm %g"
+                     % (cut_h, c["cable_bundle_diameter_mm"]))
+        cut_h_m = hole_d(cut_h, fn)             # modelled so the polygon still clears cut_h
+        R = cut_h_m / 2 + fillet                # half-height of the opening on each face
+        half = max(cut_len - cut_h_m, 0.0) / 2  # half-length of the stadium's straight part
+        x_lim = min(rib_half if rib_depth > 0 else opening / 2 - side_clr,
+                    S / 2 - slot / 2 - head / 2 - w)
+        z_lo = (rib_t if rib_depth > 0 else 0.0) + w
+        z_hi = H - z_lo
+        for i, (x, z) in enumerate(c["pass_through_centers_mm"]):
+            cuts.append([x, z])
+            if abs(x) + half + R > x_lim + 1e-9:
+                p.append("pass-through %d (x=%g) reaches %.2f mm from the centre; it must stay within %.2f mm "
+                         "(inside the rail opening minus rail_side_clearance_mm, and min_wall_mm from screw heads)"
+                         % (i, x, abs(x) + half + R, x_lim))
+            if z - R < z_lo - 1e-9 or z + R > z_hi + 1e-9:
+                p.append("pass-through %d (z=%g, face height %.2f) must stay between z=%.2f and z=%.2f "
+                         "(panel edges/stiffeners + min_wall_mm)" % (i, z, 2 * R, z_lo, z_hi))
+        for i in range(len(cuts)):
+            for j in range(i + 1, len(cuts)):
+                gap = _seg_dist_h(cuts[i], cuts[j], half) - 2 * R
+                if gap < w - 1e-9:
+                    p.append("pass-throughs %d and %d leave %.2f mm of material between them on the face; "
+                             "need >= min_wall_mm %g" % (i, j, gap, w))
+        face = {"pass_through_face_width_mm": 2 * (half + R), "pass_through_face_height_mm": 2 * R}
+
+    fits = _fits_plate(W, H, c)
+    if not fits and not c["allow_oversize_print"]:
+        p.append("panel face %g x %g mm does not fit the %g x %g mm build plate in either rotation; set "
+                 "allow_oversize_print to true to generate it anyway (no split is produced)"
+                 % (W, H, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    if p:
+        raise ConfigError(p)
+
+    depth = t + rib_depth
+    derived = {
+        "panel_face_mm": [W, H],
+        "overall_depth_mm": depth,
+        "rail_hole_x_mm": [-S / 2, S / 2],
+        "modelled_rail_hole_diameter_mm": rd,
+        "stiffener_half_width_mm": rib_half if rib_depth > 0 else 0.0,
+        "fits_build_plate": fits,
+        "build_plate_mm": [c["build_plate_x_mm"], c["build_plate_y_mm"]],
+    }
+    derived.update(face)
+    if cable:
+        derived["modelled_pass_through_neck_height_mm"] = hole_d(cut_h, fn)
+        derived["fillet_steps"] = FILLET_STEPS
+    orient = ("UNVALIDATED suggestion: print front face down (rotate so -y points to the bed); stiffeners then "
+              "point up and need no supports, and the face gets the smooth bed finish. ")
+    if cable:
+        orient += ("The far-side rounded edge of each pass-through is a shallow overhang; most slicers print it "
+                   "without supports but check the preview. ")
+    if not fits:
+        orient += ("WARNING: the %g x %g mm face does NOT fit the stated %g x %g mm build plate; this STL is one "
+                   "piece and cannot be printed on that printer. No modular joint is provided. " %
+                   (W, H, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    orient += "Not tested on any physical printer."
+    return {
+        "module": "rack_panel",
+        "args": {
+            "w": W, "h": H, "t": t, "hole_x": S / 2, "hole_zs": list(c["rail_hole_z_offsets_mm"]),
+            "rail_d": rd, "slot_len": slot, "rib_half": rib_half, "rib_depth": rib_depth, "rib_t": rib_t,
+            "cuts": cuts, "cut_len": cut_len, "cut_h": hole_d(cut_h, fn) if cable else 0.0,
+            "fillet": fillet, "steps": FILLET_STEPS, "fn": fn,
+        },
+        "derived": derived,
+        "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, depth, H]},
+        "print_orientation_suggestion": orient,
+    }
+
+
+def derive_switch(c):
+    """Switch cradle frame: x centred, y = 0 at the cradle front edge, z = 0 at the base bottom."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    tb = c["base_thickness_mm"]
+    tw = c["wall_thickness_mm"]
+    clr = c["fit_clearance_mm"]
+    dw, dh, dd = c["device_width_mm"], c["device_height_mm"], c["device_depth_mm"]
+    inner_w = dw + 2 * clr
+    outer_w = inner_w + 2 * tw
+    L = dd + 2 * clr + 2 * tw               # stop tabs (wall_thickness deep) at both ends
+    y_dev = tw + clr                        # device front face, cradle y
+    tab_w = c["stop_tab_width_mm"]
+    tab_h = c["stop_tab_height_mm"]
+    s_len = c["strap_slot_length_mm"]
+    s_h = c["strap_slot_height_mm"]
+    bar = c["strap_bar_height_mm"]
+    z_slot = tb + dh + clr                  # strap slot bottom
+    wall_h = z_slot + s_h + bar
+    hd = hole_d(c["shelf_screw_clearance_diameter_mm"], fn)
+    head = c["shelf_screw_head_diameter_mm"]
+    cb_d = hole_d(head, fn)
+    cb_depth = c["shelf_screw_head_height_mm"]
+
+    # retention
+    if tab_w - clr < w - 1e-9:
+        p.append("missing retention: stop tabs overlap the device face by %.2f mm (stop_tab_width_mm - "
+                 "fit_clearance_mm); need >= min_wall_mm %g" % (tab_w - clr, w))
+    if 2 * tab_w > inner_w - w + 1e-9:
+        p.append("stop tabs (%g mm each) close the front/rear opening (inner width %.2f)" % (tab_w, inner_w))
+    if bar < w - 1e-9:
+        p.append("strap_bar_height_mm %g is below min_wall_mm %g" % (bar, w))
+    if tab_h > dh + 1e-9:
+        p.append("stop_tab_height_mm %g is taller than the device (%g)" % (tab_h, dh))
+
+    # port clearances: tabs occupy x in [inner_w/2 - tab_w, inner_w/2] (mirrored), z in [0, tab_h] (device frame)
+    for face_name in ("front_port_zone_mm", "rear_port_zone_mm"):
+        for i, (x0, x1, z0, z1) in enumerate(_rects(face_name, c[face_name], p)):
+            if x0 < -dw / 2 - 1e-9 or x1 > dw / 2 + 1e-9 or z0 < -1e-9 or z1 > dh + 1e-9:
+                p.append("%s[%d] lies outside the %g x %g mm device face" % (face_name, i, dw, dh))
+            for sgn in (-1, 1):
+                tx0, tx1 = sorted((sgn * (inner_w / 2 - tab_w), sgn * inner_w / 2))
+                if _overlap(x0, x1, tx0, tx1) and z0 < tab_h - 1e-9:
+                    p.append("obstructed port: %s stop tab (x %.2f..%.2f, up to z=%.2f above the device bottom) "
+                             "covers %s[%d]" % ("front" if face_name.startswith("front") else "rear",
+                                                tx0, tx1, tab_h, face_name, i))
+
+    # side vents -> wall windows
+    windows = []
+    for i, (y0, y1, z0, z1) in enumerate(_rects("side_vent_zone_mm", c["side_vent_zone_mm"], p)):
+        if y0 < -1e-9 or y1 > dd + 1e-9 or z0 < -1e-9 or z1 > dh + 1e-9:
+            p.append("side_vent_zone_mm[%d] lies outside the %g x %g mm device side" % (i, dd, dh))
+        wy0, wy1 = y_dev + y0, y_dev + y1
+        edge = max(w, tw)
+        if wy0 < edge - 1e-9 or wy1 > L - edge + 1e-9:
+            p.append("obstructed vent: side_vent_zone_mm[%d] window (y %.2f..%.2f) leaves less than "
+                     "max(min_wall_mm, wall_thickness_mm) of wall at the cradle ends (length %.2f)" % (i, wy0, wy1, L))
+        windows.append([wy0, wy1, tb + z0, tb + z1])
+    for i in range(len(windows)):
+        for j in range(i + 1, len(windows)):
+            a, b = windows[i], windows[j]
+            if _overlap(a[0], a[1], b[0], b[1], w) and _overlap(a[2], a[3], b[2], b[3], w):
+                p.append("vent windows %d and %d are closer than min_wall_mm" % (i, j))
+
+    # strap slots
+    slots = []
+    for i, ys in enumerate(c["strap_slot_y_mm"]):
+        sy0, sy1 = y_dev + ys - s_len / 2, y_dev + ys + s_len / 2
+        if sy0 < y_dev - 1e-9 or sy1 > y_dev + dd + 1e-9:
+            p.append("missing retention: strap slot %d (y %.2f..%.2f) is not over the device top" % (i, sy0, sy1))
+        if sy0 < max(w, tw) - 1e-9 or sy1 > L - max(w, tw) + 1e-9:
+            p.append("strap slot %d leaves too little wall at the cradle ends" % i)
+        for j, wd in enumerate(windows):
+            if _overlap(sy0, sy1, wd[0], wd[1], w) and wd[3] > z_slot - w + 1e-9:
+                p.append("strap slot %d and vent window %d leave less than min_wall_mm of wall between them" % (i, j))
+        slots.append([sy0, sy1])
+    for i in range(len(slots)):
+        for j in range(i + 1, len(slots)):
+            if _overlap(slots[i][0], slots[i][1], slots[j][0], slots[j][1], w):
+                p.append("strap slots %d and %d are closer than min_wall_mm" % (i, j))
+
+    # base vents
+    n = c["base_vent_slot_count"]
+    vw = c["base_vent_slot_width_mm"]
+    vl = c["base_vent_slot_length_mm"]
+    pitch = c["base_vent_slot_pitch_mm"]
+    vents = []
+    if n > 0:
+        if vl < vw - 1e-9:
+            p.append("base_vent_slot_length_mm must be at least base_vent_slot_width_mm")
+        if n > 1 and pitch - vw < w - 1e-9:
+            p.append("base vent slots %g mm wide at %g mm pitch leave less than min_wall_mm between them" % (vw, pitch))
+        span = (n - 1) * pitch + vw
+        if span > inner_w - 2 * w + 1e-9:
+            p.append("base vent slots span %.2f mm but only %.2f mm fits inside the walls with min_wall_mm"
+                     % (span, inner_w - 2 * w))
+        vy0, vy1 = L / 2 - vl / 2, L / 2 + vl / 2
+        if vy0 < tw + w - 1e-9:
+            p.append("base vent slots (length %g) run into the stop tabs / cradle ends" % vl)
+        for k in range(n):
+            vents.append([(k - (n - 1) / 2) * pitch, vy0, vy1])
+
+    # shelf holes
+    if head < c["shelf_screw_clearance_diameter_mm"]:
+        p.append("shelf_screw_head_diameter_mm must be at least the clearance hole diameter")
+    if tb - cb_depth < w - 1e-9:
+        p.append("unsafe screw clearance: counterbore depth %g leaves %.2f mm of base under the head; "
+                 "min_wall_mm is %g" % (cb_depth, tb - cb_depth, w))
+    for i, (x, y) in enumerate(c["shelf_hole_positions_mm"]):
+        rcb = cb_d / 2
+        if abs(x) + rcb > inner_w / 2 + 1e-9:
+            p.append("shelf hole %d head/counterbore at x=%g would cut into a side wall (inner half-width %.2f)"
+                     % (i, x, inner_w / 2))
+        if y - rcb < w - 1e-9 or y + rcb > L - w + 1e-9:
+            p.append("shelf hole %d at y=%g leaves less than min_wall_mm to the front/back edge" % (i, y))
+        for ty0, ty1 in ((0.0, tw), (L - tw, L)):
+            for sgn in (-1, 1):
+                tx0, tx1 = sorted((sgn * (inner_w / 2 - tab_w), sgn * inner_w / 2))
+                if _point_rect_dist(x, y, tx0, tx1, ty0, ty1) < rcb - 1e-9:
+                    p.append("shelf hole %d counterbore runs under a stop tab (screw head would be blocked)" % i)
+        for k, (vx, vy0, vy1) in enumerate(vents):
+            if _point_rect_dist(x, y, vx - vw / 2, vx + vw / 2, vy0, vy1) < rcb + w - 1e-9:
+                p.append("shelf hole %d and base vent slot %d are closer than min_wall_mm" % (i, k))
+    _spacing_ok([tuple(h) for h in c["shelf_hole_positions_mm"]], cb_d + w, "shelf holes", p)
+
+    # envelope
+    if outer_w > c["max_overall_width_mm"] + 1e-9:
+        p.append("cradle width %.2f exceeds max_overall_width_mm %g" % (outer_w, c["max_overall_width_mm"]))
+    if L > c["max_overall_depth_mm"] + 1e-9:
+        p.append("cradle length %.2f exceeds max_overall_depth_mm %g" % (L, c["max_overall_depth_mm"]))
+    if wall_h > c["max_overall_height_mm"] + 1e-9:
+        p.append("cradle height %.2f exceeds max_overall_height_mm %g" % (wall_h, c["max_overall_height_mm"]))
+    if not _fits_plate(outer_w, L, c):
+        p.append("cradle footprint %.2f x %.2f mm does not fit the %g x %g mm build plate"
+                 % (outer_w, L, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    if p:
+        raise ConfigError(p)
+    return {
+        "module": "switch_cradle",
+        "args": {
+            "t_base": tb, "t_wall": tw, "inner_w": inner_w, "length": L, "wall_h": wall_h,
+            "tab_w": tab_w, "tab_h": tab_h, "windows": windows, "slots": slots, "slot_z0": z_slot,
+            "slot_h": s_h, "vents": vents, "vent_w": vw, "holes": [list(h) for h in c["shelf_hole_positions_mm"]],
+            "hole_d": hd, "cb_d": cb_d, "cb_depth": cb_depth, "fn": fn,
+        },
+        "derived": {
+            "inner_width_mm": inner_w,
+            "outer_width_mm": outer_w,
+            "cradle_length_mm": L,
+            "overall_height_mm": wall_h,
+            "device_front_face_y_mm": y_dev,
+            "strap_slot_bottom_z_mm": z_slot,
+            "stop_tab_overlap_on_device_mm": tab_w - clr,
+            "side_vent_windows_yz_mm": windows,
+            "modelled_shelf_hole_diameter_mm": hd,
+            "modelled_counterbore_diameter_mm": cb_d,
+        },
+        "expected_bbox": {"min": [-outer_w / 2, 0.0, 0.0], "max": [outer_w / 2, L, wall_h]},
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print base-down as modelled. The tops of the side vent windows and strap "
+            "slots are bridges; keep them short or enable supports if your printer bridges poorly. "
+            "Not tested on any physical printer."
+        ),
+    }
+
+
+DERIVE = {"rack_bracket": derive_bracket, "sff_cradle": derive_cradle, "switch_cradle": derive_switch,
+          "blanking_panel": derive_panel, "cable_panel": derive_panel}
+
+
 def validate(data):
     c = check_fields(data)
-    if c["part"] == "rack_bracket":
-        return c, derive_bracket(c)
-    return c, derive_cradle(c)
+    return c, DERIVE[c["part"]](c)

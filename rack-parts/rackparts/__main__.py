@@ -50,6 +50,9 @@ def main(argv=None):
         print(json.dumps(rep, indent=2))
         return 0 if rep["ok"] else 4
 
+    if a.cmd == "generate" and any(ord(ch) < 32 or ord(ch) == 127 for ch in a.out):
+        print("REFUSED: --out contains a control character (newline, tab, ...)", file=sys.stderr)
+        return 2
     try:
         cfg, geo = validate.validate(validate.load_config(a.config))
     except validate.ConfigError as e:

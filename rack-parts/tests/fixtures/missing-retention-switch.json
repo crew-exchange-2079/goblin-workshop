@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "name": "missing-retention-switch",
+  "units": "mm",
+  "part": "switch_cradle",
+  "facets": 48,
+  "min_wall_mm": 2.0,
+  "device_width_mm": 160.0,
+  "device_height_mm": 28.0,
+  "device_depth_mm": 100.0,
+  "fit_clearance_mm": 0.6,
+  "base_thickness_mm": 4.0,
+  "wall_thickness_mm": 3.0,
+  "stop_tab_width_mm": 1.5,
+  "stop_tab_height_mm": 6.0,
+  "front_port_zone_mm": [
+    [
+      -68.0,
+      68.0,
+      3.0,
+      25.0
+    ]
+  ],
+  "rear_port_zone_mm": [
+    [
+      40.0,
+      60.0,
+      6.0,
+      20.0
+    ]
+  ],
+  "side_vent_zone_mm": [
+    [
+      20.0,
+      80.0,
+      6.0,
+      22.0
+    ]
+  ],
+  "strap_slot_y_mm": [
+    50.0
+  ],
+  "strap_slot_length_mm": 22.0,
+  "strap_slot_height_mm": 3.0,
+  "strap_bar_height_mm": 4.0,
+  "base_vent_slot_count": 9,
+  "base_vent_slot_width_mm": 5.0,
+  "base_vent_slot_length_mm": 50.0,
+  "base_vent_slot_pitch_mm": 12.0,
+  "shelf_hole_positions_mm": [
+    [
+      -65.0,
+      15.0
+    ],
+    [
+      65.0,
+      15.0
+    ],
+    [
+      -65.0,
+      92.0
+    ],
+    [
+      65.0,
+      92.0
+    ]
+  ],
+  "shelf_screw_clearance_diameter_mm": 4.5,
+  "shelf_screw_head_diameter_mm": 8.0,
+  "shelf_screw_head_height_mm": 2.0,
+  "max_overall_width_mm": 200.0,
+  "max_overall_depth_mm": 150.0,
+  "max_overall_height_mm": 60.0,
+  "build_plate_x_mm": 220.0,
+  "build_plate_y_mm": 220.0
+}
