@@ -108,6 +108,24 @@ def dashboard_url(base, ds, instance="All", device="All"):
     return f"{base}/d/{smoke.DASHBOARD_UID}/?{urllib.parse.urlencode(q)}"
 
 
+def dismiss_dialogs(page, rounds=6):
+    """Close Grafana 13's "what's new" splash, which can appear late, after
+    the panels have loaded. A dialog still open afterwards fails the view."""
+    for _ in range(rounds):
+        dialog = page.locator('[role="dialog"]:visible')
+        if not dialog.count():
+            page.wait_for_timeout(1000)          # make sure none is about to open
+            if not page.locator('[role="dialog"]:visible').count():
+                return
+            continue
+        close = dialog.first.get_by_role("button", name=re.compile(r"close|dismiss", re.I))
+        if close.count():
+            close.first.click()
+        else:
+            page.keyboard.press("Escape")
+        page.wait_for_timeout(700)
+
+
 def load_view(ctx, url, titles, shot, timeout_ms=60000):
     """Open one dashboard view and return what the browser saw."""
     page = ctx.new_page()
@@ -133,21 +151,11 @@ def load_view(ctx, url, titles, shot, timeout_ms=60000):
     page.on("response", on_response)
     try:
         page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-        # Grafana 13 may show a "what's new" splash; it must not cover panels
-        for _ in range(3):
-            dialog = page.locator('[role="dialog"]:visible')
-            if not dialog.count():
-                break
-            close = dialog.first.get_by_role("button", name=re.compile(r"close|dismiss", re.I))
-            if close.count():
-                close.first.click()
-            else:
-                page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
         for t in titles:
             page.locator(f'[data-testid="data-testid Panel header {t}"]').wait_for(timeout=timeout_ms)
         page.wait_for_load_state("networkidle", timeout=timeout_ms)
         page.wait_for_timeout(1500)
+        dismiss_dialogs(page)
         seen["headers"] = page.locator(HEADER_SEL).count()
         seen["panel_errors"] = page.locator(ERROR_SEL).count()
         seen["dialog_visible"] = page.locator('[role="dialog"]:visible').count() > 0
