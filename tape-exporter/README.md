@@ -359,12 +359,14 @@ with an ephemeral host port. Every container runs with `--cap-drop=ALL`,
 `no-new-privileges`, `--read-only`, tmpfs data dirs and read-only bind
 mounts of the files it needs; no host network, `--privileged` or devices.
 The Grafana admin password is generated per run, handed over in a 0600
-`--env-file` and sent only in an HTTP header to 127.0.0.1; artifacts are
-scanned for it. Grafana's update checks, plugin pre-install, news feed and
+`--env-file` and sent only in an HTTP header to 127.0.0.1, never through
+a proxy and never on a redirect (redirects are refused, not followed);
+artifacts are scanned for it. Grafana's update checks, plugin pre-install, news feed and
 analytics are switched off, and the browser aborts every request that isn't
 to the local Grafana. All containers, networks and the temp dir are removed
 in `finally` (also on failure, timeout or SIGTERM); the run fails if any
-labelled resource is left, and the workflow re-checks that independently.
+labelled resource is left **or if it can't list them to check**, and the
+workflow re-checks that independently.
 
 Checks, all through Grafana (not straight to Prometheus):
 
@@ -377,7 +379,10 @@ Checks, all through Grafana (not straight to Prometheus):
   datasource's resource API to exactly the synthetic instances/devices;
 * every panel query through `/api/ds/query` for: healthy instance, failing
   instance, absent instance, `device=drive1`, and `device=drive0|drive2`,
-  against per-panel expectations: no query errors, non-zero activity where
+  against per-panel expectations: HTTP 200 with exactly the requested
+  query refs, each a well-formed result (frames whose columns match their
+  schema; anything else fails, so an error can't pass as "no data"), no
+  query errors, non-zero activity where
   the data has some, **no series at all** (not 0) where counters are
   missing, only the selected devices, and no stat value in a healthy
   colour while collectors fail (colour derived from the panel's threshold

@@ -183,12 +183,14 @@ class Docker:
         out = []
         for kind in (("ps", "-aq"), ("network", "ls", "-q"), ("volume", "ls", "-q")):
             try:
-                rc, stdout, _ = self(*kind, "--filter", f"label={LABEL}={self.run_id}",
+                rc, stdout, err = self(*kind, "--filter", f"label={LABEL}={self.run_id}",
                                      timeout=60, check=False)
             except Exception as e:
-                out.append(f"could not list {kind[0]}: {e}")
+                out.append(f"could not verify cleanup ({kind[0]}): {e}")
                 continue
-            if rc == 0 and stdout.strip():
+            if rc != 0:
+                out.append(f"could not verify cleanup ({kind[0]} rc {rc}): {err.strip()[:200]}")
+            elif stdout.strip():
                 out.append(f"left behind ({kind[0]}): {stdout.split()}")
         return out
 
@@ -196,6 +198,13 @@ class Docker:
 # --------------------------------------------------------------------------
 # Grafana HTTP client (127.0.0.1 only)
 # --------------------------------------------------------------------------
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect: a 3xx comes back as its own status, unfollowed."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 
 class Grafana:
     def __init__(self, base, user, password, timeout=20):
@@ -205,8 +214,10 @@ class Grafana:
         self.timeout = timeout
         tok = base64.b64encode(f"{user}:{password}".encode()).decode()
         self._auth = f"Basic {tok}"
-        # never route the credential through a proxy
-        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        # The credential goes to this origin only: no proxy (an empty
+        # ProxyHandler also keeps urllib from adding the env-proxy one) and
+        # no redirects (urllib would replay Authorization to the new URL).
+        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
     def request(self, method, path, body=None):
         data = json.dumps(body).encode() if body is not None else None
@@ -325,10 +336,15 @@ def frames_to_series(result):
     Handles time series frames (labels on the value field) and table frames
     (labels as string columns)."""
     series = []
-    for fr in result.get("frames") or []:
-        fields = fr.get("schema", {}).get("fields", [])
-        cols = fr.get("data", {}).get("values", [])
-        if not fields or not cols:
+    frames = result.get("frames") if isinstance(result, dict) else None
+    for fr in frames if isinstance(frames, list) else []:
+        if not isinstance(fr, dict):
+            continue        # malformed: reported by validate_results
+        fields = (fr.get("schema") or {}).get("fields") or []
+        cols = (fr.get("data") or {}).get("values") or []
+        if not isinstance(fields, list) or not isinstance(cols, list) or not fields or not cols:
+            continue
+        if not all(isinstance(f, dict) for f in fields) or not all(isinstance(c, list) for c in cols):
             continue
         nrows = max((len(c) for c in cols), default=0)
         str_cols = {f["name"]: cols[i] for i, f in enumerate(fields)
@@ -340,11 +356,49 @@ def frames_to_series(result):
                 for r in range(nrows):
                     labels = {k: v[r] for k, v in str_cols.items() if r < len(v)}
                     labels.update(f.get("labels") or {})
-                    series.append({"labels": labels, "values": [cols[i][r]]})
+                    series.append({"labels": labels,
+                                   "values": [cols[i][r] if r < len(cols[i]) else None]})
             else:
                 series.append({"labels": dict(f.get("labels") or {}),
                                "values": list(cols[i])})
     return series
+
+
+def validate_results(results, requested):
+    """Shape check for a /api/ds/query body. "No series" only counts as
+    absence when every requested ref came back as a well-formed result."""
+    if not isinstance(results, dict):
+        return [f"response has no 'results' object: {_short(results)}"]
+    errs = []
+    missing = [r for r in requested if r not in results]
+    extra = sorted(set(results) - set(requested))
+    if missing:
+        errs.append(f"no result for {missing}")
+    if extra:
+        errs.append(f"unrequested results {extra}")
+    for ref in requested:
+        r = results.get(ref)
+        if ref not in results:
+            continue
+        if not isinstance(r, dict):
+            errs.append(f"{ref}: result is not an object")
+            continue
+        frames = r.get("frames")
+        if not isinstance(frames, list):
+            errs.append(f"{ref}: 'frames' missing or not a list")
+            continue
+        for i, fr in enumerate(frames):
+            fields = fr.get("schema", {}).get("fields") if isinstance(fr, dict) else None
+            values = fr.get("data", {}).get("values") if isinstance(fr, dict) else None
+            if not isinstance(fields, list) or not fields or \
+                    not all(isinstance(f, dict) and "name" in f and "type" in f for f in fields):
+                errs.append(f"{ref} frame {i}: bad schema.fields")
+                continue
+            if not isinstance(values, list) or len(values) != len(fields) or \
+                    not all(isinstance(c, list) for c in values) or len({len(c) for c in values}) > 1:
+                errs.append(f"{ref} frame {i}: data.values does not match schema "
+                            f"({len(fields)} fields)")
+    return errs
 
 
 def query_errors(results):
@@ -352,8 +406,11 @@ def query_errors(results):
     for ref, r in results.items():
         if r.get("error") or (r.get("status") not in (None, 200)):
             errs.append(f"{ref}: {r.get('status')} {str(r.get('error'))[:200]}")
-        for fr in r.get("frames") or []:
-            for n in fr.get("schema", {}).get("meta", {}).get("notices") or []:
+        frames = r.get("frames")
+        for fr in frames if isinstance(frames, list) else []:
+            if not isinstance(fr, dict) or not isinstance(fr.get("schema"), dict):
+                continue
+            for n in (fr["schema"].get("meta") or {}).get("notices") or []:
                 if n.get("severity") == "error":
                     errs.append(f"{ref}: notice {n.get('text', '')[:200]}")
     return errs
@@ -476,14 +533,14 @@ def run_case(graf, dash, case, ds_uid=DS_OK):
     queries = build_queries(dash, ds_uid, case["instance"], case["device"])
     status, body = graf.post("/api/ds/query", {
         "queries": [q for _, q in queries], "from": QUERY_RANGE[0], "to": QUERY_RANGE[1]})
-    results = (body or {}).get("results", {}) if isinstance(body, dict) else {}
+    results = body.get("results") if isinstance(body, dict) else None
     errs = []
-    if status != 200 and not results:
+    if status != 200:
         errs.append(f"/api/ds/query HTTP {status}: {_short(body)}")
-    errs += query_errors(results)
-    missing = [q["refId"] for _, q in queries if q["refId"] not in results]
-    if missing and status == 200:
-        errs.append(f"no result for {missing}")
+    errs += validate_results(results, [q["refId"] for _, q in queries])
+    if not isinstance(results, dict):
+        results = {}
+    errs += query_errors({k: v for k, v in results.items() if isinstance(v, dict)})
     summary = {}
     for p in dash["panels"]:
         by_ref = {}

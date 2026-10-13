@@ -283,6 +283,25 @@ class CleanupTests(unittest.TestCase):
                 self.assertNotIn(seen["secret"], fh.read(), name)
         self.assertTrue(any("redacted" in c for c in result["cleanup"]))
 
+    def test_unverifiable_cleanup_fails_the_run(self):
+        # `docker ps/network ls/volume ls --filter` itself failing (rc 1) means
+        # we can't tell whether anything is left: that is a failure, not clean
+        class ListFails(FakeDocker):
+            def __call__(self, argv, timeout):
+                if "--filter" in argv:
+                    self.calls.append(argv)
+                    return 1, "", "Cannot connect to the Docker daemon"
+                return super().__call__(argv, timeout)
+        fake = ListFails()
+        problems = smoke.Docker("t", exec_fn=fake).leftovers()
+        self.assertEqual(len(problems), 3, problems)
+        self.assertTrue(all("could not verify" in p for p in problems), problems)
+        patches = [mock.patch.object(smoke, "verify", return_value=([], {})),
+                   mock.patch.object(smoke.Grafana, "get", return_value=(200, {}))]
+        rc, result, _, _ = self.run_main(ListFails(), patches)
+        self.assertEqual(rc, 1)
+        self.assertEqual(result["verdict"], "FAIL")
+
     def test_leftover_resources_fail_the_run(self):
         fake = FakeDocker(leftovers="abc123\n")
         patches = [mock.patch.object(smoke, "verify", return_value=([], {})),
@@ -310,6 +329,134 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(published[0][1], "127.0.0.1::3000")
         nets = [c for c in fake.calls if c[1:3] == ["network", "create"]]
         self.assertIn("--internal", nets[0])
+
+
+class RedirectTests(unittest.TestCase):
+    """Basic auth must never follow a redirect (to another origin or at all)."""
+
+    def test_redirect_not_followed_and_credential_not_forwarded(self):
+        import http.server
+        import threading
+        seen = []
+
+        class Sink(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append(self.headers.get("Authorization"))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *a):
+                pass
+        sink = http.server.HTTPServer(("127.0.0.1", 0), Sink)
+
+        class Redirect(Sink):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{sink.server_port}/stolen")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+        red = http.server.HTTPServer(("127.0.0.1", 0), Redirect)
+        servers = (sink, red)
+        threads = [threading.Thread(target=s.serve_forever, daemon=True) for s in servers]
+        for t in threads:
+            t.start()
+        try:
+            graf = smoke.Grafana(f"http://127.0.0.1:{red.server_port}", "u", "secret-pw")
+            status, _ = graf.get("/api/health")
+        finally:
+            for s in servers:
+                s.shutdown()
+                s.server_close()
+        self.assertEqual(status, 302)
+        self.assertEqual(seen, [])           # the other origin got nothing
+
+    def test_env_proxy_is_bypassed_for_credentialed_calls(self):
+        import http.server
+        import threading
+        hits = {"proxy": [], "grafana": []}
+
+        def handler(name):
+            class H(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    hits[name].append(self.headers.get("Authorization"))
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+
+                def log_message(self, *a):
+                    pass
+            return H
+        proxy = http.server.HTTPServer(("127.0.0.1", 0), handler("proxy"))
+        graf_srv = http.server.HTTPServer(("127.0.0.1", 0), handler("grafana"))
+        servers = (proxy, graf_srv)
+        for srv in servers:
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+        env = {k: v for k, v in os.environ.items() if k.lower() != "no_proxy"}
+        env["http_proxy"] = env["HTTP_PROXY"] = f"http://127.0.0.1:{proxy.server_port}"
+        try:
+            with mock.patch.dict(os.environ, env, clear=True):
+                graf = smoke.Grafana(f"http://127.0.0.1:{graf_srv.server_port}", "u", "pw")
+                status, _ = graf.get("/api/health")
+        finally:
+            for srv in servers:
+                srv.shutdown()
+                srv.server_close()
+        self.assertEqual(status, 200)
+        self.assertEqual(hits["proxy"], [])
+        self.assertEqual(len(hits["grafana"]), 1)
+
+
+class FakeGrafana:
+    def __init__(self, status, body):
+        self.status, self.body = status, body
+
+    def post(self, path, body):
+        return self.status, self.body
+
+
+def empty_frame():
+    return {"schema": {"fields": [{"name": "Time", "type": "time"},
+                                  {"name": "Value", "type": "number"}]},
+            "data": {"values": [[], []]}}
+
+
+class QueryResponseStrictnessTests(unittest.TestCase):
+    ABSENT = next(c for c in smoke.CASES if c["name"] == "absent")
+
+    def refs(self):
+        return [q["refId"] for _, q in smoke.build_queries(DASH, smoke.DS_OK, "All", "All")]
+
+    def test_http_500_with_partial_empty_results_is_not_absence(self):
+        errs, _, _ = smoke.run_case(FakeGrafana(500, {"results": {"p1A": {"frames": []}}}),
+                                    DASH, self.ABSENT)
+        self.assertTrue(any("HTTP 500" in e for e in errs), errs)
+        self.assertTrue(any("no result for" in e for e in errs), errs)
+
+    def test_valid_empty_results_are_absence(self):
+        body = {"results": {r: {"status": 200, "frames": [empty_frame()]} for r in self.refs()}}
+        errs, _, _ = smoke.run_case(FakeGrafana(200, body), DASH, self.ABSENT)
+        self.assertEqual(errs, [])
+
+    def test_missing_unexpected_or_malformed_results_fail(self):
+        good = {r: {"status": 200, "frames": [empty_frame()]} for r in self.refs()}
+        bad_cases = {
+            "missing ref": {k: v for k, v in good.items() if k != "p4A"},
+            "extra ref": dict(good, pZZ={"frames": []}),
+            "frames not a list": dict(good, p4A={"frames": None}),
+            "no frames key": dict(good, p4A={"status": 200}),
+            "result not a dict": dict(good, p4A=[]),
+            "frame without fields": dict(good, p4A={"frames": [{"schema": {}, "data": {"values": []}}]}),
+            "columns != fields": dict(good, p4A={"frames": [{"schema": empty_frame()["schema"],
+                                                             "data": {"values": [[]]}}]}),
+            "ragged columns": dict(good, p4A={"frames": [{"schema": empty_frame()["schema"],
+                                                          "data": {"values": [[1, 2], [1]]}}]}),
+        }
+        for name, results in bad_cases.items():
+            errs, _, _ = smoke.run_case(FakeGrafana(200, {"results": results}), DASH, self.ABSENT)
+            self.assertTrue(errs, name)
+        errs, _, _ = smoke.run_case(FakeGrafana(200, ["not", "a", "dict"]), DASH, self.ABSENT)
+        self.assertTrue(errs)
 
 
 class PullTests(unittest.TestCase):
