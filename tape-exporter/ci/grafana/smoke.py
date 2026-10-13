@@ -388,8 +388,21 @@ def validate_results(results, requested):
             errs.append(f"{ref}: 'frames' missing or not a list")
             continue
         for i, fr in enumerate(frames):
-            fields = fr.get("schema", {}).get("fields") if isinstance(fr, dict) else None
-            values = fr.get("data", {}).get("values") if isinstance(fr, dict) else None
+            if not isinstance(fr, dict) or not isinstance(fr.get("schema"), dict):
+                errs.append(f"{ref} frame {i}: no schema object")
+                continue
+            # Grafana 13 sends an empty instant result as a frame whose schema
+            # has no "fields" and whose data has no "values" (seen in CI run
+            # 38348947349). That exact shape is a valid "no rows"; a frame
+            # with only one of the two is not.
+            data = fr.get("data")
+            if data is not None and not isinstance(data, dict):
+                errs.append(f"{ref} frame {i}: data is not an object")
+                continue
+            fields = fr["schema"].get("fields")
+            values = (data or {}).get("values")
+            if fields in (None, []) and values in (None, []):
+                continue
             if not isinstance(fields, list) or not fields or \
                     not all(isinstance(f, dict) and "name" in f and "type" in f for f in fields):
                 errs.append(f"{ref} frame {i}: bad schema.fields")

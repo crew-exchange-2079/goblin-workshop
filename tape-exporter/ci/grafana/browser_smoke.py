@@ -126,7 +126,12 @@ def dismiss_dialogs(page, rounds=6):
         page.wait_for_timeout(700)
 
 
-def load_view(ctx, url, titles, shot, timeout_ms=60000):
+def panels_without_error(page, titles):
+    return [t for t in titles if not page.locator(
+        f'[data-testid="data-testid Panel header {t}"]:has({ERROR_SEL})').count()]
+
+
+def load_view(ctx, url, titles, shot, timeout_ms=60000, expect_errors=False):
     """Open one dashboard view and return what the browser saw."""
     page = ctx.new_page()
     seen = {"queries": [], "responses": [], "http_errors": []}
@@ -156,6 +161,14 @@ def load_view(ctx, url, titles, shot, timeout_ms=60000):
         page.wait_for_load_state("networkidle", timeout=timeout_ms)
         page.wait_for_timeout(1500)
         dismiss_dialogs(page)
+        if expect_errors:
+            # error indicators can appear panel by panel after the failed
+            # queries return; wait (bounded) for all of them, never fewer
+            for _ in range(30):
+                if page.locator(ERROR_SEL).count() >= len(titles):
+                    break
+                page.wait_for_timeout(1000)
+            seen["panels_without_error"] = panels_without_error(page, titles)
         seen["headers"] = page.locator(HEADER_SEL).count()
         seen["panel_errors"] = page.locator(ERROR_SEL).count()
         seen["dialog_visible"] = page.locator('[role="dialog"]:visible').count() > 0
@@ -191,7 +204,8 @@ def check_view(name, seen, titles, expect):
     if expect.get("errors"):
         if seen["panel_errors"] < len(titles) or not qerrs:
             errs.append(f"{name}: expected every panel in error, saw {seen['panel_errors']} error "
-                        f"indicators and {len(qerrs)} query errors: the check would miss failures")
+                        f"indicators and {len(qerrs)} query errors: the check would miss failures"
+                        f" (no indicator on: {seen.get('panels_without_error')})")
         return errs
     errs += [f"{name}: {e}" for e in seen["http_errors"]]
     if seen["panel_errors"]:
@@ -245,7 +259,7 @@ def run(base, user, auth_header, dash, art, instances):
             for name, url, expect in views:
                 shot = os.path.join(art, f"screenshot-{name}.png")
                 try:
-                    seen = load_view(ctx, url, titles, shot)
+                    seen = load_view(ctx, url, titles, shot, expect_errors=bool(expect.get("errors")))
                 except Exception as e:  # playwright timeout etc.
                     errs.append(f"{name}: page did not load: {str(e).splitlines()[0][:300]}")
                     continue

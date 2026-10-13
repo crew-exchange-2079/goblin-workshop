@@ -438,6 +438,14 @@ class QueryResponseStrictnessTests(unittest.TestCase):
         errs, _, _ = smoke.run_case(FakeGrafana(200, body), DASH, self.ABSENT)
         self.assertEqual(errs, [])
 
+    def test_grafana13_empty_instant_frame_is_valid_absence(self):
+        # shape Grafana 13.0.2 returned for an instant query with no rows
+        body = {"results": {r: {"status": 200, "frames": [
+            {"schema": {"refId": r, "meta": {"typeVersion": [0, 0]}}, "data": {"values": []}}]}
+            for r in self.refs()}}
+        errs, _, _ = smoke.run_case(FakeGrafana(200, body), DASH, self.ABSENT)
+        self.assertEqual(errs, [])
+
     def test_missing_unexpected_or_malformed_results_fail(self):
         good = {r: {"status": 200, "frames": [empty_frame()]} for r in self.refs()}
         bad_cases = {
@@ -446,9 +454,15 @@ class QueryResponseStrictnessTests(unittest.TestCase):
             "frames not a list": dict(good, p4A={"frames": None}),
             "no frames key": dict(good, p4A={"status": 200}),
             "result not a dict": dict(good, p4A=[]),
-            "frame without fields": dict(good, p4A={"frames": [{"schema": {}, "data": {"values": []}}]}),
+            "fields not a list": dict(good, p4A={"frames": [{"schema": {"fields": "x"}, "data": {"values": []}}]}),
             "columns != fields": dict(good, p4A={"frames": [{"schema": empty_frame()["schema"],
                                                              "data": {"values": [[]]}}]}),
+            "fields but no values": dict(good, p4A={"frames": [{"schema": empty_frame()["schema"],
+                                                                "data": {"values": []}}]}),
+            "values but no fields": dict(good, p4A={"frames": [{"schema": {"refId": "p4A"},
+                                                                "data": {"values": [[1], [2]]}}]}),
+            "frame without schema": dict(good, p4A={"frames": [{"data": {"values": []}}]}),
+            "frame not an object": dict(good, p4A={"frames": ["x"]}),
             "ragged columns": dict(good, p4A={"frames": [{"schema": empty_frame()["schema"],
                                                           "data": {"values": [[1, 2], [1]]}}]}),
         }
