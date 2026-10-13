@@ -44,7 +44,9 @@ def main(dist):
         names = {n.split("/", 1)[1] for n in t.getnames() if "/" in n}
         for need in ("tests/test_exporter.py", "tests/fixtures/sg_logs_write_ok.txt",
                      "tests/fixtures/sg3_utils_1.46/write_page.txt", "offline/tapeinfo_text.py",
-                     "ci/check_monitoring.py", "monitoring/prometheus/lto-exporter-alerts.yml",
+                     "ci/check_monitoring.py", "ci/grafana/smoke.py", "ci/grafana/prometheus.yml",
+                     "ci/grafana/provisioning/datasources/smoke.yml",
+                     "monitoring/prometheus/lto-exporter-alerts.yml",
                      "monitoring/grafana/lto-exporter-dashboard.json",
                      "contrib/systemd/lto-exporter.service", "LICENSE", "SECURITY.md",
                      "CHANGELOG.md", "example-config.json"):

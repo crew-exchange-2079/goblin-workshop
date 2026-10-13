@@ -1,0 +1,24 @@
+# Grafana smoke test only. lto-smoke-prom is the real Prometheus on the
+# internal network; lto-smoke-unreachable points at a name that does not
+# resolve and is the negative control (health and queries MUST fail).
+apiVersion: 1
+datasources:
+  - name: lto-smoke-prom
+    uid: lto-smoke-prom
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 2s
+  - name: lto-smoke-unreachable
+    uid: lto-smoke-unreachable
+    type: prometheus
+    access: proxy
+    url: http://lto-no-such-prometheus:9090
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 2s

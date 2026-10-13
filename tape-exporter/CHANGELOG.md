@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* **Dashboard: "Collectors OK" showed failures in green.** With every
+  collector failing it displayed `ok 0` / `total 4` in Grafana's default
+  green (found by the new Grafana smoke test, evidence in its
+  `case-failing.json` and screenshots). Panel 1 is now **Collectors failing**:
+  `sum(1 - tape_exporter_collector_success)`, green at 0, red from 1, with
+  `total` in neutral text. Dashboard `version` 2; uid unchanged.
+* **Grafana smoke test** (`ci/grafana/`, workflow
+  `tape-exporter-grafana.yml`): the dashboard is loaded into a real pinned
+  Grafana OSS container for the first time, with synthetic exporter data
+  through a pinned Prometheus, and checked through Grafana's HTTP API and a
+  headless browser. See README "Grafana smoke test".
+
 ## 0.1.0 (release candidate, not yet tagged)
 
 First public release of lto-exporter: a read-only Prometheus exporter for
