@@ -10,7 +10,7 @@
   "timezone": "browser",
   "editable": true,
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "1m",
   "time": {
     "from": "now-24h",
@@ -91,8 +91,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Collectors OK",
-      "description": "Collectors whose sg_logs page was read and parsed, out of all configured collectors. Failing collectors export no counters: unknown, not zero.",
+      "title": "Collectors failing",
+      "description": "Collectors whose last sg_logs read did not succeed (any status other than ok), out of all configured collectors. Red when at least one is failing. Failing collectors export no counters: unknown, not zero. No data means no exporter is reporting.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -110,8 +110,8 @@
             "uid": "${datasource}"
           },
           "refId": "A",
-          "expr": "sum(tape_exporter_collector_success{instance=~\"$instance\",device=~\"$device\"})",
-          "legendFormat": "ok",
+          "expr": "sum(1 - tape_exporter_collector_success{instance=~\"$instance\",device=~\"$device\"})",
+          "legendFormat": "failing",
           "instant": true
         },
         {
@@ -125,6 +125,40 @@
           "instant": true
         }
       ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
       "options": {
         "reduceOptions": {
           "calcs": [

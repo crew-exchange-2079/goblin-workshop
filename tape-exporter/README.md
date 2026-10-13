@@ -242,7 +242,11 @@ guidance.
 
 * [`monitoring/grafana/lto-exporter-dashboard.json`](monitoring/grafana/lto-exporter-dashboard.json):
   Grafana dashboard (uid `lto-exporter-v1`, schemaVersion 39) with
-  `datasource`, `instance` and `device` variables.
+  `datasource`, `instance` and `device` variables. "Collectors failing" is
+  red from 1; the colours and the 1 h windows are example choices, not
+  vendor guidance. A missing counter shows **No data**, never 0. A whole
+  exporter that is down also shows nothing (its `instance` drops out of the
+  variable); `LTOExporterDown` is what reports that, not the dashboard.
 * [`monitoring/prometheus/lto-exporter-alerts.yml`](monitoring/prometheus/lto-exporter-alerts.yml):
   alert rules, with promtool unit tests in `lto-exporter-alerts.test.yml`.
   `LTOExporterDown` assumes the scrape job is named `lto-exporter`.
@@ -253,8 +257,9 @@ against the metric names, label names and label values the exporter really
 emits (and is unit-tested to catch mismatches); CI runs `promtool check
 rules`, `promtool test rules`, and `promtool check rules` on every dashboard
 query; the mhvtl job evaluates all of them against a live Prometheus that
-scraped the exporter. The dashboard has **not** been loaded into a Grafana
-instance by this project.
+scraped the exporter. The [Grafana smoke test](#grafana-smoke-test) loads
+the dashboard into a real Grafana OSS container with synthetic data; it has
+**not** been used with real tape drives or a production Grafana.
 
 ## Supported output formats and limits
 
@@ -302,8 +307,8 @@ HTTP handler (bound to `127.0.0.1:0`; disconnects, 404/500), command
 validation in every argv position, the bounded runner (timeouts, caps and a
 simulated unkillable D-state child; real children are a local Python
 process, never a tape tool), config/CLI validation, per-scrape device
-re-checks, the monitoring assets, the service example and the integration
-verdict logic. CI (`.github/workflows/tape-exporter-ci.yml`) runs them on
+re-checks, the monitoring assets, the service example, the integration
+verdict logic and the Grafana smoke harness (mocked). CI (`.github/workflows/tape-exporter-ci.yml`) runs them on
 Python 3.10–3.13, plus packaging and promtool checks.
 
 ### Integration test (mhvtl)
@@ -326,6 +331,100 @@ mhvtl's error-counter pages are static zeros: a passing run proves the
 command path, permissions and parsing against a real kernel SCSI stack, not
 that the numbers mean anything for real drives. The script refuses to run
 outside CI unless `LTO_MHVTL_I_UNDERSTAND=yes`; only run it on a throwaway VM.
+
+### Grafana smoke test
+
+`.github/workflows/tape-exporter-grafana.yml` runs
+[`ci/grafana/smoke.py`](ci/grafana/smoke.py) on a GitHub-hosted runner, on
+pull requests that touch the dashboard or `ci/grafana/`, or by hand. It
+starts three throwaway containers, pinned by digest:
+
+| role | image |
+|------|-------|
+| Grafana | `grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2` |
+| Prometheus | `prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0` |
+| synthetic targets | `python:3.13.16-alpine3.24@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a` |
+
+The synthetic targets ([`ci/grafana/synthetic_target.py`](ci/grafana/synthetic_target.py))
+are the exporter's own `Collector` and HTTP handler with a fake `sg_logs`
+runner, so names, labels and format are exactly the exporter's: a
+**healthy** exporter (non-zero, growing counters; one page with missing
+parameters), a **failing** one (`unsupported`, `timeout`, `device_missing`;
+no counters) and an **absent** one (a name that doesn't resolve, `up` = 0).
+All values are made up. Nothing is executed and no device is opened.
+
+Isolation: containers sit on an `--internal` Docker network; only Grafana
+is also on a second network so it can publish port 3000, on `127.0.0.1`
+with an ephemeral host port. Every container runs with `--cap-drop=ALL`,
+`no-new-privileges`, `--read-only`, tmpfs data dirs and read-only bind
+mounts of the files it needs; no host network, `--privileged` or devices.
+The Grafana admin password is generated per run, handed over in a 0600
+`--env-file` and sent only in an HTTP header to 127.0.0.1, never through
+a proxy and never on a redirect (redirects are refused, not followed);
+artifacts are scanned for it. Grafana's update checks, plugin pre-install, news feed and
+analytics are switched off, and the browser aborts every request that isn't
+to the local Grafana. All containers, networks and the temp dir are removed
+in `finally` (also on failure, timeout or SIGTERM); the run fails if any
+labelled resource is left **or if it can't list them to check**, and the
+workflow re-checks that independently.
+
+Checks, all through Grafana (not straight to Prometheus):
+
+* datasource health OK for the real Prometheus, and **not** OK for a second,
+  unreachable datasource;
+* the dashboard is provisioned from the repo file unchanged (panels,
+  queries, variables) and has no zero-filling defaults (`noValue: 0`,
+  `vector(0)`);
+* the `instance`/`device` variable queries resolve through the
+  datasource's resource API to exactly the synthetic instances/devices;
+* every panel query through `/api/ds/query` for: healthy instance, failing
+  instance, absent instance, `device=drive1`, and `device=drive0|drive2`,
+  against per-panel expectations: HTTP 200 with exactly the requested
+  query refs, each a well-formed result (frames whose columns match their
+  schema; anything else fails, so an error can't pass as "no data"), no
+  query errors, non-zero activity where
+  the data has some, **no series at all** (not 0) where counters are
+  missing, only the selected devices, and no stat value in a healthy
+  colour while collectors fail (colour derived from the panel's threshold
+  config); `$__rate_interval` is expanded by Grafana itself;
+* negative control: the same checks against the unreachable datasource
+  must report an error for every query;
+* with `--browser`: headless Chrome (Playwright) opens four views
+  (all, failing instance, `device=drive1`, unreachable datasource), waits
+  for all 9 panel headers, and requires no panel error indicator, no
+  query errors, "No data" on the five counter panels of the failing
+  instance, the device variable substituted into the queries the frontend
+  sent, and error indicators on all panels for the unreachable datasource.
+  Screenshots must be non-blank 1600x1600 PNGs with no dialog over the
+  dashboard. **That is a smoke check, not a visual or layout review**: the
+  screenshots are kept so a person can look at them.
+
+Evidence (summary, per-case query results, served dashboard, container logs,
+screenshots, page text) is uploaded as the `grafana-smoke-evidence`
+artifact. Exit codes: 0 pass, 1 a check failed, 2 the stack could not be
+started (the smoke test did **not** run; never a pass).
+
+The first run found a real defect: with every collector failing, panel 1
+("Collectors OK") showed `ok 0` / `total 4` in Grafana's default green. It
+now counts failing collectors (red from 1). See [CHANGELOG.md](CHANGELOG.md).
+
+Run it yourself on a machine with Docker you don't mind using for this
+(it pulls about 500 MB of images):
+
+```sh
+cd tape-exporter
+python3 ci/grafana/smoke.py --artifacts /tmp/grafana-smoke           # API checks
+python3 -m venv /tmp/pw && /tmp/pw/bin/pip install playwright==1.56.0
+/tmp/pw/bin/python -m playwright install chromium   # or CHROME_PATH=/path/to/chrome
+/tmp/pw/bin/python ci/grafana/smoke.py --artifacts /tmp/grafana-smoke --browser
+```
+
+`tests/test_grafana_smoke.py` (part of the normal unit tests) covers the
+verifier and cleanup logic with a fake docker and hand-written Grafana
+responses; it starts no containers. Limits: synthetic data only, minutes
+of history (queries use the last 15 minutes, not the dashboard's 24 h
+default), one Grafana version, and only what the API and DOM expose;
+legends, colours and layout are not judged automatically.
 
 ## License
 

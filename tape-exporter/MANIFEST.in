@@ -5,6 +5,6 @@ recursive-include tests *.py *.txt *.hex *.md
 recursive-include offline *.py
 recursive-include monitoring *.yml *.json *.md
 recursive-include contrib *.service *.example *.md
-recursive-include ci *.py *.sh *.md *.conf
+recursive-include ci *.py *.sh *.md *.conf *.yml
 recursive-include docs *.md
 global-exclude __pycache__ *.py[cod]

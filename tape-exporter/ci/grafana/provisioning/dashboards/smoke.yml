@@ -1,0 +1,12 @@
+# Grafana smoke test only: loads monitoring/grafana/*.json unmodified
+# (bind-mounted read-only at /var/lib/lto-dashboards).
+apiVersion: 1
+providers:
+  - name: lto-exporter
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 3600
+    options:
+      path: /var/lib/lto-dashboards
+      foldersFromFilesStructure: false

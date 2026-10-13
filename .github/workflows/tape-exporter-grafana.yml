@@ -1,0 +1,84 @@
+name: tape-exporter Grafana smoke
+
+# Loads monitoring/grafana/lto-exporter-dashboard.json into a real, pinned
+# Grafana OSS container backed by a pinned Prometheus that scrapes synthetic
+# exporter targets, then checks it through Grafana's HTTP API and a headless
+# browser. Disposable: containers, networks and temp files are created by
+# tape-exporter/ci/grafana/smoke.py and removed by it (also on failure), and
+# the last step fails if anything labelled by the run is left. No tape
+# hardware, devices, host network or privileged containers are used.
+#
+# Opt-in: runs only on pull requests that touch the dashboard or the smoke
+# test itself, or when started by hand.
+
+on:
+  pull_request:
+    paths:
+      - "tape-exporter/monitoring/grafana/**"
+      - "tape-exporter/ci/grafana/**"
+      - ".github/workflows/tape-exporter-grafana.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tape-exporter-grafana-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLAYWRIGHT_VERSION: "1.56.0"
+
+jobs:
+  grafana-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tape-exporter
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: unit tests for the smoke harness (mocked, no containers)
+        run: python -X dev -W error::ResourceWarning -m unittest tests.test_grafana_smoke tests.test_monitoring -v
+      - name: tool versions
+        run: |
+          docker version --format 'docker client {{.Client.Version}} / server {{.Server.Version}}'
+          google-chrome --version
+      - name: install Playwright (Python client only; uses the runner's Chrome)
+        timeout-minutes: 3
+        run: |
+          python -m venv "$RUNNER_TEMP/pw"
+          "$RUNNER_TEMP/pw/bin/pip" install -q --disable-pip-version-check "playwright==${PLAYWRIGHT_VERSION}"
+      - name: Grafana smoke (real containers)
+        timeout-minutes: 15
+        run: |
+          CHROME_PATH="$(command -v google-chrome)" \
+            timeout -k 30 840 "$RUNNER_TEMP/pw/bin/python" ci/grafana/smoke.py \
+            --artifacts "$RUNNER_TEMP/grafana-smoke" --browser
+      - name: nothing left behind
+        if: always()
+        run: |
+          left="$(docker ps -aq --filter label=lto-grafana-smoke.run; docker network ls -q --filter label=lto-grafana-smoke.run; docker volume ls -q --filter label=lto-grafana-smoke.run)"
+          if [ -n "$left" ]; then echo "left behind: $left"; exit 1; fi
+          echo "no containers, networks or volumes from the smoke run remain"
+      - name: job summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/grafana-smoke/summary.md" ]; then
+            cat "$RUNNER_TEMP/grafana-smoke/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Grafana dashboard smoke: NOT COMPLETED (no summary produced)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: upload evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: grafana-smoke-evidence
+          path: ${{ runner.temp }}/grafana-smoke
+          retention-days: 14
+          if-no-files-found: warn
