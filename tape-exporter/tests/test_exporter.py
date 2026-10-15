@@ -216,8 +216,21 @@ class CommandTests(unittest.TestCase):
 
     def test_runner_read_oserror_is_read_error_and_reaped(self):
         script = "import time; print('hi', flush=True); time.sleep(30)"
-        with mock.patch("lto_exporter.commands.os.read", side_effect=OSError("EIO")):
-            res = bounded([sys.executable, "-c", script], timeout=5, max_bytes=4096)
+        # commands.os is the global os module: patching os.read before the
+        # spawn also breaks Popen's own error-pipe read on Python < 3.13
+        # (exec_error). Arm the failure only after the child has started.
+        patcher = mock.patch("lto_exporter.commands.os.read", side_effect=OSError("EIO"))
+
+        def popen(*a, **kw):
+            proc = subprocess.Popen(*a, **kw)
+            patcher.start()
+            return proc
+
+        try:
+            res = bounded([sys.executable, "-c", script], timeout=5, max_bytes=4096,
+                          popen=popen)
+        finally:
+            patcher.stop()
         self.assertEqual(res.status, "read_error")
         self.assertTrue(res.reaped)
 
