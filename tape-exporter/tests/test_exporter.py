@@ -551,6 +551,22 @@ class SgLogsParserTests(unittest.TestCase):
         p = parse_sg_logs_error_counters(text, "write")
         self.assertEqual((p.status, p.values), ("ok", {}))
 
+    def test_duplicate_parameters_first_wins(self):
+        text = ("Write error counter log page  [0x2]\n"
+                "  Total uncorrected errors = 5\n"
+                "  Total uncorrected errors = 10\n")
+        p = parse_sg_logs_error_counters(text, "write")
+        self.assertEqual(p.status, "ok")
+        self.assertEqual(p.values["total_uncorrected"], 5)
+
+    def test_malformed_first_value_blocks_later_duplicate(self):
+        text = ("Write error counter log page  [0x2]\n"
+                "  Total uncorrected errors = 99999999999999999999\n"
+                "  Total uncorrected errors = 10\n")
+        p = parse_sg_logs_error_counters(text, "write")
+        self.assertEqual(p.status, "ok")
+        self.assertNotIn("total_uncorrected", p.values)
+
     def test_exit_status_mapping_matches_sg_lib(self):
         # include/sg_lib.h + sg_convert_errno() in lib/sg_lib.c
         expect = {0: "ok", 1: "syntax_error", 2: "not_ready", 5: "unsupported",
