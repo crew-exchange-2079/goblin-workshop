@@ -99,9 +99,9 @@ def check_device(dev, resolver=os.path.realpath, stat_fn=os.stat, sysfs_type=_sy
     else a status string (device_missing | device_changed | device_mismatch).
     """
     try:
+        st = stat_fn(dev.resolved)
         if resolver(dev.path) != dev.resolved:
             return "device_changed"
-        st = stat_fn(dev.resolved)
     except FileNotFoundError:
         return "device_missing"
     except OSError:

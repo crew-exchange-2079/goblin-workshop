@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+Synthetic fixtures, unit tests, mhvtl emulation and the Grafana smoke test
+only. Still **not** run against real tape hardware.
+
+### Fixed
+
+* **Duplicate `sg_logs` parameters: first value now wins.** A malformed or
+  overflowing first value let a later duplicate win, contradicting the
+  documented behaviour. A malformed first value now leaves the parameter
+  absent; a valid first value blocks later duplicates.
+* **Vanished device node reported as `device_changed`.** A dangling symlink
+  resolves to itself, so the pinned node is now checked first and a missing
+  node reports `device_missing`.
+* **SIGTERM now exits 0** (`systemctl stop`, `docker stop`). The handler
+  only calls `sys.exit(0)`; calling `server.shutdown()` there deadlocks.
+
+### Tests
+
+* New coverage for CLI overrides beating the config file and bind failure
+  exiting 1, IPv6 loopback serving `/metrics`, `HEAD /metrics`, and the
+  `exec_error` / `read_error` runner paths. These pass against the code
+  without further changes. The IPv6 test skips on hosts with no IPv6
+  loopback.
+
+### Also in this release
 
 * **Dashboard: "Collectors OK" showed failures in green.** With every
   collector failing it displayed `ok 0` / `total 4` in Grafana's default

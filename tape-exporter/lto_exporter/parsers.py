@@ -83,6 +83,7 @@ def parse_sg_logs_error_counters(text, expected_direction):
     if expected_direction not in PAGE_CODES:
         raise ValueError(f"unknown direction {expected_direction!r}")
     values = {}
+    seen = set()
     header_seen = False
     in_expected = False
     for line in text.splitlines():
@@ -97,8 +98,9 @@ def parse_sg_logs_error_counters(text, expected_direction):
         if not m:
             continue
         label = _BY_TEXT.get(m.group(1).lower())
-        if label is None or label in values:
+        if label is None or label in seen:
             continue
+        seen.add(label)
         val = int(m.group(2))
         if val <= _U64_MAX:
             values[label] = val
