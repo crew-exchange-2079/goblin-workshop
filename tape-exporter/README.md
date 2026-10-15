@@ -14,7 +14,7 @@ sg_logs --readonly --page=0x3 /dev/sgN   # Read Error Counter log page
 **`tapeinfo` (mtx) is never executed** and can't be enabled. See
 [Why no tapeinfo](#why-no-tapeinfo).
 
-> **Status: v0.1.0 release candidate.** Tested with unit tests, real
+> **Status: v0.2.0 release candidate.** Tested with unit tests, real
 > `sg_logs` 1.46 output (decoded offline from synthetic pages) and, in CI,
 > against an **mhvtl emulated** drive (see [Integration test](#integration-test-mhvtl)).
 > It has **not** been run against real tape hardware. Treat the first
@@ -169,7 +169,7 @@ Run the exporter as a dedicated unprivileged user. It needs:
 Sample output from the synthetic fixtures (`tests/fixtures/`), abridged:
 
 ```
-tape_exporter_build_info{version="0.1.0"} 1
+tape_exporter_build_info{version="0.2.0"} 1
 tape_exporter_collector_success{device="drive0",collector="sg_logs_write_errors"} 1
 tape_exporter_collector_duration_seconds{device="drive0",collector="sg_logs_write_errors"} 0.12
 tape_exporter_collector_status{device="drive0",collector="sg_logs_write_errors",status="ok"} 1
