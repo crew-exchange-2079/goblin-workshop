@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (release candidate, not yet tagged)
+## 0.2.0
 
 Synthetic fixtures, unit tests, mhvtl emulation and the Grafana smoke test
 only. Still **not** run against real tape hardware.
