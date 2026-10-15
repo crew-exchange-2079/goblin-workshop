@@ -5,6 +5,17 @@
 Synthetic fixtures, unit tests, mhvtl emulation and the Grafana smoke test
 only. Still **not** run against real tape hardware.
 
+### Documentation
+
+* README install walkthrough: all Debian/Ubuntu dependencies (`lsscsi`,
+  `python3-venv`), one working directory, `sudo` where needed, the
+  `lto-exporter` group and narrow udev rule, a systemd drop-in that points
+  the unchanged example unit at `/opt/lto-exporter/bin/lto-exporter` and the
+  pinned `/dev/sgN`, manual start/status checks, a same-host Prometheus
+  scrape/rules example and manual Grafana import. Documentation only: no
+  code, unit, rule or dashboard changes; not validated on physical tape
+  hardware.
+
 ### Fixed
 
 * **Duplicate `sg_logs` parameters: first value now wins.** A malformed or
@@ -39,7 +50,7 @@ only. Still **not** run against real tape hardware.
   through a pinned Prometheus, and checked through Grafana's HTTP API and a
   headless browser. See README "Grafana smoke test".
 
-## 0.1.0 (release candidate, not yet tagged)
+## 0.1.0
 
 First public release of lto-exporter: a read-only Prometheus exporter for
 the SCSI Write (0x02) and Read (0x03) Error Counter log pages of Linux
