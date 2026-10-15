@@ -472,6 +472,13 @@ class DeviceRecheckTests(unittest.TestCase):
         def gone(p):
             raise FileNotFoundError(p)
         self.assertEqual(self.check(stat_fn=gone), "device_missing")
+
+    def test_vanished_symlink_is_missing_not_changed(self):
+        # A broken symlink resolves to itself, so the resolver comparison
+        # alone would report device_changed; the node check comes first.
+        def gone(p):
+            raise FileNotFoundError(p)
+        self.assertEqual(self.check(resolver=lambda p: p, stat_fn=gone), "device_missing")
         self.assertEqual(self.check(stat_fn=fake_stat(major=9)), "device_mismatch")   # st major
         self.assertEqual(self.check(stat_fn=fake_stat(mode=stat.S_IFREG | 0o644)), "device_mismatch")
         self.assertEqual(self.check(sysfs="0"), "device_mismatch")   # disk at that sg number
