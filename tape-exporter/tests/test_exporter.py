@@ -1,3 +1,4 @@
+import errno
 import io
 import json
 import os
@@ -23,7 +24,7 @@ from lto_exporter.commands import (ChildTracker, RunResult, UnsafeCommand,
 from lto_exporter.config import (ConfigError, Device, check_device,
                                  check_sg_logs_executable, parse_config,
                                  resolve_device_path, validate_device_path)
-from lto_exporter.exporter import Collector, main, make_server
+from lto_exporter.exporter import Collector, _Server6, main, make_server
 from lto_exporter.parsers import (SG_EXIT_STATUS, parse_sg_logs_error_counters,
                                   sg_exit_status)
 from offline.tapeinfo_text import parse_tapeinfo_text
@@ -162,6 +163,12 @@ class CommandTests(unittest.TestCase):
                 _check(argv)
         self.assertEqual(_check(tuple(SG)), SG)
 
+    def test_run_command_permission_error_is_exec_error(self):
+        def popen(argv, **kw):
+            raise PermissionError(13, "Permission denied")
+        res = run_command(SG, 1, 1024, popen=popen, tracker=ChildTracker())
+        self.assertEqual(res.status, "exec_error")
+
     def test_run_command_cannot_bypass_check(self):
         spawned = []
 
@@ -206,6 +213,13 @@ class CommandTests(unittest.TestCase):
                       timeout=5, max_bytes=4096)
         self.assertEqual((res.status, res.returncode), ("ok", 0))
         self.assertEqual(res.stdout.strip(), "$(id); ls")
+
+    def test_runner_read_oserror_is_read_error_and_reaped(self):
+        script = "import time; print('hi', flush=True); time.sleep(30)"
+        with mock.patch("lto_exporter.commands.os.read", side_effect=OSError("EIO")):
+            res = bounded([sys.executable, "-c", script], timeout=5, max_bytes=4096)
+        self.assertEqual(res.status, "read_error")
+        self.assertTrue(res.reaped)
 
     def test_runner_eof_but_child_lingers_is_timeout(self):
         # stdout closed early, process keeps running past the deadline.
@@ -693,6 +707,33 @@ class HttpTests(unittest.TestCase):
         self.assertIn("# TYPE tape_log_errors_total counter", body)
         self.assertIn("tape_exporter_build_info", body)
 
+    def test_ipv6_serves_metrics(self):
+        c = cfg(listen_address="::1")
+        try:
+            srv = make_server(c, collector(c, full_runner()))
+        except OSError:
+            self.skipTest("no IPv6 loopback")
+        self.assertIsInstance(srv, _Server6)
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            with urllib.request.urlopen(f"http://[::1]:{srv.server_address[1]}/metrics",
+                                        timeout=5) as r:
+                self.assertEqual(r.status, 200)
+                body = r.read().decode()
+            self.assertIn("tape_exporter_build_info", body)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_head_metrics(self):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/metrics", method="HEAD")
+        with urllib.request.urlopen(req, timeout=5) as r:
+            self.assertEqual(r.status, 200)
+            self.assertTrue(r.headers["Content-Type"].startswith("text/plain; version=0.0.4"))
+            self.assertGreater(int(r.headers["Content-Length"]), 0)
+            self.assertEqual(r.read(), b"")
+
     def test_404(self):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             self.get("/nope")
@@ -783,6 +824,24 @@ class MainTests(unittest.TestCase):
         from lto_exporter import __version__
         self.assertEqual(r.stdout.strip(), f"lto-exporter {__version__}")
 
+    def test_cli_overrides_win_and_bind_failure_exit_1(self):
+        path = self.write_cfg('{"port": 9842, "listen_address": "127.0.0.1"}')
+        recorded = {}
+
+        def fake_make_server(config, collector=None):
+            recorded["port"] = config.port
+            recorded["listen_address"] = config.listen_address
+            raise OSError(errno.EADDRINUSE, "in use")
+
+        err = io.StringIO()
+        with mock.patch("lto_exporter.exporter.make_server", fake_make_server), \
+                redirect_stderr(err):
+            rc = main(["--config", path, "--port", "19842", "--listen-address", "::1"],
+                      sg_logs_check=lambda p: p)
+        self.assertEqual(rc, 1)
+        self.assertEqual(recorded["port"], 19842)
+        self.assertEqual(recorded["listen_address"], "::1")
+
     def test_sigterm_exits_zero(self):
         path = self.write_cfg("{}")
         code = (
@@ -805,6 +864,8 @@ class MainTests(unittest.TestCase):
             proc.kill()
             proc.wait()
             self.fail("exporter still running 5 s after SIGTERM")
+        finally:
+            proc.stderr.close()
         self.assertEqual(rc, 0)
 
 
