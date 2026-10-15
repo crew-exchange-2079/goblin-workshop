@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import signal
 import socket
 import stat
 import struct
@@ -781,6 +782,30 @@ class MainTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         from lto_exporter import __version__
         self.assertEqual(r.stdout.strip(), f"lto-exporter {__version__}")
+
+    def test_sigterm_exits_zero(self):
+        path = self.write_cfg("{}")
+        code = (
+            "import sys; sys.argv=['lto-exporter','--config',%r];"
+            "from lto_exporter.exporter import main; sys.exit(main(sg_logs_check=lambda p: p))" % path
+        )
+        proc = subprocess.Popen([sys.executable, "-u", "-c", code], cwd=ROOT,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        line = b""
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            line = proc.stderr.readline()
+            if not line or b"listening on" in line:
+                break
+        self.assertIn(b"listening on", line)
+        proc.send_signal(signal.SIGTERM)
+        try:
+            rc = proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            self.fail("exporter still running 5 s after SIGTERM")
+        self.assertEqual(rc, 0)
 
 
 if __name__ == "__main__":

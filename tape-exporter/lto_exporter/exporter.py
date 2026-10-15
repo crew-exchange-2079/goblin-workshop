@@ -2,6 +2,7 @@
 
 import argparse
 import functools
+import signal
 import socket
 import sys
 import threading
@@ -287,6 +288,10 @@ def main(argv=None, sg_logs_check=check_sg_logs_executable):
     print(f"listening on http://{host}:{port}/metrics", file=sys.stderr)
     for dev in cfg.devices:
         print(f"device {dev.name}: {dev.path} pinned to {dev.resolved}", file=sys.stderr)
+    # systemd stop / docker stop: exit 0 promptly. Do NOT call
+    # server.shutdown() here: it blocks in the serve_forever loop's exit
+    # wait and deadlocks the handler thread.
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
     try:
         server.serve_forever()
     except KeyboardInterrupt:
