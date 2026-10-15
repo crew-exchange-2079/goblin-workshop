@@ -101,7 +101,7 @@ trial.
 # Debian/Ubuntu package names; others vary
 sudo apt install sg3-utils lsscsi python3-venv git   # sg_logs, lsscsi, venv, clone
 
-git clone https://github.com/crew-exchange-2079/goblin-workshop
+git clone --branch main https://github.com/crew-exchange-2079/goblin-workshop
 cd goblin-workshop/tape-exporter                     # later steps run from here
 
 # root-owned venv: the service's DynamicUser can read it but not change it
@@ -232,6 +232,7 @@ scrape_configs:
 ```
 
 ```sh
+sudo install -d -m 0755 /etc/prometheus/rules
 sudo install -m 0644 monitoring/prometheus/lto-exporter-alerts.yml /etc/prometheus/rules/
 promtool check rules /etc/prometheus/rules/lto-exporter-alerts.yml
 promtool check config /etc/prometheus/prometheus.yml
@@ -240,11 +241,19 @@ promtool check config /etc/prometheus/prometheus.yml
 
 `127.0.0.1` means Prometheus must run on the same host; don't widen
 `listen_address` or the unit's IP policy for this (the exporter has no
-TLS/auth). A scrape runs two `sg_logs` commands per device, so with the
-defaults one device can take up to `2 × (10 + 2) = 24 s` on an uncached
-scrape. Keep `scrape_timeout` above that (and not above `scrape_interval`),
-and keep `scrape_interval` at or above `cache_seconds` (30) so scrapes
-mostly hit the cache and don't hammer the drive.
+TLS/auth). A scrape runs two `sg_logs` commands per device, one device at a
+time, so with the defaults a device can take up to `2 × (10 + 2) = 24 s` on
+an uncached scrape. Size `scrape_timeout` for your number of devices and the
+worst-case command latency (`24 s × devices` with defaults), and keep it at or
+below `scrape_interval`.
+
+The cache is only a rate limit, not something to rely on: a result is reused
+only while it is younger than `cache_seconds`. With `scrape_interval: 60s` and
+the default `cache_seconds` of 30, regularly spaced scrapes find the cache
+expired, so each one queries the drive (about once a minute). The cache just
+serves repeated or concurrent scrapes inside those 30 s. If several scrapers
+(or ad-hoc `curl`s) hit the exporter, raise `cache_seconds` above the
+shortest scrape interval (served data is then up to that old) rather than scraping the drive more often.
 
 For Grafana, import the dashboard by hand: **Dashboards → New → Import →
 Upload JSON file**, choose
