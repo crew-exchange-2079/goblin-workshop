@@ -89,32 +89,181 @@ and the listed codes, never a zero count. It never parses the serial number.
 
 ## Install and run
 
+A manual walkthrough for a single Debian/Ubuntu host. Nothing here is run
+for you, and the project installs, enables and starts nothing. Commands
+prefixed `sudo` need root; the rest don't. Needs Python 3.10+.
+**Not tested on physical tape hardware**, so treat the first start as a
+trial.
+
+### 1. Install
+
 ```sh
 # Debian/Ubuntu package names; others vary
-sudo apt install sg3-utils          # sg_logs
+sudo apt install sg3-utils lsscsi python3-venv git   # sg_logs, lsscsi, venv, clone
 
-python3 -m venv /opt/lto-exporter
-/opt/lto-exporter/bin/pip install ./tape-exporter     # or the built wheel
-lsscsi -g                           # find the /dev/sgN for your tape drive
-cp example-config.json /etc/lto-exporter.json         # then edit
-/opt/lto-exporter/bin/lto-exporter --config /etc/lto-exporter.json
-curl -s http://127.0.0.1:9842/metrics
+git clone --branch main https://github.com/crew-exchange-2079/goblin-workshop
+cd goblin-workshop/tape-exporter                     # later steps run from here
+
+# root-owned venv: the service's DynamicUser can read it but not change it
+sudo python3 -m venv /opt/lto-exporter
+sudo /opt/lto-exporter/bin/pip install .             # or a built wheel
+
+lsscsi -g                                            # tape drive -> /dev/stN and /dev/sgN
+sudo install -m 0644 example-config.json /etc/lto-exporter.json
+sudoedit /etc/lto-exporter.json                      # set devices[].path to your /dev/sgN
 ```
 
-`python3 -m lto_exporter` works too (from this directory without
-installing). `--listen-address` and `--port` override the config and are
-validated the same way (port 0–65535). Port 9842 is just a default; it isn't
-registered anywhere.
+Keep `/opt/lto-exporter` owned by root; don't `chown` it to a normal user.
+`python3 -m lto_exporter` also works from this directory without installing.
+`--listen-address` and `--port` override the config and are validated the
+same way (port 0–65535). Port 9842 is just a default; it isn't registered
+anywhere.
 
 Startup fails (exit 2) on any config error, including an `sg_logs_path` that
 is missing, not executable, not named `sg_logs`, or a symlink to some other
 program. It exits 1 if it can't bind.
 
+### 2. Permissions: group and udev rule
+
 Examples, **not installed or enabled by this project**:
 [`contrib/systemd/lto-exporter.service`](contrib/systemd/lto-exporter.service)
 (DynamicUser, no capabilities, `DevicePolicy=closed` with one read-only
 `DeviceAllow`, loopback-only IP policy) and
-[`contrib/udev/60-lto-exporter.rules.example`](contrib/udev/60-lto-exporter.rules.example).
+[`contrib/udev/60-lto-exporter.rules.example`](contrib/udev/60-lto-exporter.rules.example)
+(every line commented out). The unit's `SupplementaryGroups=lto-exporter`
+needs that group to exist, and a udev rule gives it read access to one drive.
+
+```sh
+sudo groupadd --system lto-exporter
+
+# 1. Inspect your drive (replace sg3 with your node) and note ATTRS{type}=="1",
+#    vendor and model. Add KERNELS=="H:C:T:L" if you have identical drives.
+udevadm info -a -n /dev/sg3
+
+# 2. Copy the example, then edit the rule: replace the placeholder
+#    vendor/model so it matches ONE actual tape drive, and uncomment it.
+sudo install -m 0644 contrib/udev/60-lto-exporter.rules.example \
+    /etc/udev/rules.d/60-lto-exporter.rules
+sudoedit /etc/udev/rules.d/60-lto-exporter.rules
+
+# 3. Reload rules and re-apply them to that one node only. Never trigger
+#    all devices.
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=change --subsystem-match=scsi_generic --sysname-match=sg3
+ls -l /dev/sg3          # expect: crw-r----- 1 root lto-exporter ...
+```
+
+The rule matches the SCSI generic node (`SUBSYSTEM=="scsi_generic"`), i.e.
+the `/dev/sgN` that `lsscsi -g` lists for the drive, not `/dev/stN`. If you
+put a udev symlink in front of it, the exporter resolves the symlink once at
+startup and pins the resulting `/dev/sgN`; the permissions and the systemd
+`DeviceAllow` below must both refer to that resolved node. The service logs
+`pinned to /dev/sgN` at startup.
+
+The rule sets the node to `root:lto-exporter` `0640`, replacing whatever
+group it had (usually `disk` or `tape`, `0660`). Check that nothing else (a
+backup tool, say) relies on that group for this sg node before applying it.
+Don't add write access, capabilities, or the `disk`/`tape` groups to make it
+work; see [Permissions](#permissions-no-root-needed).
+
+### 3. Install the service and adapt it before the first start
+
+The shipped unit hardcodes `ExecStart=/usr/local/bin/lto-exporter` and
+`DeviceAllow=/dev/sg3 r`, which are examples. Leave the shipped file as is
+and override both with a reviewed drop-in. Reset the list first
+(`ExecStart=` / `DeviceAllow=` with an empty value), then give exactly one
+value:
+
+```sh
+sudo install -m 0644 contrib/systemd/lto-exporter.service /etc/systemd/system/
+sudo mkdir -p /etc/systemd/system/lto-exporter.service.d
+sudoedit /etc/systemd/system/lto-exporter.service.d/override.conf
+```
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/opt/lto-exporter/bin/lto-exporter --config /etc/lto-exporter.json
+DeviceAllow=
+DeviceAllow=/dev/sg3 r
+```
+
+`/dev/sg3` is a placeholder: use the node pinned from your config's
+`devices[].path`, one device and read-only. systemd turns it into a
+major:minor rule at start, so after an sg renumbering restart the service
+(and fix the config, drop-in and udev rule if the drive moved). The drop-in
+changes nothing else: sandboxing, `DynamicUser`, empty capability sets,
+`DevicePolicy=closed` and the loopback-only IP policy stay as shipped.
+
+Trial start (no `enable` yet):
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl cat lto-exporter                   # review the merged result
+sudo systemctl start lto-exporter
+sudo systemctl status lto-exporter
+sudo journalctl -u lto-exporter -b --no-pager | tail     # look for "pinned to /dev/sgN"
+curl -s http://127.0.0.1:9842/metrics | grep -E '^tape_exporter_collector_(success|status)'
+```
+
+Expect `collector_success ... 1` and `status="ok"`. Anything else: see
+[Collector status](#collector-status); `os_error` usually means the
+permissions or `DeviceAllow` above don't match the pinned node. Only once
+that looks right, and you've reviewed the unit, run
+`sudo systemctl enable lto-exporter` so it starts at boot.
+
+### 4. Prometheus and Grafana
+
+Add a same-host scrape job (the bundled alert `LTOExporterDown` assumes the
+job name `lto-exporter`) and load the shipped rules from an installed,
+absolute path. Paths and the reload method depend on your Prometheus setup.
+
+```yaml
+# prometheus.yml
+rule_files:
+  - /etc/prometheus/rules/lto-exporter-alerts.yml
+
+scrape_configs:
+  - job_name: lto-exporter
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    static_configs:
+      - targets: ['127.0.0.1:9842']
+```
+
+```sh
+sudo install -d -m 0755 /etc/prometheus/rules
+sudo install -m 0644 monitoring/prometheus/lto-exporter-alerts.yml /etc/prometheus/rules/
+promtool check rules /etc/prometheus/rules/lto-exporter-alerts.yml
+promtool check config /etc/prometheus/prometheus.yml
+# then reload Prometheus the way you normally do (SIGHUP, or POST /-/reload if enabled)
+```
+
+`127.0.0.1` means Prometheus must run on the same host; don't widen
+`listen_address` or the unit's IP policy for this (the exporter has no
+TLS/auth). A scrape runs two `sg_logs` commands per device, one device at a
+time, so with the defaults a device can take up to `2 × (10 + 2) = 24 s` on
+an uncached scrape. Size `scrape_timeout` for your number of devices and the
+worst-case command latency (`24 s × devices` with defaults), and keep it at or
+below `scrape_interval`.
+
+The cache is only a rate limit, not something to rely on: a result is reused
+only while it is younger than `cache_seconds`. With `scrape_interval: 60s` and
+the default `cache_seconds` of 30, regularly spaced scrapes find the cache
+expired, so each one queries the drive (about once a minute). The cache just
+serves repeated or concurrent scrapes inside those 30 s. If several scrapers
+(or ad-hoc `curl`s) hit the exporter, raise `cache_seconds` above the
+shortest scrape interval (served data is then up to that old) rather than scraping the drive more often.
+
+For Grafana, import the dashboard by hand: **Dashboards → New → Import →
+Upload JSON file**, choose
+[`monitoring/grafana/lto-exporter-dashboard.json`](monitoring/grafana/lto-exporter-dashboard.json),
+and import. It carries no hardcoded datasource UID: every panel uses the
+`datasource` dashboard variable, so after import pick
+your existing Prometheus datasource in the **datasource** dropdown at the top
+of the dashboard; `instance` and `device` then populate from it. The dashboard uid is
+`lto-exporter-v1`; importing again over it asks before overwriting. Importing
+needs no new accounts or integrations beyond permission to create dashboards.
 
 ## Configuration
 
