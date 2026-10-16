@@ -1,0 +1,76 @@
+TAPE LIBRARY PLAYGROUND — same seed, four policies, headless
+all times are simulated seconds; waits are measured from request arrival
+to the moment its cartridge starts being threaded into a drive
+
+======================================================================================================================
+Quiet morning  [quiet-morning]  seed 20261013
+  A small library, light traffic. Everything keeps up — nothing teaches much.
+  library: 10x2 slots (14 cartridges), 3 drives, one robot; 2/min for 20 min, then 35 min horizon
+----------------------------------------------------------------------------------------------------------------------
+policy                 done       left    mean wait  p95 wait   worst wait  urgent p95  mounts   tape passes  mounts/h   files/h   seek/read  robot busy
+----------------------------------------------------------------------------------------------------------------------
+FIFO                   41/41      0       27s        81s        105s        81s         37       37           100.1      111       6.13s      57%
+Batch by cartridge     41/41      0       18s        44s        59s         31s         36       36           96.7       110       5.65s      55%
+Position order         41/41      0       18s        44s        59s         31s         36       36           96.7       110       5.65s      55%
+Priority + aging       41/41      0       18s        44s        59s         31s         36       36           96.7       110       5.65s      55%
+----------------------------------------------------------------------------------------------------------------------
+  served the most: Batch by cartridge (41/41, mean wait 18s). worst urgent tail: FIFO (p95 1:21).
+  (four headless runs, no wall-clock: the same seed always prints this exact table)
+
+======================================================================================================================
+Big restore  [big-restore]  seed 20261014
+  40 tapes, hundreds of small files, only 2 drives. Throughput is the whole game.
+  library: 10x4 slots (40 cartridges), 2 drives, one robot; 8/min for 60 min, then 90 min horizon
+----------------------------------------------------------------------------------------------------------------------
+policy                 done       left    mean wait  p95 wait   worst wait  urgent p95  mounts   tape passes  mounts/h   files/h   seek/read  robot busy
+----------------------------------------------------------------------------------------------------------------------
+FIFO                   110/476    366     2209s      4216s      4428s       3898s       110      110          73.3       73        6.90s      45%
+Batch by cartridge     452/476    24      1228s      2440s      2697s       2293s       82       82           54.7       301       4.95s      34%
+Position order         464/476    12      1160s      2272s      2506s       2016s       87       87           58.0       309       4.02s      37%
+Priority + aging       438/476    38      1513s      3216s      3549s       75s         84       84           56.0       292       5.04s      36%
+----------------------------------------------------------------------------------------------------------------------
+  served the most: Position order (464/476, mean wait 1160s). worst urgent tail: FIFO (p95 64:58).
+  (four headless runs, no wall-clock: the same seed always prints this exact table)
+
+======================================================================================================================
+Urgent request during a big restore  [urgent-starve]  seed 20261015
+  A restore floods the queue, then a page of urgent requests lands on top of it.
+  library: 10x4 slots (36 cartridges), 2 drives, one robot; 7/min for 45 min, then 80 min horizon; 10 urgent "operator page" requests from 20 min
+----------------------------------------------------------------------------------------------------------------------
+policy                 done       left    mean wait  p95 wait   worst wait  urgent p95  mounts   tape passes  mounts/h   files/h   seek/read  robot busy
+----------------------------------------------------------------------------------------------------------------------
+FIFO                   101/327    226     1824s      3625s      3813s       3395s       97       97           72.8       76        6.40s      48%
+Batch by cartridge     317/327    10      1072s      2278s      2453s       2233s       74       74           55.5       238       4.92s      36%
+Position order         327/327    0       1070s      2131s      2245s       2131s       77       77           57.8       245       4.38s      38%
+Priority + aging       321/327    6       1438s      2849s      3116s       82s         78       78           58.5       241       4.82s      38%
+----------------------------------------------------------------------------------------------------------------------
+  served the most: Position order (327/327, mean wait 1070s). worst urgent tail: FIFO (p95 56:35).
+  (four headless runs, no wall-clock: the same seed always prints this exact table)
+
+======================================================================================================================
+A drive fails  [drive-failure]  seed 20261016
+  One drive dies mid-run. Its work goes back on the queue and the other drives absorb it.
+  library: 10x3 slots (28 cartridges), 3 drives, one robot; 6/min for 30 min, then 60 min horizon; drive 2 dies at 12 min
+----------------------------------------------------------------------------------------------------------------------
+policy                 done       left    mean wait  p95 wait   worst wait  urgent p95  mounts   tape passes  mounts/h   files/h   seek/read  robot busy
+----------------------------------------------------------------------------------------------------------------------
+FIFO                   82/177     95      1179s      2497s      2656s       2414s       79       79           79.0       82        6.77s      47%
+Batch by cartridge     177/177    0       628s       1396s      1526s       1409s       57       57           66.3       206       5.16s      40%
+Position order         177/177    0       574s       1265s      1349s       1337s       57       57           68.4       212       4.85s      41%
+Priority + aging       177/177    0       686s       1432s      1551s       83s         59       59           66.1       198       5.30s      40%
+----------------------------------------------------------------------------------------------------------------------
+  served the most: Position order (177/177, mean wait 574s). worst urgent tail: FIFO (p95 40:14).
+  (four headless runs, no wall-clock: the same seed always prints this exact table)
+
+Reading the table:
+  done        files read / files requested — throughput over the whole horizon
+  left        still queued when the clock ran out — the backlog nobody got to
+  mean wait   average seconds a request sat queued before its tape started mounting
+  p95/worst   the tail: the requests people actually complained about
+  mounts      how many times a cartridge was threaded into a drive
+  tape passes mounts counted per cartridge — the same number, one pass per mount
+  seek/read   seconds spent seeking per file read — how much motion found nothing
+  robot busy  share of the run the single robot spent moving cartridges
+
+Every number is invented: the library, the cartridges, the files and the costs
+are illustrative, not measurements of any real site.

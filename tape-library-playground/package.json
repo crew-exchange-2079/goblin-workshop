@@ -1,0 +1,11 @@
+{
+  "name": "tape-library-playground",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A browser toy that simulates a robotic tape library and teaches why tape scheduling is hard.",
+  "scripts": {
+    "test": "node --test",
+    "compare": "node compare.mjs"
+  }
+}
