@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tape library playground</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>Tape library playground</h1>
+    <p class="sub">one robot · <span id="drive-count">–</span> drives · everything on screen is invented</p>
+  </div>
+  <div class="clockbox">
+    <span id="clock" class="clock">00:00</span>
+    <span id="speedlabel" class="clocklabel">sim time</span>
+  </div>
+</header>
+
+<main>
+  <section class="panel controls" aria-label="Controls">
+    <div class="row">
+      <label for="scenario">Scenario</label>
+      <select id="scenario"></select>
+    </div>
+    <div class="row">
+      <label for="policy">Policy</label>
+      <select id="policy"></select>
+    </div>
+    <p id="policyblurb" class="blurb"></p>
+    <div class="row buttons">
+      <button id="playpause" type="button">Pause</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="step" type="button" title="advance one simulated minute">+1 min</button>
+      <button id="compare" type="button">Compare policies</button>
+    </div>
+    <div class="row">
+      <label for="speed">Speed</label>
+      <input id="speed" type="range" min="1" max="60" step="1" value="20">
+      <output id="speedout" for="speed">20&times;</output>
+    </div>
+    <p class="hint">Keyboard: <kbd>space</kbd> play/pause · <kbd>[</kbd> <kbd>]</kbd> speed · <kbd>1</kbd>–<kbd>4</kbd> scenario · <kbd>F</kbd> <kbd>B</kbd> <kbd>P</kbd> <kbd>U</kbd> policy</p>
+  </section>
+
+  <section class="panel library" aria-label="Library">
+    <div class="paneltitle">
+      <h2>Library</h2>
+      <span id="scenehint" class="tagline"></span>
+    </div>
+    <div id="stage" class="stage">
+      <div id="grid" class="grid" role="img" aria-label="Cartridge slots"></div>
+      <div id="robot" class="robot" aria-hidden="true"><span class="grip"></span><span class="robotlabel"></span></div>
+      <div id="drives" class="drives"></div>
+    </div>
+  </section>
+
+  <section class="panel stats" aria-label="Statistics">
+    <div class="paneltitle"><h2>Live stats</h2><span id="runstate" class="tagline">running</span></div>
+    <dl class="statgrid">
+      <div><dt>served</dt><dd id="s-served">0</dd></div>
+      <div><dt>queue</dt><dd id="s-queue">0</dd></div>
+      <div><dt>mean wait</dt><dd id="s-mean">—</dd></div>
+      <div><dt>p95 wait</dt><dd id="s-p95">—</dd></div>
+      <div><dt>mounts</dt><dd id="s-mounts">0</dd></div>
+      <div><dt>tape passes</dt><dd id="s-passes">0</dd></div>
+      <div><dt>files/h</dt><dd id="s-rate">0</dd></div>
+      <div><dt>robot busy</dt><dd id="s-robot">0%</dd></div>
+    </dl>
+    <div class="paneltitle"><h2>Queue</h2><span class="tagline">next up</span></div>
+    <ol id="queue" class="queue"></ol>
+  </section>
+
+  <section class="panel log" aria-label="Event log">
+    <div class="paneltitle"><h2>What the robot is doing</h2></div>
+    <ul id="events" class="events" aria-live="polite"></ul>
+  </section>
+
+  <section class="panel compare" id="comparepanel" hidden aria-label="Policy comparison">
+    <div class="paneltitle">
+      <h2>Same seed, four policies</h2>
+      <button id="compareclose" type="button" class="ghost">close</button>
+    </div>
+    <p class="blurb" id="comparecaption"></p>
+    <div class="tablewrap"><table id="comparetable"></table></div>
+  </section>
+</main>
+
+<script type="module" src="ui.js"></script>
+</body>
+</html>
