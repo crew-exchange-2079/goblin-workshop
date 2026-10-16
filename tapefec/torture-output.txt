@@ -1,0 +1,29 @@
+building 20 MB of random input (seed 20261013) ...
+encoded: 20000000 bytes -> 24209240 bytes in 372 frames (k=20 m=4 b=65536) in 0.2 s
+original sha256: 7bf107e27328890371df0836d7f4be66b81ea560505e98f629fc05b5b3ba232f
+
+running 200 trials at 0% frame damage ...
+running 200 trials at 1% frame damage ...
+running 200 trials at 5% frame damage ...
+running 200 trials at 15% frame damage ...
+
+damage    trials     exact   repaired-ok  unrecoverable  unverified  fmt-err  wrong-len     secs
+------------------------------------------------------------------------------------------------
+0%           200       200             0              0           0        0          0      8.0
+1%           200       192           187              0           6        2          3      8.7
+5%           200       159           159             12          17       12          9     12.9
+15%          200         0             0            166           1       33         25     14.0
+
+  exact = every byte correct and the trailer's SHA-256 matched;
+  repaired-ok = exact as well, but at least one block was rebuilt from parity;
+  unrecoverable = at least one group exceeded its m-block repair budget;
+  unverified = no data lost, but the trailer frame was damaged so nothing could be checked;
+  fmt-err = the stream-header frame was damaged, so there was no k/m/block_size to decode against.
+
+  0%     frames deleted       0, frames corrupted       0, blocks repaired        0, blocks lost       0
+  1%     frames deleted     366, frames corrupted     382, blocks repaired      594, blocks lost       0
+  5%     frames deleted    1807, frames corrupted    1943, blocks repaired     2784, blocks lost      52
+  15%    frames deleted    5611, frames corrupted    5544, blocks repaired     4277, blocks lost    3443
+
+CONTRACT CHECK over 800 trials: whenever the decoder reported verified, the output was byte-identical to the original: YES
+CONTRACT CHECK over 800 trials: decoded length always equal to the original length: NO (only possible to fail when the trailer frame itself was damaged)
