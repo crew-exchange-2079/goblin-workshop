@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Add parser-only SSC sequential-access support; exact byte totals require consistent verbose byte suffixes because displayed GB values are truncated.
+
 ## 0.2.0
 
 Synthetic fixtures, unit tests, mhvtl emulation and the Grafana smoke test
