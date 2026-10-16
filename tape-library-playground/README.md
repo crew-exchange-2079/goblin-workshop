@@ -85,9 +85,12 @@ physical device.
    cartridge holds only 4–18 invented files, to keep the library drawable. A dense
    variant (thousands of small files per cartridge) would change the batching
    economics and is not built.
-4. **No scenario demonstrates starvation of normal-priority work.** Policy 4's capped
-   aging prevents it by construction, and no selectable uncapped-priority policy
-   exists, so that failure mode can be read about but not poked.
+4. **No scenario demonstrates starvation of normal-priority work.** The selected
+   scenarios use finite urgent bursts and do not show it. Policy 4's capped aging
+   keeps an old normal request's score below a fresh urgent one, but dispatch still
+   picks eligible urgent work first, so aging does not guarantee starvation cannot
+   happen under sustained urgent arrivals. No uncapped-priority policy is
+   selectable, so that failure mode can be read about but not poked.
 5. **No automated UI test.** See above: syntax check plus screenshots only.
 6. **Accessibility is partial.** Keyboard shortcuts, labels and an `aria-live` event
    log are present. No screen-reader pass and no automated accessibility audit has

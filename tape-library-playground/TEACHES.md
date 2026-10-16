@@ -26,10 +26,13 @@ likely to forget about.
 
 ## 2. FIFO does worst of the four policies here — the queue order fights the physics
 
-In every scenario below FIFO is the worst of the four tested policies on throughput
-and waits (in Quiet morning all four finish everything, but FIFO waits longest).
-That is a result for these policies and scenarios, not a claim about every possible
-workload. Take the Big restore scenario: 40 cartridges, 2 drives, ~480 small files coming
+In the three congested scenarios (Big restore, Urgent request, A drive fails) FIFO
+is the worst of the four tested policies on files served and on waits. In Quiet
+morning there is no throughput gap to speak of: all four policies finish 41/41, and
+FIFO's reported rate is even marginally higher (111 vs 110 files/h). What it loses
+there is waits (mean 27 s vs 18 s, p95 81 s vs 44 s) and seek time per read (6.13 s
+vs 5.65 s). That is a result for these policies and scenarios, not a claim about
+every possible workload. Take the Big restore scenario: 40 cartridges, 2 drives, ~480 small files coming
 in over an hour. FIFO served **110 of 476 and left 366 files queued**, at 73
 files/hour. Batch by cartridge, same seed, same library, same costs, served
 **452** at 301 files/hour. FIFO is not slower because it is *stupid* about
@@ -72,7 +75,10 @@ a high-priority waiter.) This toy has no selectable policy that
 demonstrates that starvation; its priority policy is
 **priority with aging**: every minute of waiting raises a request's score, which
 pushes long-waiting normal work up toward the front but is capped so it can never
-overtake a fresh urgent request. And because preempting costs a rewind and a
+overtake a fresh urgent request. That cap is not a general guarantee: dispatch still
+picks eligible urgent work first, so under sustained urgent arrivals normal work
+could still wait indefinitely. The scenarios here use a finite urgent burst, and
+the tests do not establish fairness in general. And because preempting costs a rewind and a
 remount, the policy prefers whatever is already threaded when nothing urgent is
 waiting — which is why it still serves 321 of 327 files, against FIFO's 101.
 The lesson: **priority is better with an aging term, and preemption is
