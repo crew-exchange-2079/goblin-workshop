@@ -147,8 +147,8 @@ memory.
 ### 2.1 The field
 
 `GF(2^8)` with the primitive (irreducible) polynomial **0x11D**, i.e.
-x⁸ + x⁴ + x³ + x² + 1 — the same field RS codes have used since Reed & Solomon
-1976. The generator element is **α = 0x02**, which is primitive under 0x11D.
+x⁸ + x⁴ + x³ + x² + 1 — a common choice for byte-oriented Reed–Solomon
+codes. The generator element is **α = 0x02**, which is primitive under 0x11D.
 
 Implemented with log/antilog tables (`_gf_exp`, `_gf_log`) built once at import,
 plus one 256-byte `bytes.translate` table per constant (`_MULTAB[c][x] = c·x`).
@@ -349,14 +349,23 @@ These are deliberate, not oversights. Stating them is part of the design.
 - Format motivation and prior art: the Hacker News thread
   <https://news.ycombinator.com/item?id=30099540>, read 2026-10-13. It discusses
   the original request, `par2`, interleaving and drive-level ECC.
-- Reed, I. S. and Solomon, G., *Optimal Coding of Linear Codes and
-  Error-Correction Devices*, J. Applied Theory 10 (1976) 381–398 — the
-  codeword origin.
-- Berlekamp, E. R., *Algebraic Coding*, McGraw-Hill, 1968 — the
-  erasure-location / linear-algebra decoding this implementation uses.
-- Lin, S. and Costello, D., *Error Control Coding*, 2nd ed., Prentice-Hall,
-  1983 — the systematic-code construction and the MDS property.
-- **Not fetched.** No external reference for the RS algebra was retrieved over
-  the network while writing this. The algebra above is standard and is pinned by
-  the test suite (`test_tapefec.py`, GF identities and exhaustive round trips)
-  rather than by a fetched citation.
+- Reed, I. S. and Solomon, G., "Polynomial Codes Over Certain Finite Fields",
+  *Journal of the Society for Industrial and Applied Mathematics* 8(2), 1960,
+  pp. 300–304, DOI 10.1137/0108018
+  (<https://epubs.siam.org/doi/10.1137/0108018>).
+- Berlekamp, E. R., *Algebraic Coding Theory*, McGraw-Hill, 1968
+  (<https://math.berkeley.edu/~berlek/pubs/books.html>, the author's own
+  bibliography).
+- Lin, S. and Costello, D. J., *Error Control Coding*, 2nd edition, Pearson,
+  published May 28, 2004, copyright 2005
+  (<https://www.pearson.com/en-us/subject-catalog/p/redirected-product/P200000003536?view=educator>,
+  publisher page).
+
+The three references above are background reading only. Their bibliographic
+details were checked against the publisher or author pages linked above during
+publication; the full texts were not read for this document, so no specific
+algorithm, construction or claim in this design is attributed to them. The
+original development did not retrieve any Reed–Solomon reference. The tests in
+`test_tapefec.py` (GF identities, exhaustive round trips) are implementation
+checks: they are not a mathematical proof and not an independent validation
+against any source.
