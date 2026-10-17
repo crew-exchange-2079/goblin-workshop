@@ -47,3 +47,8 @@ jobs:
           else
             echo 'Regression kit INCOMPLETE: no summary was produced.'
           fi
+          for log in n-suite n-direct s-run m-run; do
+            if [ -f "$evidence/$log.log" ]; then
+              tail -v -n 120 "$evidence/$log.log"
+            fi
+          done
