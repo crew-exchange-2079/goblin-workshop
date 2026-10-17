@@ -1,23 +1,21 @@
-# HANDOFF — LTFS issue triage 2026-10-17 (BLOCKED, NOT DONE)
+# HANDOFF - LTFS triage 2026-10-17 (current)
 
-## Outcome
-Collection blocked at the first request. No triage, TOP5 or audit was produced. **No bug reproduced or fixed. No physical-drive behavior verified.**
+Earlier access-blocker history: `HANDOFF-2026-10-17-initial-403-blocker.md` and `raw/` (403 receipts, kept as-is; `collect.sh` is NOT a successful collection and was not rerun).
 
-## Evidence
-- Base: origin/main verified at `ac341512bd2f362c54a2bebaf49f971b0e7e94e9`; topic `claude/ltfs-issue-triage-20261017` created from it (collection started 2026-10-17T08:57:53Z).
-- `collect.sh` issued 4 unauthenticated requests to `https://api.github.com/repos/LinearTapeFileSystem/ltfs/{issues,pulls}` (open issues, open PRs, closed issues since 2025-10-17, closed PRs). Each returned **HTTP 403** from the session's agent proxy, not from GitHub: body says "GitHub access to this repository is not enabled for this session. Use add_repo to request access."
-- Raw responses, headers, timestamps and sha256 hashes are in `raw/` (`*.json`, `*.hdr`, `*.meta`, `SHA256SUMS.txt`). They contain the error body only, no issue data, no credentials.
-- No Link pagination existed (error responses). Coverage: 0 open issues, 0 open PRs, 0 closed-window items. Counts are unknown, not zero.
-- mhvtl documentation and LTFS source were not fetched (stopped on the access blocker).
+## DONE
+- Parent-supplied public snapshot (collected 2026-10-17T09:03Z; zip sha256 1cff6906...cb230, member sha256 ac27a26f...fb1f5b, both recomputed OK). Input kept outside Git.
+- Counts: **72 open non-PR issues** (95 mixed open - 23 open PRs); open PRs: **23**. Classes in TRIAGE.md header (already-fixed-upstream = 0: no evidence available).
+- Closed window: see `census.json` (closed_at >= 2025-10-17 filtered locally; mixed closed response 84, closed-PR page 100 with min updated 2022-12-25, Link next present but beyond window). Closed issues and PRs in the window are counted from the supplied normalized items only.
+- TRIAGE.md, TOP5.md (1 ranked), AUDIT.md (real run).
+- Sources: LTFS commit efc9e3a5c498504c03c2f1d0b931bae058922104; mhvtl commit 852b78a7ae3add53ffdc418add5f14999762d788 (docs not read this pass).
 
-## Why I stopped
-The brief says stop on access blockers with no bypass or new auth. The only remedy offered is `add_repo` (and possibly `access:"push"`), which widens the session's repo scope/credentials. That was not authorised, so I did not call it. I also did not try other routes (mirrors, web scraping, git clone of upstream).
+## NOT DONE / limits
+- Snapshot is normalized selected fields, not raw HTTP. src/libltfs/ltfs_fsops.c was omitted by the parent's guard; not read.
+- Only #541's source was read. 4 more ranks not filled. No maintainer comments or merged-state data, so #598/#522 stay UNVERIFIED.
+- mhvtl capability was not checked against docs; repro sketches are reasoned only. No bug reproduced/fixed; no physical-drive claim; no CI ran.
 
-## NOT DONE
-TRIAGE.md, TOP5.md, AUDIT.md; verification of PR 658/659/662, issue 598 and the shebang ruling; mhvtl capability check; PR creation (success path only).
+## Reproduce
+`python3 -I build.py <snapshot.json>` (writes census.json, TRIAGE.md), then `python3 -I audit.py`.
 
-## To resume
-Lead decides: (a) allow read-only `add_repo` for LinearTapeFileSystem/ltfs (and markh794/mhvtl), or (b) allow the proxy to pass those hosts. Then rerun `sh ltfs-triage/2026-10-17/collect.sh <emptydir>` (15-page cap per list; closed lists need `closed_at >= 2025-10-17` filtering, since `since` means updated) and do the triage.
-
-## Known-bad
-`collect.sh` closed-PR query has no `since`; it would need paging by updated desc until updated_at < 2025-10-17. Untested beyond the 403.
+## Lead review
+Overlap of #541 with open PRs #603/#655; class judgments for non-repro rows are title/label-based (low confidence).
