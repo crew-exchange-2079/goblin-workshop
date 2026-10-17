@@ -1,0 +1,4 @@
+Sequential access device log page (ssc-3)
+  Data bytes received with WRITE operations: 0 GB [0 bytes]
+  Cleaning action not required (or completed)
+    cleaning value: 0

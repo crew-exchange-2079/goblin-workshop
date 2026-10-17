@@ -1,0 +1,3 @@
+Sequential access device log page (ssc-3)
+  Data bytes received with WRITE operations: -1 GB [-1 bytes]
+  Data bytes transferred by READ operations: 2 GB [oops bytes]
