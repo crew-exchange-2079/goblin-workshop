@@ -1,0 +1,13 @@
+diff --git a/usr/mhvtl_log.c b/usr/mhvtl_log.c
+index 128ef43..8bd33f9 100644
+--- a/usr/mhvtl_log.c
++++ b/usr/mhvtl_log.c
+@@ -410,8 +410,6 @@ static struct DeviceStatus_pg *lookup_device_status_pg(void) {
+ 	struct log_pg_list *log_pg;
+ 
+ 	log_pg = lookup_log_pg(&lunit.log_pg, DEVICE_STATUS, NO_SUBPAGE);
+-	if (!log_pg)
+-		return NULL;
+ 
+ 	return (struct DeviceStatus_pg *)log_pg->p;
+ }

@@ -1,0 +1,81 @@
+make: Entering directory '<WORK>/normal/tests'
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_byteshift test_byteshift.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_crc test_crc.c ../usr/utils/reed-solomon.c ../usr/utils/crc32c.c -lpthread
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_sense test_sense.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_smc_slots test_smc_slots.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_vpd test_vpd.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_log_volstat test_log_volstat.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -DMHVTL_VERSION=\"test\" -DMHVTL_GITHASH=\"test\" -DMHVTL_GITDATE=\"test\" -DMHVTL_HOME_PATH=\"/tmp\" -DMHVTL_CONFIG_PATH=\"/tmp\" -DSYSTEMD_SERVICE_DIR=\"/tmp\" -c -o vtlcmd_testobj.o ../usr/cmd/vtlcmd.c
+objcopy --redefine-sym main=vtlcmd_main vtlcmd_testobj.o
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_vtlcmd_parsing test_vtlcmd_parsing.c vtlcmd_testobj.o
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_raw_bay_conf test_raw_bay_conf.c ../usr/raw_bay_conf.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_compression test_compression.c ../usr/mhvtl_compress.c -llz4 -lzstd
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_compression_select test_compression_select.c ../usr/mhvtl_compress.c \
+	-L ../usr -lvtlscsi -llz4 -lzstd -Wl,-rpath,'$ORIGIN/../usr'
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_open_fifo test_open_fifo.c \
+	-L ../usr -lvtlscsi -Wl,-rpath,'$ORIGIN/../usr'
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_q_reply test_q_reply.c ../usr/utils/q.c -lpthread
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_q_send test_q_send.c ../usr/utils/q.c
+gcc -Wall -Wshadow -g -O2 -std=gnu99 -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -I . -I ../include/utils -I ../include/common -I ../include -I ../ccan -o test_media_home test_media_home.c \
+	-L ../usr -lvtlscsi -Wl,-rpath,'$ORIGIN/../usr'
+[... 131 lines elided ...]
+--- test_compression ---
+test_compression: PAYLOAD_SZ=8192
+  ok   : file/LZ4 compressible: stored compressed (comp=46 < uncomp=8192)
+  ok   : file/LZ4 compressible: reads back bit-identical
+  ok   : file/LZ4 incompressible: comp_type=none fallback (helper=0)
+  ok   : file/LZ4 incompressible: reads back bit-identical
+  ok   : file/ZSTD compressible: stored compressed (comp=26 < uncomp=8192)
+  ok   : file/ZSTD compressible: reads back bit-identical
+  ok   : file/ZSTD incompressible: comp_type=none fallback (helper=0)
+  ok   : file/ZSTD incompressible: reads back bit-identical
+SUCCESS: 0 check(s) failed
+--- test_compression_select ---
+test_compression_select
+== selection path (set_mode_compression) ==
+  ok   : MODE SELECT 0x0F LZ4 -> compressionType == LZ4
+  ok   : MODE SENSE reports LZ4 algorithm id back
+  ok   : LZ4: compression factor non-zero (write path compresses)
+  ok   : MODE SELECT 0x0F ZSTD -> compressionType == ZSTD
+  ok   : MODE SENSE reports ZSTD algorithm id back
+  ok   : ZSTD: carried level clamped into 1-3
+  ok   : MODE SELECT 0x0F default algo keeps current codec
+  ok   : DCE clear -> compression disabled (factor 0)
+  (write-path check skipped: no <device> <barcode> args)
+SUCCESS: 0 check(s) failed
+--- test_open_fifo ---
+Test creates_and_opens_fifo...                  [ OK ]
+Test reuses_existing_fifo...                    [ OK ]
+Test refuses_symlink...                         [ OK ]
+Test refuses_regular_file...                    [ OK ]
+SUCCESS: No unit tests have failed.
+--- test_q_reply ---
+Test reply_first...                             [ OK ]
+Test others_held_in_order...                    [ OK ]
+Test wait_spans_other_messages...               [ OK ]
+Test signal_does_not_end_wait...                [ OK ]
+Test short_message_not_a_reply...               [ OK ]
+Test receive_failure...                         [ OK ]
+Test max_length_message...                      [ OK ]
+SUCCESS: No unit tests have failed.
+--- test_q_send ---
+Test message_size...                            [ OK ]
+SUCCESS: No unit tests have failed.
+--- test_media_home ---
+Test home_not_taken_from_later_library...       [ OK ]
+SUCCESS: No unit tests have failed.
+--- test_log_device_status ---
+Test empty_list_is_safe...                      [ OK ]
+Test tape_alert_without_other_pages...          [ OK ]
+Test device_status_page_present...              [ OK ]
+Test sequential_access_field...                 [ OK ]
+SUCCESS: No unit tests have failed.
+--- check_make_vtl_media.sh ---
+make_vtl_media: 43 barcodes checked, 0 failed
+--- make_vtl_media_home.sh ---
+make_vtl_media_home: 16/16 checks passed
+--- generator/run.sh ---
+generator: 8/8 checks passed
+
+=== All test suites passed ===
+make: Leaving directory '<WORK>/normal/tests'
