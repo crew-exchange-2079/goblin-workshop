@@ -29,7 +29,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends build-essential git binutils python3 \
-            zlib1g-dev liblz4-dev libzstd-dev liblzo2-dev libudev-dev uuid-dev
+            zlib1g-dev liblz4-dev libzstd-dev liblzo2-dev libudev-dev uuid-dev man-db
       - name: Runner boundary regressions
         timeout-minutes: 1
         run: timeout --kill-after=2s 45s python3 -I test_runner.py

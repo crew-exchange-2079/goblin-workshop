@@ -253,6 +253,31 @@ def main(argv=None):
     print("FULL_ACCEPTANCE (mechanical stage results only)" if full else "PARTIAL (not all four PASS)")
     return 0 if full and rc == 0 else (rc if rc else 1)
 
+def prepare_suite_manpath(ctx, norm):
+    """Generate pinned upstream documentation; stage only in our owned work tree."""
+    rc, _ = run(ctx, "n-man", ["make", "-C", "man"], cwd=norm, step_max=120)
+    if rc:
+        return None
+    manpath = os.path.join(ctx.work, "suite-man")
+    os.mkdir(manpath)
+    pages = {}
+    for section in ("1", "5"):
+        dest = os.path.join(manpath, "man" + section)
+        os.mkdir(dest)
+        for name in sorted(os.listdir(os.path.join(norm, "man"))):
+            if not name.endswith("." + section):
+                continue
+            src = os.path.join(norm, "man", name)
+            if not stat.S_ISREG(os.lstat(src).st_mode):
+                raise RuntimeError("generated manual page is not a regular file: " + name)
+            shutil.copyfile(src, os.path.join(dest, name))
+            pages[name] = sha(src)
+    if not all(name in pages for name in ("vtltape.1", "vtllibrary.1", "vtlcmd.1")):
+        raise RuntimeError("pinned manual generation did not produce required pages")
+    ctx.prov["suite_manpages_sha256"] = pages
+    ctx.prov["suite_manpath"] = scrub(ctx, manpath)
+    return manpath
+
 def body(ctx):
     a = ctx.a
     # ---- preflight: precise errors, never a false PASS
@@ -342,10 +367,12 @@ def body(ctx):
         else:
             rc1, _ = run(ctx, "n-etc", ["make", "-C", "etc"], cwd=norm, step_max=120)
             rc2, _ = run(ctx, "n-usr-all", ["make", "-C", "usr"], cwd=norm, step_max=600)
-            if rc1 or rc2:
-                setres(ctx, "EXISTING_SUITE", "BLOCKED", "etc/ or usr/ prerequisite build failed (logs/n-etc.log, n-usr-all.log)")
+            manpath = prepare_suite_manpath(ctx, norm) if not (rc1 or rc2) else None
+            if rc1 or rc2 or manpath is None:
+                setres(ctx, "EXISTING_SUITE", "BLOCKED", "etc/, usr/ or man/ prerequisite build failed (logs/n-etc.log, n-usr-all.log, n-man.log)")
             else:
-                rc, o = run(ctx, "n-suite", ["make", "-C", "tests", "test"], cwd=norm, step_max=600)
+                rc, o = run(ctx, "n-suite", ["make", "-C", "tests", "test"], cwd=norm,
+                            env={"MANPATH": manpath}, step_max=600)
                 if rc == 0 and "All test suites passed" in o and re.search(
                         r"--- test_log_device_status ---\s*(?:.*\n)*?SUCCESS", o):
                     setres(ctx, "EXISTING_SUITE", "PASS", "`make -C tests test` rc=0, 'All test suites passed'")
