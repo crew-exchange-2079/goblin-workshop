@@ -1,0 +1,49 @@
+name: mhvtl status regression kit
+
+on:
+  push:
+    paths: ["tape-regression-lab/mhvtl-status/**", ".github/workflows/mhvtl-status-ci.yml"]
+  pull_request:
+    paths: ["tape-regression-lab/mhvtl-status/**", ".github/workflows/mhvtl-status-ci.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mhvtl-status-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: tape-regression-lab/mhvtl-status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # existing repo pin
+        with:
+          persist-credentials: false
+      - name: Install userspace build prerequisites
+        timeout-minutes: 3
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential git binutils python3 \
+            zlib1g-dev liblz4-dev libzstd-dev liblzo2-dev libudev-dev uuid-dev
+      - name: Runner boundary regressions
+        timeout-minutes: 1
+        run: timeout --kill-after=2s 45s python3 -I test_runner.py
+      - name: Real library, existing suite, sanitizers and mutation control
+        timeout-minutes: 4
+        run: |
+          timeout --kill-after=10s 230s ./run.sh --deadline 210 \
+            --evidence-dir "$RUNNER_TEMP/mhvtl-status-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      - name: Record mechanical acceptance summary
+        if: always()
+        run: |
+          evidence="$RUNNER_TEMP/mhvtl-status-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [ -f "$evidence/summary.json" ]; then
+            cat "$evidence/summary.json"
+          else
+            echo 'Regression kit INCOMPLETE: no summary was produced.'
+          fi
