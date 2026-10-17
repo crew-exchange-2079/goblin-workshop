@@ -1,0 +1,734 @@
+# Evidence for review-fix revision. Python: Python 3.12.3; base commit 03ba5f44 (PR11 head).
+# History: the first schema compile attempt failed (SCHEMA_COMPILE_FAILED) because two stray page-footer lines remained; fixed before the original commit. Initial logs for that and the first 14-test run were NOT retained.
+# $ python -m unittest discover -s tests -v   (fresh pinned venv, lxml 6.0.2)
+test_fixtures_pass (test_validate.Accept.test_fixtures_pass) ... FAIL
+test_module_matches_cli_and_hashes (test_validate.Accept.test_module_matches_cli_and_hashes) ... ok
+test_semantic_counterexample_still_schema_valid_only (test_validate.Accept.test_semantic_counterexample_still_schema_valid_only) ... FAIL
+test_double_slash_dev_and_untyped_inodes (test_validate.DeviceSafety.test_double_slash_dev_and_untyped_inodes) ... ok
+test_missing_opath_refuses_without_opening (test_validate.DeviceSafety.test_missing_opath_refuses_without_opening) ... ok
+test_parent_symlink_alias_of_dev_refused_before_data_open (test_validate.DeviceSafety.test_parent_symlink_alias_of_dev_refused_before_data_open) ... ok
+test_relative_input_with_cwd_dev_alias (test_validate.DeviceSafety.test_relative_input_with_cwd_dev_alias) ... ok
+test_swap_race_reads_pinned_regular_inode (test_validate.DeviceSafety.test_swap_race_reads_pinned_regular_inode) ... FAIL
+test_utf8_positive_and_non_utf8_refused (test_validate.Encoding.test_utf8_positive_and_non_utf8_refused) ... FAIL
+test_check_document_denied_resolution_reports_refusal (test_validate.Hostile.test_check_document_denied_resolution_reports_refusal) ... ok
+test_dtd_xxe_not_resolved (test_validate.Hostile.test_dtd_xxe_not_resolved) ... ok
+test_infrastructure_failures_never_success (test_validate.Hostile.test_infrastructure_failures_never_success) ... ok
+test_input_kinds (test_validate.Hostile.test_input_kinds) ... ok
+test_limits_and_encoding (test_validate.Hostile.test_limits_and_encoding) ... ok
+test_parser_resolver_spy_and_no_entity_expansion (test_validate.Hostile.test_parser_resolver_spy_and_no_entity_expansion) ... ok
+test_report_bounded (test_validate.Hostile.test_report_bounded) ... FAIL
+test_usage_error_is_error (test_validate.Hostile.test_usage_error_is_error) ... ok
+test_invalid_cases (test_validate.Reject.test_invalid_cases) ... 
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [missing-field] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [duplicate-singleton] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [negative-offset] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [negative-length] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [zero-bytecount] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [malformed] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [missing-version] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [unknown-tag] ... FAIL
+  test_invalid_cases (test_validate.Reject.test_invalid_cases) [unknown-attr] ... FAIL
+test_unknown_tag_name_not_echoed (test_validate.Reject.test_unknown_tag_name_not_echoed) ... FAIL
+test_unsupported (test_validate.Reject.test_unsupported) ... 
+  test_unsupported (test_validate.Reject.test_unsupported) [v2.5.0] ... FAIL
+  test_unsupported (test_validate.Reject.test_unsupported) [namespace] ... FAIL
+  test_unsupported (test_validate.Reject.test_unsupported) [root] ... FAIL
+  test_unsupported (test_validate.Reject.test_unsupported) [xsi-schemalocation] ... FAIL
+test_unsupported (test_validate.Reject.test_unsupported) ... FAIL
+
+======================================================================
+FAIL: test_fixtures_pass (test_validate.Accept.test_fixtures_pass)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 49, in test_fixtures_pass
+    self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"), name)
+AssertionError: Tuples differ: (3, 'ERROR') != (0, 'SCHEMA_VALID_ONLY')
+
+First differing element 0:
+3
+0
+
+- (3, 'ERROR')
++ (0, 'SCHEMA_VALID_ONLY') : valid-empty.xml
+
+======================================================================
+FAIL: test_semantic_counterexample_still_schema_valid_only (test_validate.Accept.test_semantic_counterexample_still_schema_valid_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 67, in test_semantic_counterexample_still_schema_valid_only
+    self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"))
+AssertionError: Tuples differ: (3, 'ERROR') != (0, 'SCHEMA_VALID_ONLY')
+
+First differing element 0:
+3
+0
+
+- (3, 'ERROR')
++ (0, 'SCHEMA_VALID_ONLY')
+
+======================================================================
+FAIL: test_swap_race_reads_pinned_regular_inode (test_validate.DeviceSafety.test_swap_race_reads_pinned_regular_inode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 298, in test_swap_race_reads_pinned_regular_inode
+    self.assertEqual(rep["status"], "SCHEMA_VALID_ONLY")
+AssertionError: 'ERROR' != 'SCHEMA_VALID_ONLY'
+- ERROR
++ SCHEMA_VALID_ONLY
+
+
+======================================================================
+FAIL: test_utf8_positive_and_non_utf8_refused (test_validate.Encoding.test_utf8_positive_and_non_utf8_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 307, in test_utf8_positive_and_non_utf8_refused
+    self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"))
+AssertionError: Tuples differ: (3, 'ERROR') != (0, 'SCHEMA_VALID_ONLY')
+
+First differing element 0:
+3
+0
+
+- (3, 'ERROR')
++ (0, 'SCHEMA_VALID_ONLY')
+
+======================================================================
+FAIL: test_report_bounded (test_validate.Hostile.test_report_bounded)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 215, in test_report_bounded
+    self.assertEqual(rc, 1)
+AssertionError: 3 != 1
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [missing-field]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 757,
+    "sha256": "d32500ca3ef4e2f5a2ca4cc71669b85e4663440136bb2f3e6a45cd0623ef2f0a"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [duplicate-singleton]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 831,
+    "sha256": "6260f0129fbd3b0982aa10eacad2b12df0e799f29f9c7d98461b4063c050461d"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [negative-offset]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 2285,
+    "sha256": "6e47b47a56c09b566f9a93e89ed4e5e96aea16991ece0c85c84c06105979639a"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [negative-length]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 2283,
+    "sha256": "456f57d8d47b48b2e643e276c8800a2b07e914e51141ba93a636019a91fd0d83"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [zero-bytecount]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 2282,
+    "sha256": "bb1ead0b3bca2447cd1c0d99ff7a6cbd386b2e1fdd1ce217f3776795ce243fe4"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [malformed]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 781,
+    "sha256": "d8508ad42c8f57081d5b65ad6ea306a8ebd77c65e9a82c5996405d164a638343"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [missing-version]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 777,
+    "sha256": "650fcf2e3d92b97e76c4884d0540713f10474f5921ba829921cd2827737254c4"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [unknown-tag]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 809,
+    "sha256": "7ad86bf3651192e825441c85ea005c48a8b59bacd46e47b6b15b731072d50c0b"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_invalid_cases (test_validate.Reject.test_invalid_cases) [unknown-attr]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 88, in test_invalid_cases
+    self.assertEqual((rc, rep["status"]), (1, "INVALID"), out)
+AssertionError: Tuples differ: (3, 'ERROR') != (1, 'INVALID')
+
+First differing element 0:
+3
+1
+
+- (3, 'ERROR')
++ (1, 'INVALID') : {
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 801,
+    "sha256": "779a465b57b21b489bdb2a23d405639bc0edad19b47a20e4f651fa2e37d34279"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+
+
+======================================================================
+FAIL: test_unknown_tag_name_not_echoed (test_validate.Reject.test_unknown_tag_name_not_echoed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 93, in test_unknown_tag_name_not_echoed
+    self.assertEqual(rc, 1)
+AssertionError: 3 != 1
+
+======================================================================
+FAIL: test_unsupported (test_validate.Reject.test_unsupported) [v2.5.0]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 109, in test_unsupported
+    self.assertEqual((rc, rep["status"]), (2, "UNSUPPORTED"))
+AssertionError: Tuples differ: (3, 'ERROR') != (2, 'UNSUPPORTED')
+
+First differing element 0:
+3
+2
+
+- (3, 'ERROR')
++ (2, 'UNSUPPORTED')
+
+======================================================================
+FAIL: test_unsupported (test_validate.Reject.test_unsupported) [namespace]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 109, in test_unsupported
+    self.assertEqual((rc, rep["status"]), (2, "UNSUPPORTED"))
+AssertionError: Tuples differ: (3, 'ERROR') != (2, 'UNSUPPORTED')
+
+First differing element 0:
+3
+2
+
+- (3, 'ERROR')
++ (2, 'UNSUPPORTED')
+
+======================================================================
+FAIL: test_unsupported (test_validate.Reject.test_unsupported) [root]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 109, in test_unsupported
+    self.assertEqual((rc, rep["status"]), (2, "UNSUPPORTED"))
+AssertionError: Tuples differ: (3, 'ERROR') != (2, 'UNSUPPORTED')
+
+First differing element 0:
+3
+2
+
+- (3, 'ERROR')
++ (2, 'UNSUPPORTED')
+
+======================================================================
+FAIL: test_unsupported (test_validate.Reject.test_unsupported) [xsi-schemalocation]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 109, in test_unsupported
+    self.assertEqual((rc, rep["status"]), (2, "UNSUPPORTED"))
+AssertionError: Tuples differ: (3, 'ERROR') != (2, 'UNSUPPORTED')
+
+First differing element 0:
+3
+2
+
+- (3, 'ERROR')
++ (2, 'UNSUPPORTED')
+
+======================================================================
+FAIL: test_unsupported (test_validate.Reject.test_unsupported)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/user/goblin-workshop/ltfs-index-validator/tests/test_validate.py", line 111, in test_unsupported
+    self.assertEqual(rc, 1)
+AssertionError: 3 != 1
+
+----------------------------------------------------------------------
+Ran 20 tests in 2.170s
+
+FAILED (failures=20)
+# unittest exit=1
+# $ validate.py --input fixtures/valid-empty.xml
+{
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 793,
+    "sha256": "8bbce307c02aa2d9f2008425b8f7f0c3af3d782b18ed0dd41dd9e71bf5d7ec32"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=3
+# $ validate.py --input fixtures/valid-nested.xml
+{
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 2284,
+    "sha256": "ec1dfcfc88c73682bf5fa33a4290d3524a621f56a063bbb4d55974d1fb2db7b1"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=3
+# $ validate.py --input fixtures/valid-reordered.xml
+{
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 794,
+    "sha256": "33b327161308ef0ddf6b9c7b6a4a4bb654ae380c4e434888fffdeaaa497c964c"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=3
+# $ validate.py --input <synthetic v25.xml>
+{
+  "diagnostics": [
+    {
+      "code": "VERSION_UNSUPPORTED",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 2,
+  "input": {
+    "bytes": 28,
+    "sha256": "6240a30a9e3207f05ceeb11b8a0d5d7ca37a8407b95f2faf65930d6fb40ebe49"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "UNSUPPORTED",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=2
+# $ validate.py --input <synthetic miss.xml>
+{
+  "diagnostics": [
+    {
+      "code": "INTERNAL_ERROR",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 3,
+  "input": {
+    "bytes": 757,
+    "sha256": "d32500ca3ef4e2f5a2ca4cc71669b85e4663440136bb2f3e6a45cd0623ef2f0a"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "ERROR",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=3
