@@ -1,0 +1,329 @@
+From a94d6bb39f95eee7e47ac0ff1e88be2888887fde Mon Sep 17 00:00:00 2001
+From: "Claude Code (Goblin Workshop crew)" <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:52:24 +0000
+Subject: [PATCH] tests: cover absent
+ DEVICE_STATUS/TAPE_ALERT/SEQUENTIAL_ACCESS log pages
+
+Add tests/test_log_device_status.c, linked against the real libvtlscsi,
+exercising lookup_device_status_pg() (static) through the public setters and
+set_TapeAlert() with an empty log-page list, a TAPE_ALERT-only list, a
+DEVICE_STATUS list and a SEQUENTIAL_ACCESS_DEVICE list. Wire it into
+tests/Makefile via a separate "TESTS +=" line. Test-only; no production change.
+
+Test authored by the Goblin Workshop crew (Claude Code) as a patch for mhvtl,
+GPL-2.0-or-later. mhvtl and the already-merged guard (issue #168) belong to
+their authors.
+---
+ tests/Makefile                 |   6 +
+ tests/test_log_device_status.c | 275 +++++++++++++++++++++++++++++++++
+ 2 files changed, 281 insertions(+)
+ create mode 100644 tests/test_log_device_status.c
+
+diff --git a/tests/Makefile b/tests/Makefile
+index ebb34da..5a426fa 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -28,6 +28,7 @@ CRC_SRC  = ../usr/utils/crc32c.c
+ 
+ # All test binaries
+ TESTS = test_byteshift test_crc test_sense test_smc_slots test_vpd test_log_volstat test_vtlcmd_parsing test_raw_bay_conf test_compression test_compression_select test_open_fifo test_q_reply test_q_send test_media_home
++TESTS += test_log_device_status
+ 
+ # Shell checks of the helper scripts; nothing to build
+ SCRIPT_TESTS = check_make_vtl_media.sh
+@@ -112,6 +113,11 @@ test_media_home: test_media_home.c acutest.h ../usr/libvtlscsi.so
+ 	$(CC) $(CFLAGS) $(IFLAGS) -o $@ test_media_home.c \
+ 		-L ../usr -lvtlscsi -Wl,-rpath,'$$ORIGIN/../usr'
+ 
++# lookup_device_status_pg() and set_TapeAlert() from libvtlscsi: absent log pages
++test_log_device_status: test_log_device_status.c acutest.h ../usr/libvtlscsi.so
++	$(CC) $(CFLAGS) $(IFLAGS) -o $@ test_log_device_status.c \
++		-L ../usr -lvtlscsi -Wl,-rpath,'$$ORIGIN/../usr'
++
+ test_q_reply: test_q_reply.c acutest.h ../usr/utils/q.c ../include/utils/q.h
+ 	$(CC) $(CFLAGS) $(IFLAGS) -o $@ test_q_reply.c ../usr/utils/q.c -lpthread
+ 
+diff --git a/tests/test_log_device_status.c b/tests/test_log_device_status.c
+new file mode 100644
+index 0000000..9f6c079
+--- /dev/null
++++ b/tests/test_log_device_status.c
+@@ -0,0 +1,275 @@
++/*
++ * Regression tests for log pages that may be absent from lunit.log_pg:
++ * the optional DEVICE_STATUS (0x11) page behind lookup_device_status_pg(),
++ * and the TAPE_ALERT (0x2e) / SEQUENTIAL_ACCESS_DEVICE (0x0c) pages used by
++ * set_TapeAlert() (usr/mhvtl_log.c).
++ *
++ * lookup_device_status_pg() is static, so it is exercised through the public
++ * setters of the real libvtlscsi. Pages are built with the real
++ * add_log_*() / dealloc_all_log_pages() API on synthetic in-memory state;
++ * no device, configuration or daemon is involved.
++ *
++ * Added as a test-only patch by the Goblin Workshop crew for the mhvtl
++ * project. mhvtl and the production guard (see issue #168) belong to
++ * their authors. Licensed GPL-2.0-or-later, like mhvtl.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++#include "acutest.h"
++
++#include <stdint.h>
++#include <string.h>
++
++#include "vtllib.h"
++#include "mhvtl_log.h"
++#include "ssc.h"
++
++/* Exported by libvtlscsi but not declared in a public header */
++void set_lp_11_crqst(int flag);
++void set_lp_11_crqrd(int flag);
++
++/* libvtlscsi expects each executable to supply this symbol. */
++char mhvtl_driver_name[] = "test_log_device_status";
++
++#define BIT(n) (1ull << (n))
++
++/* First use: lunit is zeroed, so the list head must be initialised before
++ * anything walks it. */
++static void init_pages(void)
++{
++	INIT_LIST_HEAD(&lunit.log_pg);
++}
++
++static void reset_pages(void)
++{
++	if (lunit.log_pg.next != NULL)
++		dealloc_all_log_pages(&lunit);
++	init_pages();
++}
++
++static void *page(uint8_t code)
++{
++	struct log_pg_list *l = lookup_log_pg(&lunit.log_pg, code, NO_SUBPAGE);
++
++	return l ? l->p : NULL;
++}
++
++/* Assert TapeAlert[] holds 1 exactly at the listed (0-based) flag indexes */
++static void tape_alert_set_is(const int *idx, int n)
++{
++	struct TapeAlert_pg *ta = page(TAPE_ALERT);
++	int					 i, j;
++
++	TEST_ASSERT(ta != NULL);
++	for (i = 0; i < 64; i++) {
++		int want = 0;
++
++		for (j = 0; j < n; j++)
++			if (idx[j] == i)
++				want = 1;
++		TEST_CHECK(ta->TapeAlert[i].value == want);
++		TEST_MSG("flag index %d: got %u, want %d", i, ta->TapeAlert[i].value, want);
++	}
++}
++
++static void test_empty_list(void)
++{
++	reset_pages();
++	current_state		= MHVTL_STATE_IDLE;
++	lu_ssc.load_status	= TAPE_UNLOADED;
++
++	TEST_CHECK(set_TapeAlert(0) == -1);
++	TEST_CHECK(set_TapeAlert(BIT(19) | BIT(20) | BIT(63)) == -1);
++
++	/* Optional-page setters are silent no-ops */
++	set_lp_11_macc(1);
++	set_lp11_compression(1);
++	set_lp_11_crqst(1);
++	set_lp_11_crqrd(1);
++	set_lp_11_wp(1);
++	set_lp11_medium_present(1);
++	set_lp11_medium_present(0);
++	TEST_CHECK(list_empty(&lunit.log_pg));
++	TEST_CHECK(current_state == MHVTL_STATE_IDLE);
++
++	/* The global state still follows even with no DEVICE_STATUS page */
++	set_current_state(MHVTL_STATE_READING);
++	TEST_CHECK(current_state == MHVTL_STATE_READING);
++	set_tape_load_status(TAPE_LOADED);
++	TEST_CHECK(get_tape_load_status() == TAPE_LOADED);
++	set_tape_load_status(TAPE_UNLOADED);
++	TEST_CHECK(get_tape_load_status() == TAPE_UNLOADED);
++	TEST_CHECK(list_empty(&lunit.log_pg));
++
++	reset_pages();
++}
++
++static void test_tape_alert_only(void)
++{
++	static const int none[]	  = { 0 };
++	static const int mixed[]  = { 0, 19, 20, 63 };
++	static const int single[] = { 20 };
++	struct TapeAlert_pg *ta;
++	int					 i;
++
++	reset_pages();
++	TEST_ASSERT(add_log_tape_alert(&lunit) == 0);
++	TEST_CHECK(page(DEVICE_STATUS) == NULL);
++	TEST_CHECK(page(SEQUENTIAL_ACCESS_DEVICE) == NULL);
++
++	TEST_CHECK(set_TapeAlert(0) == 0);
++	tape_alert_set_is(none, 0);
++
++	TEST_CHECK(set_TapeAlert(BIT(0) | BIT(19) | BIT(20) | BIT(63)) == 0);
++	tape_alert_set_is(mixed, 4);
++
++	TEST_CHECK(set_TapeAlert(BIT(20)) == 0);
++	tape_alert_set_is(single, 1);
++
++	TEST_CHECK(set_TapeAlert(0) == 0);
++	tape_alert_set_is(none, 0);
++
++	/* Parameter codes are flag number (index + 1) */
++	ta = page(TAPE_ALERT);
++	for (i = 0; i < 64; i++)
++		TEST_CHECK(ta->TapeAlert[i].flag.head0 == 0 && ta->TapeAlert[i].flag.head1 == i + 1);
++
++	/* Still only the one page registered */
++	TEST_CHECK(page(DEVICE_STATUS) == NULL);
++	TEST_CHECK(page(SEQUENTIAL_ACCESS_DEVICE) == NULL);
++
++	reset_pages();
++}
++
++static void test_device_status_present(void)
++{
++	struct DeviceStatus_pg *ds;
++
++	reset_pages();
++	TEST_ASSERT(add_log_tape_alert(&lunit) == 0);
++	TEST_ASSERT(add_log_device_status(&lunit) == 0);
++	ds = page(DEVICE_STATUS);
++	TEST_ASSERT(ds != NULL);
++
++	/* Direct bit setters, set then clear */
++	set_lp_11_macc(1);
++	TEST_CHECK(ds->vhf.b4.MACC == 1);
++	set_lp_11_macc(0);
++	TEST_CHECK(ds->vhf.b4.MACC == 0);
++	set_lp11_compression(1);
++	TEST_CHECK(ds->vhf.b4.CMPR == 1);
++	set_lp11_compression(0);
++	TEST_CHECK(ds->vhf.b4.CMPR == 0);
++	set_lp_11_wp(1);
++	TEST_CHECK(ds->vhf.b4.WRTP == 1);
++	set_lp_11_wp(0);
++	TEST_CHECK(ds->vhf.b4.WRTP == 0);
++	set_lp_11_crqst(1);
++	TEST_CHECK(ds->vhf.b4.CRQST == 1);
++	set_lp_11_crqst(0);
++	TEST_CHECK(ds->vhf.b4.CRQST == 0);
++	set_lp_11_crqrd(1);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 1);
++	set_lp_11_crqrd(0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 0);
++
++	/* TapeAlert drives CRQRD (flag 19), CRQST (flag 20) and TAFC (non-zero) */
++	TEST_CHECK(set_TapeAlert(BIT(19)) == 0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 1 && ds->vhf.b4.CRQST == 0 && ds->vhf.b7.TAFC == 1);
++	TEST_CHECK(set_TapeAlert(BIT(20)) == 0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 0 && ds->vhf.b4.CRQST == 1 && ds->vhf.b7.TAFC == 1);
++	TEST_CHECK(set_TapeAlert(BIT(19) | BIT(20)) == 0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 1 && ds->vhf.b4.CRQST == 1 && ds->vhf.b7.TAFC == 1);
++	TEST_CHECK(set_TapeAlert(BIT(63)) == 0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 0 && ds->vhf.b4.CRQST == 0 && ds->vhf.b7.TAFC == 1);
++	TEST_CHECK(set_TapeAlert(0) == 0);
++	TEST_CHECK(ds->vhf.b4.CRQRD == 0 && ds->vhf.b4.CRQST == 0 && ds->vhf.b7.TAFC == 0);
++
++	/* Activity code (b6) follows current_state */
++	set_current_state(MHVTL_STATE_READING);
++	TEST_CHECK(current_state == MHVTL_STATE_READING && ds->vhf.b6 == 0x5);
++	set_current_state(MHVTL_STATE_WRITING);
++	TEST_CHECK(ds->vhf.b6 == 0x6);
++	set_current_state(MHVTL_STATE_REWIND);
++	TEST_CHECK(ds->vhf.b6 == 0x8);
++	set_current_state(MHVTL_STATE_UNLOADING);
++	TEST_CHECK(ds->vhf.b6 == 0x3);
++	set_current_state(MHVTL_STATE_IDLE);
++	TEST_CHECK(current_state == MHVTL_STATE_IDLE);
++
++	/* Load status sets and clears the medium bits */
++	set_tape_load_status(TAPE_LOADED);
++	TEST_CHECK(get_tape_load_status() == TAPE_LOADED);
++	TEST_CHECK(ds->vhf.b5.MOUNTED == 1 && ds->vhf.b5.MTHRD == 1 && ds->vhf.b5.MSTD == 1);
++	TEST_CHECK(ds->vhf.b5.MPRSNT == 1 && ds->vhf.b5.RAA == 1 && ds->vhf.b5.INXTN == 0);
++	TEST_CHECK(ds->vhf.b4.MACC == 1);
++	set_tape_load_status(TAPE_UNLOADED);
++	TEST_CHECK(get_tape_load_status() == TAPE_UNLOADED);
++	TEST_CHECK(ds->vhf.b5.MOUNTED == 0 && ds->vhf.b5.MTHRD == 0 && ds->vhf.b5.MSTD == 0);
++	TEST_CHECK(ds->vhf.b5.MPRSNT == 0 && ds->vhf.b5.RAA == 1 && ds->vhf.b5.INXTN == 0);
++	TEST_CHECK(ds->vhf.b4.MACC == 0);
++
++	/* Clearing medium-present also marks the drive unloaded */
++	ds->vhf.b4.MACC = 1;
++	set_lp11_medium_present(1);
++	TEST_CHECK(ds->vhf.b5.MPRSNT == 1);
++	set_current_state(MHVTL_STATE_LOADED);
++	set_lp11_medium_present(0);
++	TEST_CHECK(ds->vhf.b5.MPRSNT == 0 && ds->vhf.b4.MACC == 0);
++	TEST_CHECK(current_state == MHVTL_STATE_UNLOADED && ds->vhf.b6 == 0);
++
++	reset_pages();
++}
++
++static void test_sequential_access_field(void)
++{
++	/* 0x8000000000180001 = bits 63, 20, 19, 0 -> 8 bytes, big endian */
++	static const uint8_t want_mixed[8] = { 0x80, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x01 };
++	static const uint8_t want_zero[8]  = { 0 };
++	struct SequentialAccessDevice_pg *sad;
++	uint8_t							  got[8];
++
++	reset_pages();
++	TEST_ASSERT(add_log_tape_alert(&lunit) == 0);
++	TEST_ASSERT(add_log_sequential_access(&lunit) == 0);
++	sad = page(SEQUENTIAL_ACCESS_DEVICE);
++	TEST_ASSERT(sad != NULL);
++
++	TEST_CHECK(set_TapeAlert(BIT(63) | BIT(20) | BIT(19) | BIT(0)) == 0);
++	memcpy(got, &sad->TapeAlert, 8);
++	TEST_CHECK(memcmp(got, want_mixed, 8) == 0);
++	TEST_MSG("bytes %02x %02x %02x %02x %02x %02x %02x %02x", got[0], got[1], got[2], got[3],
++			 got[4], got[5], got[6], got[7]);
++
++	TEST_CHECK(set_TapeAlert(0) == 0);
++	memcpy(got, &sad->TapeAlert, 8);
++	TEST_CHECK(memcmp(got, want_zero, 8) == 0);
++
++	/* Free, reinitialise: nothing carries over */
++	reset_pages();
++	TEST_CHECK(list_empty(&lunit.log_pg));
++	TEST_CHECK(page(TAPE_ALERT) == NULL && page(SEQUENTIAL_ACCESS_DEVICE) == NULL);
++	TEST_CHECK(set_TapeAlert(BIT(19)) == -1);
++
++	TEST_ASSERT(add_log_tape_alert(&lunit) == 0);
++	TEST_CHECK(page(SEQUENTIAL_ACCESS_DEVICE) == NULL);
++	TEST_CHECK(set_TapeAlert(BIT(19)) == 0);
++	{
++		static const int bit19[] = { 19 };
++
++		tape_alert_set_is(bit19, 1);
++	}
++
++	reset_pages();
++}
++
++TEST_LIST = {
++	{ "empty_list_is_safe",            test_empty_list },
++	{ "tape_alert_without_other_pages", test_tape_alert_only },
++	{ "device_status_page_present",    test_device_status_present },
++	{ "sequential_access_field",       test_sequential_access_field },
++	{ NULL, NULL }
++};
+-- 
+2.43.0
+

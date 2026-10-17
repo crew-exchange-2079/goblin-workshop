@@ -1,0 +1,11 @@
+Test empty_list_is_safe...                      mhvtl_log.c:414:9: runtime error: member access within null pointer of type 'struct log_pg_list'
+    #0 0x7fd4f714d236 in lookup_device_status_pg <WORK>/mutant/usr/mhvtl_log.c:414
+    #1 0x7fd4f714d236 in set_TapeAlert <WORK>/mutant/usr/mhvtl_log.c:706
+    #2 0x55bfb482d63d in test_empty_list <WORK>/mutant/tests/test_log_device_status.c:84
+    #3 0x55bfb482de10 in acutest_do_run_ <WORK>/mutant/tests/acutest.h:1149
+    #4 0x55bfb4828a3d in acutest_run_ <WORK>/mutant/tests/acutest.h:1328
+    #5 0x55bfb4828a3d in main <WORK>/mutant/tests/acutest.h:1902
+    #6 0x7fd4f642a1c9 in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58
+    #7 0x7fd4f642a28a in __libc_start_main_impl ../csu/libc-start.c:360
+    #8 0x55bfb482ab14 in _start (<WORK>/mutant/tests/test_log_device_status+0x14b14) (BuildId: 6a523082966c95a992ca149d1234b23dec6963be)
+
