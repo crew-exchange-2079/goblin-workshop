@@ -1,0 +1,14 @@
+{
+  "source_document": "SNIA LTFS Format Specification v2.4.0 Technical Position",
+  "source_url": "https://www.snia.org/sites/default/files/technical-work/ltfs/release/SNIA-LTFS-Format-2.4.0-TechPosition.pdf",
+  "source_bytes": 992298,
+  "source_sha256": "4a191b737d9ab45270a0c48289868d5d409a6b1f287b6482f7a606ec8c030bd0",
+  "source_hash_note": "Parent-verified against the primary URL; also recomputed in-session on the attached copy (match).",
+  "annex": "Annex B (normative) LTFS Index XML Schema, printed pages 60-62 (PDF pages 61-63 one-based)",
+  "extraction": "pdftotext -raw; kept from '<?xml' to '</xs:schema>'; removed only page furniture lines ('LTFS Format Specification', 'N SNIA Technical Position LTFS Format Specification v2.4', 'LTFS Format Specification v2.4 SNIA Technical Position N') and a form-feed. No schema element, attribute or facet was edited; two pattern values wrap across lines exactly as printed.",
+  "delivered_schema": "schema/ltfs-index-2.4.0.xsd",
+  "delivered_schema_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+  "license": "BSD-3-Clause, Copyright (c) 2017 SNIA (printed page 2); see NOTICE",
+  "reference_implementation_read_only": "LinearTapeFileSystem/ltfs@efc9e3a5c498504c03c2f1d0b931bae058922104 (not used, not built)",
+  "dependency": "lxml==6.0.2 binary wheel, hash-pinned in requirements.txt"
+}
