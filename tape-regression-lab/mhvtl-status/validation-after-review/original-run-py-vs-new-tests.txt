@@ -1,0 +1,293 @@
+test_evidence_existing_dir_file_symlink_refused (__main__.Destinations.test_evidence_existing_dir_file_symlink_refused) ... <ORIG>/test_runner.py:46: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-ugynlna_/ev/keep.txt' mode='w' encoding='utf-8'>
+  open(p, "w").write("caller data")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_evidence_files_exclusive (__main__.Destinations.test_evidence_files_exclusive) ... <ORIG>/test_runner.py:120: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-yb_869n6/e/summary.json' mode='w' encoding='utf-8'>
+  pre = os.path.join(e, "summary.json"); open(pre, "w").write("caller data")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_existing_empty_work_refused_and_kept (__main__.Destinations.test_existing_empty_work_refused_and_kept) ... ERROR
+test_existing_nonempty_work_refused_sentinel_kept (__main__.Destinations.test_existing_nonempty_work_refused_sentinel_kept) ... <ORIG>/test_runner.py:46: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-1_z94mry/w/keep.txt' mode='w' encoding='utf-8'>
+  open(p, "w").write("caller data")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_new_paths_created_and_only_own_work_removed (__main__.Destinations.test_new_paths_created_and_only_own_work_removed) ... ERROR
+test_overlap_refused (__main__.Destinations.test_overlap_refused) ... ERROR
+test_report_error_still_cleans_up_and_fails (__main__.Destinations.test_report_error_still_cleans_up_and_fails) ... ERROR
+test_symlink_ancestor_refused (__main__.Destinations.test_symlink_ancestor_refused) ... <ORIG>/test_runner.py:46: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-pyyxqlz9/real/keep.txt' mode='w' encoding='utf-8'>
+  open(p, "w").write("caller data")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_work_file_symlink_dangling_refused (__main__.Destinations.test_work_file_symlink_dangling_refused) ... <ORIG>/test_runner.py:65: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-wnz1tvlh/f' mode='w' encoding='utf-8'>
+  f = os.path.join(self.tmp, "f"); open(f, "w").write("caller data")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_replaced_workdir_not_removed (__main__.Identity.test_replaced_workdir_not_removed) ... ERROR
+test_all_four_pass_required_for_full (__main__.Running.test_all_four_pass_required_for_full) ... ERROR
+test_eof_but_leader_alive (__main__.Running.test_eof_but_leader_alive) ... <ORIG>/test_runner.py:183: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  rc, txt = R.run(ctx, name, [sys.executable, "-c", py], step_max=step_max)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+FAIL
+test_failure_never_pass (__main__.Running.test_failure_never_pass) ... ERROR
+test_incomplete_cleanup_is_not_pass_and_keeps_work (__main__.Running.test_incomplete_cleanup_is_not_pass_and_keeps_work) ... ERROR
+test_log_bounded (__main__.Running.test_log_bounded) ... ok
+test_overall_deadline_counts_spawn_and_reserve (__main__.Running.test_overall_deadline_counts_spawn_and_reserve) ... ERROR
+test_pipe_holding_term_ignoring_descendant (__main__.Running.test_pipe_holding_term_ignoring_descendant) ... <ORIG>/test_runner.py:196: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-9zqm667_/pid' mode='r' encoding='utf-8'>
+  if os.path.exists(pf) and open(pf).read().strip():
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<ORIG>/test_runner.py:197: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-9zqm667_/pid' mode='r' encoding='utf-8'>
+  return int(open(pf).read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<ORIG>/test_runner.py:33: ResourceWarning: unclosed file <_io.TextIOWrapper name='/proc/6030/stat' mode='r' encoding='utf-8'>
+  return open("/proc/%d/stat" % pid).read().split(")")[-1].split()[0] != "Z"
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+test_stream_exception_kills_child_and_fails (__main__.Running.test_stream_exception_kills_child_and_fails) ... <ORIG>/test_runner.py:196: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-9dyzouwf/pid' mode='r' encoding='utf-8'>
+  if os.path.exists(pf) and open(pf).read().strip():
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<ORIG>/test_runner.py:197: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/rt-9dyzouwf/pid' mode='r' encoding='utf-8'>
+  return int(open(pf).read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ERROR
+/usr/lib/python3.13/subprocess.py:1141: ResourceWarning: subprocess 6032 is still running
+  _warn("subprocess %s is still running" % self.pid,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+test_failing_readelf_rc_not_pass (__main__.SanitizerPredicate.test_failing_readelf_rc_not_pass) ... FAIL
+test_good_evidence_passes (__main__.SanitizerPredicate.test_good_evidence_passes) ... ok
+test_missing_runtime_evidence_not_pass (__main__.SanitizerPredicate.test_missing_runtime_evidence_not_pass) ... FAIL
+
+======================================================================
+ERROR: test_evidence_existing_dir_file_symlink_refused (__main__.Destinations.test_evidence_existing_dir_file_symlink_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 73, in test_evidence_existing_dir_file_symlink_refused
+    self.assertEqual(quiet_main(["--evidence-dir", d])[0], 2); self.intact(s)
+                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_existing_empty_work_refused_and_kept (__main__.Destinations.test_existing_empty_work_refused_and_kept)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 56, in test_existing_empty_work_refused_and_kept
+    rc, out = quiet_main(["--work", w])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_existing_nonempty_work_refused_sentinel_kept (__main__.Destinations.test_existing_nonempty_work_refused_sentinel_kept)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 61, in test_existing_nonempty_work_refused_sentinel_kept
+    rc, _ = quiet_main(["--work", w])
+            ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_new_paths_created_and_only_own_work_removed (__main__.Destinations.test_new_paths_created_and_only_own_work_removed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 102, in test_new_paths_created_and_only_own_work_removed
+    rc, _ = quiet_main(["--work", w, "--evidence-dir", e])
+            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_overlap_refused (__main__.Destinations.test_overlap_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 93, in test_overlap_refused
+    rc, out = quiet_main(["--work", w, "--evidence-dir", e])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_report_error_still_cleans_up_and_fails (__main__.Destinations.test_report_error_still_cleans_up_and_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 114, in test_report_error_still_cleans_up_and_fails
+    rc, out = quiet_main(["--work", w])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_symlink_ancestor_refused (__main__.Destinations.test_symlink_ancestor_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 86, in test_symlink_ancestor_refused
+    rc, out = quiet_main([flag, os.path.join(link, "new")])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_work_file_symlink_dangling_refused (__main__.Destinations.test_work_file_symlink_dangling_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 66, in test_work_file_symlink_dangling_refused
+    self.assertEqual(quiet_main(["--work", f])[0], 2); self.intact(f)
+                     ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_replaced_workdir_not_removed (__main__.Identity.test_replaced_workdir_not_removed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 175, in test_replaced_workdir_not_removed
+    quiet_main(["--work", w])
+    ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_all_four_pass_required_for_full (__main__.Running.test_all_four_pass_required_for_full)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 275, in test_all_four_pass_required_for_full
+    rc, out = quiet_main(["--work", w])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_failure_never_pass (__main__.Running.test_failure_never_pass)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 254, in test_failure_never_pass
+    rc, _ = R.run(c2, "nobin", ["/nonexistent/binary-xyz"])
+            ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/run.py", line 60, in run
+    p = subprocess.Popen(cmd, cwd=cwd, env=e, shell=shell, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+  File "/usr/lib/python3.13/subprocess.py", line 1040, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1992, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/binary-xyz'
+
+======================================================================
+ERROR: test_incomplete_cleanup_is_not_pass_and_keeps_work (__main__.Running.test_incomplete_cleanup_is_not_pass_and_keeps_work)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 264, in test_incomplete_cleanup_is_not_pass_and_keeps_work
+    rc, out = quiet_main(["--work", w])
+              ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 15, in quiet_main
+    rc = R.main(argv)
+TypeError: main() takes 0 positional arguments but 1 was given
+
+======================================================================
+ERROR: test_overall_deadline_counts_spawn_and_reserve (__main__.Running.test_overall_deadline_counts_spawn_and_reserve)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 233, in test_overall_deadline_counts_spawn_and_reserve
+    ctx = mkctx(os.path.join(self.tmp, "w"), deadline=int(R.CLEANUP_RESERVE) + 2)
+                                                          ^^^^^^^^^^^^^^^^^
+AttributeError: module 'run' has no attribute 'CLEANUP_RESERVE'
+
+======================================================================
+ERROR: test_pipe_holding_term_ignoring_descendant (__main__.Running.test_pipe_holding_term_ignoring_descendant)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 208, in test_pipe_holding_term_ignoring_descendant
+    self.assertFalse(ctx.incomplete)
+                     ^^^^^^^^^^^^^^
+AttributeError: 'Ctx' object has no attribute 'incomplete'
+
+======================================================================
+ERROR: test_stream_exception_kills_child_and_fails (__main__.Running.test_stream_exception_kills_child_and_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 225, in test_stream_exception_kills_child_and_fails
+    ctx, rc, txt, dt = self.cmd("exc", py)
+                       ~~~~~~~~^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 183, in cmd
+    rc, txt = R.run(ctx, name, [sys.executable, "-c", py], step_max=step_max)
+              ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/run.py", line 71, in run
+    rl, _, _ = select.select([p.stdout], [], [], min(r, 1.0))
+               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<ORIG>/test_runner.py", line 222, in bad
+    calls.append(1); raise OSError("injected stream failure")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: injected stream failure
+
+======================================================================
+FAIL: test_evidence_files_exclusive (__main__.Destinations.test_evidence_files_exclusive)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 122, in test_evidence_files_exclusive
+    with self.assertRaises(FileExistsError):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: FileExistsError not raised
+
+======================================================================
+FAIL: test_eof_but_leader_alive (__main__.Running.test_eof_but_leader_alive)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 213, in test_eof_but_leader_alive
+    self.assertEqual(rc, -9); self.assertLess(dt, 6)
+                              ~~~~~~~~~~~~~~~^^^^^^^
+AssertionError: 10.01325460999999 not less than 6
+
+======================================================================
+FAIL: test_failing_readelf_rc_not_pass (__main__.SanitizerPredicate.test_failing_readelf_rc_not_pass)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 155, in test_failing_readelf_rc_not_pass
+    self.assertEqual(self.go(**{"s-readelf-lib": (1, "NEEDED libasan")}), "BLOCKED")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'PASS' != 'BLOCKED'
+- PASS
++ BLOCKED
+
+
+======================================================================
+FAIL: test_missing_runtime_evidence_not_pass (__main__.SanitizerPredicate.test_missing_runtime_evidence_not_pass)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<ORIG>/test_runner.py", line 160, in test_missing_runtime_evidence_not_pass
+    self.assertEqual(self.go(**{"s-readelf-lib": (0, "no runtime here")}), "FAIL")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'PASS' != 'FAIL'
+- PASS
++ FAIL
+
+
+----------------------------------------------------------------------
+Ran 21 tests in 12.359s
+
+FAILED (failures=4, errors=15)
+
+==== RESULTS ====
+DIRECT_REGRESSION  NOT_RUN  not reached
+EXISTING_SUITE     NOT_RUN  not reached
+SANITIZERS         NOT_RUN  not reached
+MUTATION_CONTROL   NOT_RUN  not reached
+<sys>:0: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+exit=1 (124=timeout)

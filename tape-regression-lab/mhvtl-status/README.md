@@ -65,7 +65,33 @@ To reproduce the sanitizer or mutation steps by hand, copy the commands from
 [validation/build-commands.txt](validation/build-commands.txt) into your own fresh checkout.
 Do not apply the mutation diff to a tree you intend to keep.
 
+## Runner safety semantics
+
+- `--work` and `--evidence-dir` must be **new paths**: any pre-existing path (empty or
+  non-empty directory, file, symlink including dangling) or a symlinked ancestor is refused
+  with exit 2 before any build. The two paths must not overlap. Directories are created
+  exclusively, evidence files are opened with exclusive create, and only the directory this
+  invocation created (checked by device/inode) is removed.
+- One overall deadline covers everything. Each command's deadline is counted from before
+  spawn and stops `CLEANUP_RESERVE` (5 s) before the overall deadline. The runner's own
+  process group is always terminated (TERM then KILL) and reaped with finite waits, including
+  on stream/log errors, EOF while the leader is alive, and pipe-holding descendants.
+  Timeouts or log failures give rc -9/-10, never PASS. If cleanup cannot finish, results
+  become `INCOMPLETE`, the work dir is kept and the exit code is 3. Not a hard real-time guarantee.
+- `SANITIZERS` requires successful `nm`/`readelf`/`ldd` probes, ASan and UBSan references in
+  `mhvtl_log.o`, libasan in NEEDED for both library and test, the build-tree library
+  resolution and 4/4 cases; a failed probe is BLOCKED and missing evidence is FAIL.
+- Runner tests: `timeout 120 python3 -I test_runner.py` (21 tests, no network or builds).
+
 ## Actual validation
+
+**Corrected run (after independent review):** [validation-after-review/](validation-after-review/),
+runner SHA-256 in its `summary.json`; all four stages PASS as observed stage results
+(independent acceptance pending). `original-run-py-vs-new-tests.txt` keeps the honest result
+of running the new tests against the first runner (19 of 21 failed or errored). The first-run
+evidence below is kept unchanged in `validation/`.
+
+### First run (historical)
 
 Run on 2026-10-17, gcc 13.3.0, GNU make 4.3, git 2.43.0, Ubuntu 24.04 container,
 base `7ca9711…` (upstream `master` had not moved past it). All four results were PASS in

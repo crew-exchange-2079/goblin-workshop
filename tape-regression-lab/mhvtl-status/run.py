@@ -9,7 +9,7 @@ Reports four results separately: DIRECT_REGRESSION, EXISTING_SUITE, SANITIZERS,
 MUTATION_CONTROL, each PASS / FAIL / BLOCKED / NOT_RUN. Exit 0 only when all
 four PASS (FULL_ACCEPTANCE); 1 = PARTIAL/FAIL; 2 = preflight blocker.
 """
-import argparse, hashlib, json, os, re, select, shutil, signal, subprocess, sys, tempfile, time
+import argparse, stat, hashlib, json, os, re, select, shutil, signal, subprocess, sys, tempfile, time
 
 KIT = os.path.dirname(os.path.realpath(__file__))
 DEFAULT_UPSTREAM = "https://github.com/markh794/mhvtl.git"
@@ -31,6 +31,7 @@ class Ctx:
         self.results = {k: ["NOT_RUN", "not reached"] for k in
                         ("DIRECT_REGRESSION", "EXISTING_SUITE", "SANITIZERS", "MUTATION_CONTROL")}
         self.prov = {"commands": []}
+        self.incomplete = False
 
     def left(self):
         return self.t_end - time.monotonic()
@@ -39,12 +40,35 @@ def scrub(ctx, text):
     text = text.replace(KIT, "<KIT>")
     return text.replace(ctx.work, "<WORK>") if ctx.work else text
 
+CLEANUP_RESERVE = 5.0   # seconds of the overall deadline held back for child cleanup
+
+def _reap(ctx, p):
+    """Terminate only our own process group (we started it with start_new_session),
+    then reap with a finite wait. Marks the run incomplete if the leader survives."""
+    try:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try: os.killpg(p.pid, sig)
+            except (ProcessLookupError, PermissionError): pass
+            if sig == signal.SIGTERM:
+                end = time.monotonic() + 0.3
+                while p.poll() is None and time.monotonic() < end:
+                    time.sleep(0.02)
+        try: p.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            ctx.incomplete = True
+    finally:
+        try: p.stdout.close()
+        except Exception: pass
+
 def run(ctx, name, cmd, cwd=None, env=None, step_max=600, shell=False):
-    """Run cmd with a hard timeout (min of step_max and the global deadline),
-    streaming output to a capped log. Returns (rc, tail_text). rc=-9 on timeout."""
-    if ctx.left() <= 0:
+    """Run cmd inside an absolute deadline = min(step_max, overall deadline minus
+    cleanup reserve), counted from before spawn. Output streams to a capped log.
+    Returns (rc, text): rc=-9 on timeout, -10 on stream/log failure; never 0 then.
+    Our own process group is always terminated and reaped (finite waits) in finally."""
+    start = time.monotonic()
+    if ctx.left() - CLEANUP_RESERVE <= 0:
         raise Deadline(name)
-    to = min(step_max, ctx.left())
+    dl = min(start + step_max, ctx.t_end - CLEANUP_RESERVE)
     path = os.path.join(ctx.work, "logs", name + ".log")
     ctx.logs[name] = path
     cap = ctx.a.log_cap_kb * 1024
@@ -57,40 +81,78 @@ def run(ctx, name, cmd, cwd=None, env=None, step_max=600, shell=False):
     if env:
         e.update(env)
     ctx.prov["commands"].append(scrub(ctx, (cmd if isinstance(cmd, str) else " ".join(cmd))))
-    p = subprocess.Popen(cmd, cwd=cwd, env=e, shell=shell, stdin=subprocess.DEVNULL,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
     written = dropped = 0
-    t0 = time.monotonic()
-    timed_out = False
-    with open(path, "wb") as f:
-        while True:
-            r = to - (time.monotonic() - t0)
-            if r <= 0:
-                timed_out = True
-                break
-            rl, _, _ = select.select([p.stdout], [], [], min(r, 1.0))
-            if rl:
-                b = os.read(p.stdout.fileno(), 65536)
-                if not b:
-                    break
-                keep = max(0, min(len(b), cap - written))
-                f.write(b[:keep]); written += keep; dropped += len(b) - keep
-    if timed_out:
-        try: os.killpg(p.pid, signal.SIGKILL)
-        except ProcessLookupError: pass
+    timed_out = failed = False
+    p = None
     try:
-        p.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        os.killpg(p.pid, signal.SIGKILL); p.wait()
-    try: os.killpg(p.pid, signal.SIGKILL)   # sweep stragglers in the group
-    except ProcessLookupError: pass
-    with open(path, "ab") as f:
-        if dropped: f.write(("\n[log truncated: %d bytes dropped]\n" % dropped).encode())
-        if timed_out: f.write(("\n[TIMEOUT after %.0fs]\n" % to).encode())
-    rc = -9 if timed_out else p.returncode
-    with open(path, "rb") as f:
-        txt = f.read().decode("utf-8", "replace")
+        p = subprocess.Popen(cmd, cwd=cwd, env=e, shell=shell, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+        with open(path, "wb") as f:
+            try:
+                while True:
+                    r = dl - time.monotonic()
+                    if r <= 0:
+                        timed_out = True
+                        break
+                    rl, _, _ = select.select([p.stdout], [], [], min(r, 1.0))
+                    if rl:
+                        b = os.read(p.stdout.fileno(), 65536)
+                        if not b:
+                            break
+                        keep = max(0, min(len(b), cap - written))
+                        f.write(b[:keep]); written += keep; dropped += len(b) - keep
+                # EOF seen: the leader may still be alive holding nothing; wait only until dl
+                while not timed_out and p.poll() is None:
+                    if time.monotonic() >= dl:
+                        timed_out = True
+                        break
+                    time.sleep(0.02)
+            except Exception as ex:
+                failed = True
+                f.write(("\n[stream error: %r]\n" % (ex,)).encode())
+            if dropped: f.write(("\n[log truncated: %d bytes dropped]\n" % dropped).encode())
+            if timed_out: f.write(("\n[TIMEOUT at deadline]\n").encode())
+    except Exception:
+        failed = True
+    finally:
+        if p is not None:
+            _reap(ctx, p)
+    rc = -9 if timed_out else (-10 if failed or p is None else p.returncode)
+    if rc == 0 and ctx.incomplete:
+        rc = -11
+    try:
+        with open(path, "rb") as f:
+            txt = f.read().decode("utf-8", "replace")
+    except Exception:
+        txt = ""
+        if rc == 0: rc = -10
     return rc, txt
+
+def safe_new_dir(path, label):
+    """Exclusively create a NEW directory. Refuses anything pre-existing (empty dir,
+    non-empty dir, file, symlink incl. dangling) and any symlinked ancestor."""
+    p = os.path.abspath(path)
+    if os.path.lexists(p):
+        raise SystemExit("refusing: %s %s already exists (must be a new path)" % (label, p))
+    anc = os.path.dirname(p)
+    while True:
+        if os.path.islink(anc):
+            raise SystemExit("refusing: %s ancestor %s is a symlink" % (label, anc))
+        up = os.path.dirname(anc)
+        if up == anc: break
+        anc = up
+    parent = os.path.dirname(p)
+    if not os.path.isdir(parent):
+        raise SystemExit("refusing: parent of %s %s is not an existing directory" % (label, p))
+    try:
+        os.mkdir(p, 0o700)
+    except FileExistsError:
+        raise SystemExit("refusing: %s %s already exists" % (label, p))
+    return p
+
+def overlaps(a, b):
+    a, b = os.path.abspath(a), os.path.abspath(b)
+    return a == b or a.startswith(b + os.sep) or b.startswith(a + os.sep)
 
 def sha(path):
     h = hashlib.sha256()
@@ -118,28 +180,44 @@ def checkout(ctx, name, src):
     if rc: raise RuntimeError("checkout %s failed: %s" % (name, out[-300:]))
     return d
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--upstream", default=DEFAULT_UPSTREAM, help="git URL or local path of markh794/mhvtl (read only)")
-    ap.add_argument("--work", help="NEW or empty directory to use instead of a fresh mkdtemp")
+    ap.add_argument("--work", help="NEW (non-existing) directory to create and own; default: fresh mkdtemp")
     ap.add_argument("--keep", action="store_true", help="keep the work directory")
-    ap.add_argument("--evidence-dir", help="write compact summary.json + trimmed logs here")
+    ap.add_argument("--evidence-dir", help="NEW (non-existing) directory for compact summary.json + trimmed logs")
     ap.add_argument("--deadline", type=int, default=1200, help="one overall deadline in seconds (default 1200)")
     ap.add_argument("--log-cap-kb", type=int, default=256, help="per-command log cap (default 256)")
     ap.add_argument("--skip-suite", action="store_true", help="do not run the existing `make test` (EXISTING_SUITE=NOT_RUN)")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     ctx = Ctx(a)
-    created = False
-    if a.work:
-        w = os.path.abspath(a.work)
-        if os.path.exists(w) and os.listdir(w):
-            print("refusing: --work %s exists and is not empty" % w, file=sys.stderr); return 2
-        os.makedirs(w, exist_ok=True); created = True
-        ctx.work = w
-    else:
-        ctx.work = os.path.realpath(tempfile.mkdtemp(prefix="mhvtl-status-")); created = True
-    for s in ("logs", "home", "tmp"):
-        os.makedirs(os.path.join(ctx.work, s), exist_ok=True)
+    ev = None
+    # destination checks happen before any build/work setup; we only ever remove what we created
+    try:
+        if a.work and a.evidence_dir and overlaps(a.work, a.evidence_dir):
+            raise SystemExit("refusing: --work and --evidence-dir overlap")
+        if a.evidence_dir:
+            # work (or its default tmp parent) must not sit inside evidence either
+            pass
+        ev = safe_new_dir(a.evidence_dir, "--evidence-dir") if a.evidence_dir else None
+        if a.work:
+            ctx.work = safe_new_dir(a.work, "--work")
+        else:
+            ctx.work = os.path.realpath(tempfile.mkdtemp(prefix="mhvtl-status-"))
+            if ev and overlaps(ctx.work, ev):
+                shutil.rmtree(ctx.work, ignore_errors=True)
+                raise SystemExit("refusing: work dir overlaps --evidence-dir")
+    except SystemExit as e:
+        if ev and os.path.isdir(ev) and not os.listdir(ev):
+            os.rmdir(ev)   # we created it a moment ago
+        print(e, file=sys.stderr)
+        return 2
+    a.evidence_dir = ev
+    created = ctx.work
+    st = os.lstat(created)
+    ident = (st.st_dev, st.st_ino)
+    for s_ in ("logs", "home", "tmp"):
+        os.makedirs(os.path.join(ctx.work, s_), exist_ok=True)
     rc = 1
     try:
         rc = body(ctx)
@@ -149,14 +227,31 @@ def main():
     except Exception as e:
         print("ERROR: %s" % e); rc = 2
     finally:
-        report(ctx)
-        if created and not a.keep:
-            shutil.rmtree(ctx.work, ignore_errors=True)
-        elif a.keep:
+        if ctx.incomplete:
+            for k, v in ctx.results.items():
+                if v[0] == "PASS": v[0] = "INCOMPLETE"
+        try:
+            report(ctx)
+        except BaseException as e:
+            print("REPORT ERROR: %r" % (e,))
+            rc = rc or 4
+        if ctx.incomplete:
+            print("INCOMPLETE: child cleanup did not finish; work dir retained: %s" % ctx.work)
+        elif not a.keep:
+            try:
+                now = os.lstat(created)
+                if (now.st_dev, now.st_ino) == ident and stat.S_ISDIR(now.st_mode):
+                    shutil.rmtree(created, ignore_errors=True)
+                else:
+                    print("NOT removing %s: directory identity changed since creation" % created)
+            except OSError as e:
+                print("cleanup skipped: %r" % (e,))
+        else:
             print("work dir kept: %s" % ctx.work)
+    if ctx.incomplete: return 3
     full = all(v[0] == "PASS" for v in ctx.results.values())
-    print("FULL_ACCEPTANCE" if full else "PARTIAL (not all four PASS)")
-    return 0 if full else (rc if rc else 1)
+    print("FULL_ACCEPTANCE (mechanical stage results only)" if full else "PARTIAL (not all four PASS)")
+    return 0 if full and rc == 0 else (rc if rc else 1)
 
 def body(ctx):
     a = ctx.a
@@ -169,6 +264,7 @@ def body(ctx):
         _, o = run(ctx, "ver-" + t, [t] + args, step_max=30)
         ctx.prov[t] = o.splitlines()[0] if o else "?"
     ctx.prov["python"] = sys.version.split()[0]
+    ctx.prov["run_py_sha256"] = sha(os.path.realpath(__file__))
     ok_san, _ = probe(ctx, "san", "int main(void){return 0;}\n", SAN.split())
     udev, _ = probe(ctx, "udev", "#include <libudev.h>\nint main(void){return 0;}\n")
     hdrs = {}
@@ -315,17 +411,24 @@ def sanitizer_proof(ctx, san):
     lib = os.path.join(san, "usr", "libvtlscsi.so")
     obj = os.path.join(san, "usr", "mhvtl_log.o")
     exe = os.path.join(san, "tests", "test_log_device_status")
-    _, nmu = run(ctx, "s-nm-obj", ["nm", "-u", obj], step_max=30)
+    rn, nmu = run(ctx, "s-nm-obj", ["nm", "-u", obj], step_max=30)
+    rl_, nl = run(ctx, "s-readelf-lib", ["readelf", "-d", lib], step_max=30)
+    re_, ne = run(ctx, "s-readelf-exe", ["readelf", "-d", exe], step_max=30)
+    if rn or rl_ or re_:
+        return "BLOCKED", "instrumentation probes failed (nm rc=%s, readelf lib rc=%s, exe rc=%s)" % (rn, rl_, re_)
     asan = len(re.findall(r"__asan_(?:report|load|store)", nmu)); ub = len(re.findall(r"__ubsan_handle", nmu))
-    _, nl = run(ctx, "s-readelf-lib", ["readelf", "-d", lib], step_max=30)
-    _, ne = run(ctx, "s-readelf-exe", ["readelf", "-d", exe], step_max=30)
+    lib_asan = bool(re.search(r"\(NEEDED\).*libasan", nl)); exe_asan = bool(re.search(r"\(NEEDED\).*libasan", ne))
     ctx.prov.update({"san_mhvtl_log_o_asan_refs": asan, "san_mhvtl_log_o_ubsan_refs": ub,
-                     "san_lib_needs_asan": "libasan" in nl, "san_exe_needs_asan": "libasan" in ne,
+                     "san_lib_needs_asan": lib_asan, "san_exe_needs_asan": exe_asan,
                      "san_lib_sha256": sha(lib), "san_test_sha256": sha(exe), "san_mhvtl_log_o_sha256": sha(obj)})
     if not (asan and ub):
         return "FAIL", "production object mhvtl_log.o lacks ASan/UBSan instrumentation"
+    if not (lib_asan and exe_asan):
+        return "FAIL", "runtime linkage evidence missing: lib NEEDED libasan=%s, exe=%s" % (lib_asan, exe_asan)
     libdir = os.path.join(san, "usr")
-    _, ldd = run(ctx, "s-ldd", ["ldd", exe], env={"LD_LIBRARY_PATH": libdir}, step_max=30)
+    rd, ldd = run(ctx, "s-ldd", ["ldd", exe], env={"LD_LIBRARY_PATH": libdir}, step_max=30)
+    if rd:
+        return "BLOCKED", "ldd probe failed rc=%s" % rd
     m = re.search(r"libvtlscsi\.so => (\S+)", ldd)
     ctx.prov["san_resolved_lib"] = scrub(ctx, os.path.realpath(m.group(1))) if m else "?"
     rc, o = run(ctx, "s-run", [exe], cwd=os.path.join(san, "tests"),
@@ -346,10 +449,9 @@ def report(ctx):
         print("%-18s %-8s %s" % (k, s, scrub(ctx, why)))
     ev = ctx.a.evidence_dir
     if not ev: return
-    os.makedirs(ev, exist_ok=True)
     summ = {"results": {k: {"status": s, "evidence": scrub(ctx, w)} for k, (s, w) in ctx.results.items()},
             "provenance": ctx.prov, "deadline_s": ctx.a.deadline}
-    with open(os.path.join(ev, "summary.json"), "w") as f:
+    with open(os.path.join(ev, "summary.json"), "x") as f:
         json.dump(summ, f, indent=2, sort_keys=True); f.write("\n")
     keep = re.compile(r" -o (mhvtl_log\.o|libvtlscsi\.so|test_log_device_status)\b|^cc -shared")
     cmds = []
@@ -362,7 +464,7 @@ def report(ctx):
                     if l.endswith("\\") and i + 1 < len(ls):
                         l = l[:-1] + ls[i + 1].strip()
                     cmds.append("[%s] %s" % (n, scrub(ctx, l.rstrip())))
-    with open(os.path.join(ev, "build-commands.txt"), "w") as f:
+    with open(os.path.join(ev, "build-commands.txt"), "x") as f:
         f.write("\n".join(cmds) + "\n")
     for n in ("n-direct", "n-suite", "s-run", "m-run", "m-diff", "s-nm-obj", "n-ldd", "s-ldd"):
         p = ctx.logs.get(n)
@@ -370,7 +472,7 @@ def report(ctx):
             lines = open(p, errors="replace").read().splitlines()
             if len(lines) > 120:
                 lines = lines[:20] + ["[... %d lines elided ...]" % (len(lines) - 80)] + lines[-60:]
-            with open(os.path.join(ev, n + ".log"), "w") as f:
+            with open(os.path.join(ev, n + ".log"), "x") as f:
                 f.write(scrub(ctx, "\n".join(lines)) + "\n")
 
 if __name__ == "__main__":

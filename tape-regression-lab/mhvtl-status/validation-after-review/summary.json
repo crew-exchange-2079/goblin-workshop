@@ -1,0 +1,98 @@
+{
+  "deadline_s": 300,
+  "provenance": {
+    "commands": [
+      "git --version",
+      "gcc --version",
+      "make --version",
+      "gcc -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined -o <WORK>/tmp/san <WORK>/tmp/san.c",
+      "gcc -o <WORK>/tmp/udev <WORK>/tmp/udev.c",
+      "gcc -o <WORK>/tmp/hlz4h <WORK>/tmp/hlz4h.c",
+      "gcc -o <WORK>/tmp/hzstdh <WORK>/tmp/hzstdh.c",
+      "gcc -o <WORK>/tmp/hlzolzo1xh <WORK>/tmp/hlzolzo1xh.c",
+      "gcc -o <WORK>/tmp/hlibudevh <WORK>/tmp/hlibudevh.c",
+      "git clone --quiet --no-checkout https://github.com/markh794/mhvtl.git <WORK>/upstream",
+      "git -C <WORK>/upstream cat-file -e 7ca971131c3e68d3a37073b83d235848dfa46559^{commit}",
+      "git -C <WORK>/upstream show 7ca971131c3e68d3a37073b83d235848dfa46559:usr/mhvtl_log.c",
+      "git -C <WORK>/upstream rev-parse HEAD",
+      "git apply --numstat <KIT>/tests.patch",
+      "git clone --quiet --no-hardlinks <WORK>/upstream <WORK>/normal",
+      "git -C <WORK>/normal checkout --quiet --detach 7ca971131c3e68d3a37073b83d235848dfa46559",
+      "git -C <WORK>/normal apply <KIT>/tests.patch",
+      "make -C usr libvtlscsi.so",
+      "make -C tests test_log_device_status",
+      "ldd <WORK>/normal/tests/test_log_device_status",
+      "<WORK>/normal/tests/test_log_device_status",
+      "make -C etc",
+      "make -C usr",
+      "make -C tests test",
+      "git -C <WORK>/normal diff --name-only",
+      "git -C <WORK>/normal ls-files --others --exclude-standard -- tests/*.c usr/*.c include",
+      "git clone --quiet --no-hardlinks <WORK>/upstream <WORK>/san",
+      "git -C <WORK>/san checkout --quiet --detach 7ca971131c3e68d3a37073b83d235848dfa46559",
+      "git -C <WORK>/san apply <KIT>/tests.patch",
+      "make -C usr libvtlscsi.so RPM_OPT_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+      "make -C tests test_log_device_status CC=gcc -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+      "nm -u <WORK>/san/usr/mhvtl_log.o",
+      "readelf -d <WORK>/san/usr/libvtlscsi.so",
+      "readelf -d <WORK>/san/tests/test_log_device_status",
+      "ldd <WORK>/san/tests/test_log_device_status",
+      "<WORK>/san/tests/test_log_device_status",
+      "git clone --quiet --no-hardlinks <WORK>/upstream <WORK>/mutant",
+      "git -C <WORK>/mutant checkout --quiet --detach 7ca971131c3e68d3a37073b83d235848dfa46559",
+      "git -C <WORK>/mutant apply <KIT>/tests.patch",
+      "git -C <WORK>/mutant apply <KIT>/mutation-missing-guard.diff",
+      "git -C <WORK>/mutant diff --stat -- .",
+      "make -C usr libvtlscsi.so RPM_OPT_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+      "make -C tests test_log_device_status CC=gcc -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
+      "<WORK>/mutant/tests/test_log_device_status --no-exec empty_list_is_safe"
+    ],
+    "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "git": "git version 2.43.0",
+    "make": "GNU Make 4.3",
+    "mutant_lib_sha256": "e7644bea10adb80c3b443ca0ea7efb9b8e88128e0510e1396bcc7f193e18cb33",
+    "mutation_diff_sha256": "071f8d5a7c621ee0107417b257aa486605599655a2ff29e53bf82071cc2b74ef",
+    "normal_lib_sha256": "8aacae4b100ec38741bdfedb15a9b15d22da25e5edd579e4de4495b109ce932f",
+    "normal_resolved_lib": "<WORK>/normal/usr/libvtlscsi.so",
+    "normal_test_sha256": "aa5f9da1a8ef5a93fbc4ac038808273ab9201f4ace130497cb9473243ec093f3",
+    "normal_tree_modified_tracked": [
+      "tests/Makefile"
+    ],
+    "normal_tree_new_source_files": [
+      "tests/test_log_device_status.c"
+    ],
+    "pinned_base": "7ca971131c3e68d3a37073b83d235848dfa46559",
+    "python": "3.13.16",
+    "run_py_sha256": "b26ad61078376b05172933433c911c1d9aabfb91094050c5dfff921f7ed0c4aa",
+    "san_exe_needs_asan": true,
+    "san_lib_needs_asan": true,
+    "san_lib_sha256": "1201841ecccc4eb0778d7aded85ff8be0a1dd0e66c311e7507e4d1570b33e18e",
+    "san_mhvtl_log_o_asan_refs": 7,
+    "san_mhvtl_log_o_sha256": "ca4557867e76ff91a23aebe61da47e7a8626652028ac8ae25c936990a282a5f3",
+    "san_mhvtl_log_o_ubsan_refs": 5,
+    "san_resolved_lib": "<WORK>/san/usr/libvtlscsi.so",
+    "san_test_sha256": "4a24835264375877091b486b3c1a228c949e902fe2bdfb8f0676ccf70f5cef3c",
+    "tests.patch_sha256": "ea24728005d7148678c244e33968ac49c1c87cb1d87bbb716ff9dd64e4333f1c",
+    "upstream": "https://github.com/markh794/mhvtl.git",
+    "upstream_default_head": "7ca971131c3e68d3a37073b83d235848dfa46559",
+    "upstream_head_moved_past_pin": false
+  },
+  "results": {
+    "DIRECT_REGRESSION": {
+      "evidence": "4/4 cases OK against build-tree libvtlscsi.so, rc=0",
+      "status": "PASS"
+    },
+    "EXISTING_SUITE": {
+      "evidence": "`make -C tests test` rc=0, 'All test suites passed'",
+      "status": "PASS"
+    },
+    "MUTATION_CONTROL": {
+      "evidence": "mutant fails rc=1 in production path: Test empty_list_is_safe...                      mhvtl_log.c:414:9: runtime error: member access within null pointer of type 'struct log_pg_list'",
+      "status": "PASS"
+    },
+    "SANITIZERS": {
+      "evidence": "4/4 OK, rc=0, no sanitizer diagnostics; mhvtl_log.o has 7 asan + 5 ubsan refs, lib and exe link libasan",
+      "status": "PASS"
+    }
+  }
+}
