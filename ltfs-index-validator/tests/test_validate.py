@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -214,6 +215,107 @@ class Hostile(Base):
         self.assertEqual(rc, 1)
         self.assertLessEqual(len(out.encode()), validate.MAX_REPORT_BYTES)
         self.assertLessEqual(len(rep["diagnostics"]), validate.MAX_DIAGNOSTICS)
+
+
+class DeviceSafety(Base):
+    """os.open spy: before the regular-file decision only O_PATH opens may occur."""
+
+    def spy(self):
+        real, calls = os.open, []
+
+        def wrapper(p, flags, *a, **k):
+            calls.append((str(p), flags))
+            return real(p, flags, *a, **k)
+        return mock.patch("validate.os.open", wrapper), calls
+
+    def assert_only_opath(self, calls):
+        self.assertTrue(calls)
+        for p, flags in calls:
+            self.assertTrue(flags & os.O_PATH, (p, flags))
+
+    def test_parent_symlink_alias_of_dev_refused_before_data_open(self):
+        alias = self.tmp / "devalias"
+        os.symlink("/dev", alias)
+        p, calls = self.spy()
+        with p:
+            rep = validate.validate_path(str(alias / "null"))
+        self.assertEqual(rep["status"], "ERROR")
+        self.assertIn(rep["diagnostics"][0]["code"], ("INPUT_DEVICE_REFUSED", "INPUT_NOT_REGULAR_FILE"))
+        for c, f in calls:
+            self.assertTrue(f & os.O_PATH, (c, f))
+
+    def test_double_slash_dev_and_untyped_inodes(self):
+        for target in ("//dev/null", "/dev/null"):
+            p, calls = self.spy()
+            with p:
+                rep = validate.validate_path(target)
+            self.assertEqual(rep["status"], "ERROR")
+            for c, f in calls:
+                self.assertTrue(f & os.O_PATH, (c, f))
+        fifo = self.tmp / "q.fifo"
+        os.mkfifo(fifo)
+        p, calls = self.spy()
+        with p:
+            rep = validate.validate_path(str(fifo))
+        self.assertEqual(rep["diagnostics"][0]["code"], "INPUT_NOT_REGULAR_FILE")
+        self.assert_only_opath(calls)
+
+    def test_relative_input_with_cwd_dev_alias(self):
+        alias = self.tmp / "cwdalias"
+        os.symlink("/dev", alias)
+        old = os.getcwd()
+        os.chdir(alias)
+        try:
+            p, calls = self.spy()
+            with p:
+                rep = validate.validate_path("null")
+        finally:
+            os.chdir(old)
+        self.assertEqual(rep["status"], "ERROR")
+        for c, f in calls:
+            self.assertTrue(f & os.O_PATH, (c, f))
+
+    def test_missing_opath_refuses_without_opening(self):
+        p, calls = self.spy()
+        with p, mock.patch.object(validate, "_O_PATH", None):
+            rep = validate.validate_path(str(FIX / "valid-empty.xml"))
+        self.assertEqual(rep["diagnostics"][0]["code"], "INPUT_PLATFORM_UNSUPPORTED")
+        self.assertEqual(calls, [])
+
+    def test_swap_race_reads_pinned_regular_inode(self):
+        target = self.write(EMPTY, "race.xml")
+        real, calls = os.open, []
+
+        def racing(path, flags, *a, **k):
+            fd = real(path, flags, *a, **k)
+            calls.append((str(path), flags))
+            if flags & os.O_PATH and str(path) == str(target):
+                os.unlink(target)
+                os.symlink("/dev/null", target)  # swap after pin; must not matter
+            return fd
+        with mock.patch("validate.os.open", racing):
+            rep = validate.validate_path(str(target))
+        self.assertEqual(rep["status"], "SCHEMA_VALID_ONLY")
+        for c, f in calls:
+            self.assertTrue((f & os.O_PATH) or c.startswith("/proc/self/fd/"), (c, f))
+
+
+class Encoding(Base):
+    def test_utf8_positive_and_non_utf8_refused(self):
+        ok = EMPTY.replace("synthetic fixture", "caf\u00e9").encode("utf-8")
+        rc, rep, _ = cli(self.write(ok, "u8.xml", "wb"))
+        self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"))
+        ascii_iso = EMPTY.replace("UTF-8", "ISO-8859-1").encode("ascii")
+        misdeclared = EMPTY.replace("UTF-8", "ISO-8859-1").replace("synthetic fixture", "caf\u00e9").encode("utf-8")
+        latin1 = EMPTY.replace("synthetic fixture", "caf\u00e9").replace("UTF-8", "ISO-8859-1").encode("latin-1")
+        usascii = EMPTY.replace("UTF-8", "US-ASCII").encode("ascii")
+        for name, blob in (("ascii-iso", ascii_iso), ("misdeclared", misdeclared), ("latin1", latin1), ("usascii", usascii)):
+            with self.subTest(name):
+                rc, rep, out = cli(self.write(blob, name + ".xml", "wb"))
+                self.assertEqual((rc, rep["status"]), (2, "UNSUPPORTED"))
+                self.assertIn("ENCODING_NOT_UTF8", self.codes(rep))
+                self.assertNotIn("ISO-8859", out)
+                self.assertNotIn(name, out)
 
 
 if __name__ == "__main__":

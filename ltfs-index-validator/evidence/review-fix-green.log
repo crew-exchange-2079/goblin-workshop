@@ -1,0 +1,165 @@
+# Repair run: bytes->str fix in encoding declaration check. Base PR11 head 03ba5f44. Failed prior run retained in review-fix-run.log.
+# $ python -m unittest discover -s tests -v
+test_fixtures_pass (test_validate.Accept.test_fixtures_pass) ... ok
+test_module_matches_cli_and_hashes (test_validate.Accept.test_module_matches_cli_and_hashes) ... ok
+test_semantic_counterexample_still_schema_valid_only (test_validate.Accept.test_semantic_counterexample_still_schema_valid_only) ... ok
+test_double_slash_dev_and_untyped_inodes (test_validate.DeviceSafety.test_double_slash_dev_and_untyped_inodes) ... ok
+test_missing_opath_refuses_without_opening (test_validate.DeviceSafety.test_missing_opath_refuses_without_opening) ... ok
+test_parent_symlink_alias_of_dev_refused_before_data_open (test_validate.DeviceSafety.test_parent_symlink_alias_of_dev_refused_before_data_open) ... ok
+test_relative_input_with_cwd_dev_alias (test_validate.DeviceSafety.test_relative_input_with_cwd_dev_alias) ... ok
+test_swap_race_reads_pinned_regular_inode (test_validate.DeviceSafety.test_swap_race_reads_pinned_regular_inode) ... ok
+test_utf8_positive_and_non_utf8_refused (test_validate.Encoding.test_utf8_positive_and_non_utf8_refused) ... ok
+test_check_document_denied_resolution_reports_refusal (test_validate.Hostile.test_check_document_denied_resolution_reports_refusal) ... ok
+test_dtd_xxe_not_resolved (test_validate.Hostile.test_dtd_xxe_not_resolved) ... ok
+test_infrastructure_failures_never_success (test_validate.Hostile.test_infrastructure_failures_never_success) ... ok
+test_input_kinds (test_validate.Hostile.test_input_kinds) ... ok
+test_limits_and_encoding (test_validate.Hostile.test_limits_and_encoding) ... ok
+test_parser_resolver_spy_and_no_entity_expansion (test_validate.Hostile.test_parser_resolver_spy_and_no_entity_expansion) ... ok
+test_report_bounded (test_validate.Hostile.test_report_bounded) ... ok
+test_usage_error_is_error (test_validate.Hostile.test_usage_error_is_error) ... ok
+test_invalid_cases (test_validate.Reject.test_invalid_cases) ... ok
+test_unknown_tag_name_not_echoed (test_validate.Reject.test_unknown_tag_name_not_echoed) ... ok
+test_unsupported (test_validate.Reject.test_unsupported) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 2.748s
+
+OK
+# unittest exit=0
+# $ validate.py --input valid-empty.xml
+{
+  "diagnostics": [],
+  "diagnostics_truncated": false,
+  "established_version": "2.4.0",
+  "exit_code": 0,
+  "input": {
+    "bytes": 793,
+    "sha256": "8bbce307c02aa2d9f2008425b8f7f0c3af3d782b18ed0dd41dd9e71bf5d7ec32"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "SCHEMA_VALID_ONLY",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=0
+# $ validate.py --input valid-nested.xml
+{
+  "diagnostics": [],
+  "diagnostics_truncated": false,
+  "established_version": "2.4.0",
+  "exit_code": 0,
+  "input": {
+    "bytes": 2284,
+    "sha256": "ec1dfcfc88c73682bf5fa33a4290d3524a621f56a063bbb4d55974d1fb2db7b1"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "SCHEMA_VALID_ONLY",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=0
+# $ validate.py --input valid-reordered.xml
+{
+  "diagnostics": [],
+  "diagnostics_truncated": false,
+  "established_version": "2.4.0",
+  "exit_code": 0,
+  "input": {
+    "bytes": 794,
+    "sha256": "33b327161308ef0ddf6b9c7b6a4a4bb654ae380c4e434888fffdeaaa497c964c"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "SCHEMA_VALID_ONLY",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=0
+# $ validate.py --input v25.xml
+{
+  "diagnostics": [
+    {
+      "code": "VERSION_UNSUPPORTED",
+      "line": 0,
+      "path": "/"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": null,
+  "exit_code": 2,
+  "input": {
+    "bytes": 28,
+    "sha256": "6240a30a9e3207f05ceeb11b8a0d5d7ca37a8407b95f2faf65930d6fb40ebe49"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": null
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "UNSUPPORTED",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=2
+# $ validate.py --input miss.xml
+{
+  "diagnostics": [
+    {
+      "code": "SCHEMA_ELEMENT_CONTENT",
+      "line": 2,
+      "path": "/ltfsindex"
+    }
+  ],
+  "diagnostics_truncated": false,
+  "established_version": "2.4.0",
+  "exit_code": 1,
+  "input": {
+    "bytes": 757,
+    "sha256": "d32500ca3ef4e2f5a2ca4cc71669b85e4663440136bb2f3e6a45cd0623ef2f0a"
+  },
+  "limitations": [
+    "Schema validity only; this is not LTFS compliance or certification.",
+    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload checksums, tape layout, recovery, interoperability."
+  ],
+  "schema": {
+    "ltfs_version": "2.4.0",
+    "pinned_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
+    "sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"
+  },
+  "semantic_checks": "NOT_PERFORMED",
+  "status": "INVALID",
+  "tool": "ltfs-index-validator",
+  "tool_version": "0.1.0"
+}
+# exit=1

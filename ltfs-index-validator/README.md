@@ -12,6 +12,10 @@ Exit codes: 0 `SCHEMA_VALID_ONLY`, 1 `INVALID`, 2 `UNSUPPORTED` (other version/n
 report (<=64 KiB) with input/schema hashes and fixed diagnostic codes plus line/sanitised path; rejected XML
 values, filenames and raw parser errors are never echoed.
 
+Platform: Linux only (needs `O_PATH` and `/proc`); elsewhere every input is refused as `ERROR`. Input is pinned with an `O_PATH|O_NOFOLLOW`
+descriptor (no device driver is opened), checked as a regular file, then reopened via `/proc/self/fd/N` with inode identity verified;
+paths resolving into `/dev` are refused. A non-UTF-8 XML encoding declaration is `UNSUPPORTED`.
+
 Hardening: <=4 MiB read from a nonblocking no-follow regular file (no URLs, FIFOs, symlinks, directories, `/dev`);
 UTF-8 only; depth<=64, nodes<=100000; DOCTYPE/entities refused; parser with no recovery, no huge tree, no DTD,
 no default attributes, no entity resolution, deny-all resolver; namespaced attributes (e.g. `xsi:`) refused;

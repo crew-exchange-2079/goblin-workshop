@@ -77,23 +77,47 @@ def build_parser(resolver=None):
     return parser
 
 
+_O_PATH = getattr(os, "O_PATH", None)  # Linux-only; absent => input is refused
+_ENC_RE = re.compile(rb"^(?:\xef\xbb\xbf)?\s*<\?xml[^>]*?encoding\s*=\s*[\"']([^\"']*)[\"']")
+
+
 def read_input(path):
-    """Read <=4MiB from a nonblocking, no-follow, regular file."""
+    """Read <=4MiB from a regular file without ever data-opening an untyped inode.
+
+    Linux only: pin the target with an O_PATH|O_NOFOLLOW descriptor (opens no
+    device driver), decide regular-file from fstat on that descriptor, then
+    reopen the pinned inode through /proc/self/fd/N and verify its identity.
+    Missing O_PATH or /proc => refusal, never an unsafe fallback.
+    """
     if not isinstance(path, str) or not path or "\0" in path:
         raise Refusal(ERROR, "INPUT_PATH_REJECTED")
     if _URL_RE.match(path) and "://" in path:
         raise Refusal(ERROR, "INPUT_URL_REFUSED")
-    norm = os.path.normpath(path)
-    if norm == "/dev" or norm.startswith("/dev/"):
-        raise Refusal(ERROR, "INPUT_DEVICE_REFUSED")
-    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    if _O_PATH is None or not os.path.isdir("/proc/self/fd"):
+        raise Refusal(ERROR, "INPUT_PLATFORM_UNSUPPORTED")
+    cloexec = getattr(os, "O_CLOEXEC", 0)
     try:
-        fd = os.open(path, flags)
+        real = os.path.realpath(path)  # resolves //dev, parent symlinks, cwd aliases
+    except (OSError, ValueError):
+        raise Refusal(ERROR, "INPUT_OPEN_FAILED")
+    if real == "/dev" or real.startswith("/dev/"):
+        raise Refusal(ERROR, "INPUT_DEVICE_REFUSED")
+    try:
+        pfd = os.open(path, _O_PATH | os.O_NOFOLLOW | cloexec)
     except OSError:
         raise Refusal(ERROR, "INPUT_OPEN_FAILED")
+    fd = None
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
+        pst = os.fstat(pfd)
+        if not stat.S_ISREG(pst.st_mode):
             raise Refusal(ERROR, "INPUT_NOT_REGULAR_FILE")
+        try:
+            fd = os.open("/proc/self/fd/%d" % pfd, os.O_RDONLY | os.O_NONBLOCK | cloexec)
+        except OSError:
+            raise Refusal(ERROR, "INPUT_OPEN_FAILED")
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or (st.st_dev, st.st_ino) != (pst.st_dev, pst.st_ino):
+            raise Refusal(ERROR, "INPUT_IDENTITY_MISMATCH")
         chunks, total = [], 0
         while total <= MAX_INPUT_BYTES:
             try:
@@ -106,7 +130,9 @@ def read_input(path):
             total += len(chunk)
         data = b"".join(chunks)
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
+        os.close(pfd)
     if len(data) > MAX_INPUT_BYTES:
         raise Refusal(ERROR, "INPUT_TOO_LARGE")
     return data
@@ -187,6 +213,9 @@ def check_document(data, schema_path=None, resolver=None):
         raise Refusal(UNSUPPORTED, "ENCODING_NOT_UTF8")
     if b"\0" in data:
         raise Refusal(UNSUPPORTED, "ENCODING_NOT_UTF8")
+    m = _ENC_RE.match(data)
+    if m and m.group(1).decode("ascii", "replace").strip().upper().replace("_", "-") not in ("UTF-8", "UTF8"):
+        raise Refusal(UNSUPPORTED, "ENCODING_NOT_UTF8")
     if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
         raise Refusal(INVALID, "DTD_FORBIDDEN")
     try:
@@ -198,6 +227,8 @@ def check_document(data, schema_path=None, resolver=None):
     except etree.LxmlError:
         raise Refusal(INVALID, "XML_PARSE_FAILED")
     doc = root.getroottree()
+    if (doc.docinfo.encoding or "UTF-8").upper() not in ("UTF-8", "UTF8"):
+        raise Refusal(UNSUPPORTED, "ENCODING_NOT_UTF8")
     if doc.docinfo.doctype or doc.docinfo.internalDTD is not None:
         raise Refusal(INVALID, "DTD_FORBIDDEN")
     _walk_limits(root)
