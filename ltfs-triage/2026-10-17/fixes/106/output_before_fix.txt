@@ -1,0 +1,12 @@
+== 1. create (build under test: inst_before)
+./repro106.sh: 17: cannot create mnt/aaa<US>aaa: Invalid argument
+cat: err1.txt: No such file or directory
+create file name 'aaa<US>aaa': rc=2 
+mkdir  name 'dir<US>x': rc=1
+symlink name 'lnk<US>y': rc=1
+index on tape contains encoded name: 0 record(s)
+== 2. remount and read back
+names (ls -b):
+    lit%1Fz
+ROUND TRIP: FAIL
+== 3. informational: tape written by build under test, read and then rewritten by the UNFIXED build

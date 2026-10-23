@@ -1,0 +1,7 @@
+snapshot issues 72 rows 72 unique 72
+set equal True
+class rows 72 distinct classes ['already-fixed-upstream', 'hardware-only', 'question/support', 'repro-mhvtl', 'stale/duplicate']
+ranked [333, 106, 535, 305] exist True in open PR set []
+issue/PR overlap set()
+csv rows 72 ids equal True
+{'repro-mhvtl': 5, 'hardware-only': 20, 'question/support': 40, 'stale/duplicate': 5, 'already-fixed-upstream': 2}
