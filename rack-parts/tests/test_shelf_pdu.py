@@ -101,7 +101,7 @@ class HostileTests(unittest.TestCase):
                     self.assertFalse(os.path.exists(out))
 
     def test_new_fixtures_refused_without_output(self):
-        for name in ("deferred-19in-shelf.json", "oversize-bed-shelf.json", "tall-device-shelf.json",
+        for name in ("open-frame-19in-shelf.json", "oversize-bed-shelf.json", "tall-device-shelf.json",
                      "outlet-keepout-pdu.json", "cord-end-pdu.json"):
             with tempfile.TemporaryDirectory() as d:
                 out = os.path.join(d, "out")
@@ -126,13 +126,16 @@ class ShelfRefusals(unittest.TestCase):
         self.s = load("shelf-10in-1u-synthetic.json")
         self.s2 = load("shelf-10in-2u-synthetic.json")
 
-    def test_19in_is_deferred_not_generated(self):
-        with open(os.path.join(FX, "deferred-19in-shelf.json")) as f:
+    def test_19in_needs_closed_frame_and_one_piece_fit(self):
+        with open(os.path.join(FX, "open-frame-19in-shelf.json")) as f:
             d = json.load(f)
-        self.assertIn("deferred", why(d))
-        # even on a hypothetical huge printer
-        self.assertIn("deferred", why(dict(d, build_plate_x_mm=1000.0, build_plate_y_mm=1000.0,
-                                           build_plate_z_mm=1000.0)))
+        self.assertIn("full-height rear lip", why(d))
+        self.assertIn("full-height rear lip", why(dict(d, rear_lip_height_mm=0.0)))
+        closed = dict(d, rear_lip_height_mm=20.0)
+        self.assertIsNone(refused(closed))
+        # one piece only: a common plate is refused, there is no oversize option for shelves
+        self.assertIn("build volume", why(dict(closed, build_plate_x_mm=256.0, build_plate_y_mm=256.0)))
+        self.assertIn("unknown key", why(dict(closed, allow_oversize_print=True)))
 
     def test_rails(self):
         self.assertIn("sanity window", why(dict(self.s, rail_hole_center_spacing_mm=465.1)))
@@ -172,7 +175,7 @@ class ShelfRefusals(unittest.TestCase):
             self.assertNotIn("no support", text.lower())
             self.assertNotIn("support-free", text.lower())
         text = validate.validate(self.s)[1]["print_orientation_suggestion"]
-        self.assertIn("rear lip becomes a 211.0 mm long horizontal bridge", text)
+        self.assertIn("rear lip becomes a 211.0 mm long horizontal ledge between the side walls, sticking 8.0 mm out", text)
         self.assertIn("vent slots become vertical slots with rounded overhanging tops", text)
         self.assertNotIn("horizontal slots", text)
         self.assertNotIn("rear lip", validate.validate(self.s2)[1]["print_orientation_suggestion"])  # no lip

@@ -163,6 +163,61 @@ CABLE = [
      "Largest connector or cable bundle diameter that must pass through; the opening neck must be at least this tall."),
 ]
 
+# Blanking panel with a slide-in label holder on the front face. Label frame: the holder is centred at
+# [label_center_x_mm, label_center_z_mm] in the panel frame.
+LABEL = [
+    ("part", "const:label_panel", None, None, "label",
+     "Selects a blanking panel with a slide-in label holder: a pocket behind a thin front skin, lips over the "
+     "label's top, bottom and left edges, and an entry opening at the right end."),
+] + PANEL_COMMON + [
+    ("label_center_x_mm", "number", -260, 260, "chosen",
+     "Centre of the label holder (pocket including the entry opening) from the rack centreline, +x to the right."),
+    ("label_center_z_mm", "number", 0, 400, "chosen", "Centre of the label holder above the panel bottom edge."),
+    ("label_width_mm", "number", 10, 400, "measured", "Length of the label card/strip you will insert."),
+    ("label_height_mm", "number", 5, 100, "measured", "Height of the label card/strip."),
+    ("label_thickness_mm", "number", ("gt", 0.05), 3, "measured", "Thickness of the label card/strip."),
+    ("label_clearance_mm", "number", 0, 3, "tolerance",
+     "Gap added around the label in the pocket (each side) and to its thickness."),
+    ("label_lip_mm", "number", ("gt", 0.0), 10, "chosen",
+     "How far the top, bottom and left lips reach over the label edges. Must exceed label_clearance_mm, "
+     "or a label pushed to one side slips out."),
+    ("label_face_thickness_mm", "number", ("gt", 0.4), 5, "chosen",
+     "Thickness of the front skin that forms the lips (at least min_wall_mm)."),
+    ("label_entry_length_mm", "number", 5, 100, "chosen",
+     "Length of the lip-free entry opening at the right end of the pocket; the label goes in there and slides "
+     "left under the lips."),
+]
+
+# Cable-lacing bar frame: x centred on the rack centreline, y = 0 at the flange front face (+y into the
+# rack), z = 0 at the flange bottom edge. Arms and bar are flush with z = 0 so the part prints as modelled.
+LACING = [
+    ("part", "const:lacing_bar", None, None, "label",
+     "Selects a cable-lacing bar: a flange on measured rail holes, standoff arms and a bar with vertical "
+     "cable-tie slots, all flush with the flange bottom edge."),
+] + PANEL_COMMON[:11] + [
+    ("rack_clear_depth_mm", "number", 20, 1000, "measured",
+     "Free depth behind the flange front face (to rear rails, door, wall or cables) at the bar's height."),
+    ("bar_standoff_mm", "number", 5, 200, "chosen",
+     "Clear gap between the flange back face and the bar front face (room for ties and cables)."),
+    ("bar_depth_mm", "number", ("gt", 1.0), 40, "chosen", "Bar size front to back."),
+    ("bar_height_mm", "number", ("gt", 1.0), 100, "chosen",
+     "Bar (and arm) height above the flange bottom edge; at most panel_height_mm."),
+    ("arm_count", "integer", 2, 12, "chosen",
+     "Standoff arms from flange to bar, evenly spaced with one at each bar end."),
+    ("arm_width_mm", "number", ("gt", 1.0), 40, "chosen", "Arm width across the rack."),
+    ("tie_width_mm", "number", 1, 20, "measured", "Width of the cable ties you will use."),
+    ("tie_thickness_mm", "number", ("gt", 0.2), 5, "measured", "Thickness of those cable ties."),
+    ("tie_clearance_mm", "number", 0, 3, "tolerance", "Added to tie width and thickness to size the tie slots."),
+    ("tie_slot_pitch_mm", "number", 5, 200, "chosen",
+     "Centre spacing of tie slots along the bar; each bay between two arms gets as many as fit, centred."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+    ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
+    ("allow_oversize_print", "bool", None, None, "chosen",
+     "false: refuse a lacing bar whose footprint does not fit the build plate. true: generate it anyway and flag "
+     "it in the manifest; no split is produced."),
+]
+
 # Switch cradle frame: x centred, y = 0 at the cradle front edge, z = 0 at the base bottom.
 # Device-face rectangles are [x0, x1, z0, z1]: x from the device centreline (viewed from the
 # front, +x to the right, same for the rear face), z up from the device bottom.
@@ -219,7 +274,8 @@ SWITCH = [
 SHELF = [
     ("part", "const:rack_shelf", None, None, "label",
      "Selects a shallow ventilated shelf: a front plate on measured rail holes with a cantilevered floor, "
-     "side walls, optional rear lip and vent slots. Only 10-inch is generated; 19-inch is refused (deferred)."),
+     "side walls, optional rear lip and vent slots. A 19-inch shelf must fit the stated build volume in one piece "
+     "and needs a rear lip as tall as the side walls."),
 ] + PANEL_COMMON[:11] + [
     ("rack_clear_depth_mm", "number", 20, 1000, "measured",
      "Free depth behind the panel front face (to rear rails, door, wall or cables) at the shelf's height."),
@@ -230,7 +286,8 @@ SHELF = [
      "Height of the two side walls above the floor top. They are the shelf's main stiffeners."),
     ("side_wall_thickness_mm", "number", ("gt", 1.0), 10, "chosen", "Side wall (and rear lip) thickness."),
     ("rear_lip_height_mm", "number", 0, 300, "chosen",
-     "Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm."),
+     "Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm; "
+     "for 19in it must equal side_wall_height_mm (closed frame around the floor)."),
     ("vent_slot_count", "integer", 0, 40, "chosen", "Number of rounded vent slots through the floor (0 = none)."),
     ("vent_slot_width_mm", "number", ("gt", 1.0), 20, "chosen", "Width of each vent slot (across the rack)."),
     ("vent_slot_length_mm", "number", 2, 250, "chosen",
@@ -299,7 +356,8 @@ NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,47}(?![\s\S])"
 
 PARTS = {"rack_bracket": COMMON + BRACKET, "sff_cradle": COMMON + CRADLE,
          "switch_cradle": COMMON + SWITCH, "blanking_panel": COMMON + BLANKING, "cable_panel": COMMON + CABLE,
-         "rack_shelf": COMMON + SHELF, "pdu_mount": COMMON + PDU}
+         "rack_shelf": COMMON + SHELF, "pdu_mount": COMMON + PDU,
+         "label_panel": COMMON + LABEL, "lacing_bar": COMMON + LACING}
 
 # Sanity windows that only catch unit mistakes; NOT standards for 10-inch racks.
 RAIL_SPACING_WINDOW = {"10in": (180.0, 270.0), "19in": (430.0, 500.0)}

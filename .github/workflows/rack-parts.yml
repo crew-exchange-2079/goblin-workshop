@@ -70,18 +70,39 @@ jobs:
           mkdir -p build
           for f in bracket-10in-1u bracket-19in-1u sff-cradle switch-cradle \
                    blank-10in-1u blank-19in-1u cable-10in-1u cable-19in-2u \
-                   shelf-10in-1u shelf-10in-2u pdu-strip pdu-compact; do
+                   shelf-10in-1u shelf-10in-2u pdu-strip pdu-compact \
+                   lacing-19in-1u label-19in-1u shelf-19in-1u-switch; do
             timeout 300 python3 -m rackparts generate "examples/$f-synthetic.json" --out "build/$f"
             timeout 120 python3 -m rackparts check-stl build/$f/*.stl > "build/$f/check-stl.json"
           done
+
+      # Wall thickness, overhangs per print orientation and M6 cage-nut holes, measured on each STL. Every
+      # example must pass except the two whose overhangs the README already flags (switch-cradle vent-window
+      # and strap-slot bridges, SFF cradle retention lip); those must keep failing, so a regression either way
+      # shows up. Reports are uploaded with the STLs.
+      - name: Spec check rendered examples
+        run: |
+          expect_fail=" switch-cradle sff-cradle "
+          bad=0
+          for d in build/*/; do
+            n=$(basename "$d")
+            set +e
+            timeout 300 python3 -m rackparts spec-check "$d" > "$d/spec-check.json"
+            rc=$?
+            set -e
+            if [[ "$expect_fail" == *" $n "* ]]; then want=5; else want=0; fi
+            echo "$n -> spec-check exit $rc (expected $want)"
+            if [ "$rc" -ne "$want" ]; then bad=1; cat "$d/spec-check.json"; fi
+          done
+          exit $bad
 
       - name: Render small/large/boundary cases
         run: |
           mkdir -p build/boundary-inputs
           python3 -c "
           import json
-          from tests import test_families, test_shelf_pdu
-          for c in test_families.boundary_cases() + test_shelf_pdu.boundary_cases():
+          from tests import test_accessories, test_families, test_shelf_pdu
+          for c in test_families.boundary_cases() + test_shelf_pdu.boundary_cases() + test_accessories.boundary_cases():
               with open('build/boundary-inputs/%s.json' % c['name'], 'x') as f:
                   json.dump(c, f, indent=2)
           "
@@ -107,12 +128,17 @@ jobs:
         run: |
           python3 -c "
           import glob, json
-          print('| part | shells | volume mm3 | bbox size mm | admesh ok |')
-          print('|---|---|---|---|---|')
+          print('| part | shells | volume mm3 | bbox size mm | admesh ok | spec-check (orientations passing) |')
+          print('|---|---|---|---|---|---|')
           for m in sorted(glob.glob('build/*/manifest.json')):
               r = json.load(open(m))['mesh']
-              print('| %s | %d | %.3f | %s | %s |' % (m.split('/')[1], r['shells'], r['volume_mm3'],
-                    ' x '.join('%g' % v for v in r['bbox_size']), r['admesh']['ok']))
+              try:
+                  sc = json.load(open(m.replace('manifest.json', 'spec-check.json')))
+                  spec = '%s (%s)' % ('pass' if sc['ok'] else 'FAIL', ', '.join(sc['overhangs']['passing']) or 'none')
+              except OSError:
+                  spec = '-'
+              print('| %s | %d | %.3f | %s | %s | %s |' % (m.split('/')[1], r['shells'], r['volume_mm3'],
+                    ' x '.join('%g' % v for v in r['bbox_size']), r['admesh']['ok'], spec))
           " | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload synthetic SCAD/STL/manifests

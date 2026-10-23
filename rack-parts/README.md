@@ -1,13 +1,15 @@
 # rack-parts
 
-Parametric OpenSCAD generator for seven printable rack parts:
+Parametric OpenSCAD generator for nine printable rack parts, plus a spec checker for the rendered STLs:
 
 - **`rack_bracket`** – an L-shaped rack ear: a front flange that screws to the rack rails and a side flange that screws to a device's side. One bracket per run (`hand: right|left`).
 - **`sff_cradle`** – a U-shaped cradle that holds a small-form-factor PC (or any box) flat or on its side, with a retention lip, and screws down to a shelf/panel through counterbored holes.
 - **`switch_cradle`** – a drop-in cradle for a small network switch: front/rear stop tabs, side walls, a strap over the top, side vent windows cut where you measured the switch's vents, rounded base vent slots, open front/rear for cables, and counterbored shelf holes. Port areas you measure are checked to stay clear.
 - **`blanking_panel`** – a flat 10-inch or 19-inch rack panel with slotted holes at the rail positions you measured, and optional stiffening ribs behind it.
 - **`cable_panel`** – the same panel with horizontal stadium-shaped cable pass-throughs whose edges are rounded (quarter-round) on both faces.
-- **`rack_shelf`** – a shallow ventilated **10-inch** shelf: a front plate on your measured rail holes, a floor cantilevered behind it with side walls, an optional rear lip and rounded vent slots. The measured device must fit on it. 19-inch shelves are **refused (deferred)**, see [Rack shelf](#rack-shelf).
+- **`label_panel`** – a blanking panel with a slide-in label holder: a pocket behind a thin front skin, lips over the label's edges and an entry opening at one end, see [Label panel](#label-panel).
+- **`rack_shelf`** – a shallow ventilated 10-inch or 19-inch shelf (e.g. for a small switch): a front plate on your measured rail holes, a floor cantilevered behind it with side walls, a rear lip and rounded vent slots. The measured device must fit on it. A 19-inch shelf is generated only in one piece that fits your stated build volume, and only as a closed frame (rear lip as tall as the walls), see [Rack shelf](#rack-shelf).
+- **`lacing_bar`** – a 1U-style cable-lacing bar: a flange on your measured rail holes, standoff arms and a bar with front-to-back tunnels for cable ties, all flush with the flange bottom so it prints as modelled, see [Lacing bar](#lacing-bar).
 - **`pdu_mount`** – an external, strap-retained bracket for a power strip / PDU body: the strip rests between two side walls and a strap over its top loops around a bar in each wall; screw ears fix the bracket to a surface. You print 2–4 identical brackets. Non-electrical accessory only, see [PDU mount](#pdu-mount).
 
 You describe the part in a JSON file. The CLI validates it, writes a self-contained `.scad`, renders an STL with headless OpenSCAD, checks the mesh, and writes a `manifest.json`. Geometry and validation are deterministic, stdlib-only Python; no network or model/API service is used. The JSON schema is meant to be fillable by a person or an agent, but **every dimension must come from your own measurements**.
@@ -32,9 +34,13 @@ python3 -m rackparts generate examples/shelf-10in-1u-synthetic.json   --out buil
 python3 -m rackparts generate examples/shelf-10in-2u-synthetic.json   --out build/shelf-10in-2u
 python3 -m rackparts generate examples/pdu-strip-synthetic.json       --out build/pdu-strip
 python3 -m rackparts generate examples/pdu-compact-synthetic.json     --out build/pdu-compact
+python3 -m rackparts generate examples/lacing-19in-1u-synthetic.json  --out build/lacing-19in-1u
+python3 -m rackparts generate examples/label-19in-1u-synthetic.json   --out build/label-19in-1u
+python3 -m rackparts generate examples/shelf-19in-1u-switch-synthetic.json --out build/shelf-19in-1u-switch
+python3 -m rackparts spec-check build/lacing-19in-1u                   # wall thickness, overhangs, M6 holes
 ```
 
-The 19-inch panel examples are 482.6 mm wide and **do not fit a typical 220–256 mm build plate**; they set `allow_oversize_print: true` so the geometry can still be inspected. See [Build plate and full-width panels](#build-plate-and-full-width-panels).
+The 19-inch panel, label-panel and lacing-bar examples are 482.6 mm wide and **do not fit a typical 220–256 mm build plate**; they set `allow_oversize_print: true` so the geometry can still be inspected. The 19-inch shelf has no such flag: its example states a 500 × 500 × 300 mm large-format build volume. See [Build plate and full-width panels](#build-plate-and-full-width-panels).
 
 Other commands:
 
@@ -43,11 +49,12 @@ python3 -m rackparts schema > my-schema.json          # JSON Schema (same as sch
 python3 -m rackparts validate my-part.json            # checks only, prints derived dimensions
 python3 -m rackparts generate my-part.json --out build/x --scad-only   # skip rendering
 python3 -m rackparts check-stl build/x/x.stl          # mesh checks on any STL
+python3 -m rackparts spec-check build/x               # printability spec check on a generated part (see below)
 python3 -m unittest discover -s tests -t .            # test suite (render tests skip without openscad)
 RACKPARTS_REQUIRE_RENDER=1 python3 -m unittest discover -s tests -t .   # as in CI: shelf/PDU render tests fail, not skip, without openscad+admesh
 ```
 
-Exit codes: `0` ok, `2` input refused (including an `--out` path containing a newline or other control character), `3` output directory already exists / tool failure, `4` rendered mesh rejected.
+Exit codes: `0` ok, `2` input refused (including an `--out` path containing a newline or other control character, or a `spec-check` directory whose STL does not match its manifest), `3` output directory already exists / tool failure, `4` rendered mesh rejected, `5` spec check failed.
 
 ### Outputs
 
@@ -57,7 +64,7 @@ Exit codes: `0` ok, `2` input refused (including an `--out` path containing a ne
 |---|---|
 | `<name>.scad` | self-contained OpenSCAD source: module copied from `scad/` plus one call with the validated numbers |
 | `<name>.stl` | binary STL from `openscad --export-format binstl` |
-| `manifest.json` | input parameters and their sha256, derived dimensions, expected bounding box, tool versions (Python, OpenSCAD, ADMesh), file sha256s, mesh report (facets, measured bbox, volume, shells, open edges, admesh counters), and an *unvalidated* print-orientation suggestion. `rack_shelf` and `pdu_mount` manifests also carry `physical_use`: an `UNVALIDATED` status and the fit-coupon / owner-inspection steps required before use |
+| `manifest.json` | input parameters and their sha256, derived dimensions, expected bounding box, tool versions (Python, OpenSCAD, ADMesh), file sha256s, mesh report (facets, measured bbox, volume, shells, open edges, admesh counters), an *unvalidated* print-orientation suggestion, and `print_orientations` (named "up" vectors that `spec-check` evaluates; absent for `rack_bracket`, where `spec-check` tries all six axes). `rack_shelf` and `pdu_mount` manifests also carry `physical_use`: an `UNVALIDATED` status and the fit-coupon / owner-inspection steps required before use |
 
 OpenSCAD 2021.01 can write the same facets in a different order on different runs, so the STL file hash may change between identical runs; `mesh.geometry_sha256` is order-independent and stays the same.
 
@@ -73,12 +80,15 @@ Refusals happen before any file is written:
   - switch cradle: stop tabs must overlap the switch face by at least `min_wall_mm` beyond `fit_clearance_mm` and at least one strap slot must sit over the switch (refused as *missing retention* otherwise); stop tabs may not cover any measured front/rear port rectangle; port and vent rectangles must lie on the switch face; a side vent window is cut for every vent rectangle and must leave wall at the cradle ends and `min_wall_mm` to strap slots and other windows; strap bar ≥ `min_wall_mm`; base vent slots keep `min_wall_mm` to each other, the walls and the stop tabs; counterbores may not run under a stop tab, into a wall, or within `min_wall_mm` of a vent slot; outer size must fit the stated space and the build plate.
   - panels: rail hole spacing must exceed the rail opening and fall in the per-class sanity window; the panel must be wider than the opening; screw heads must bear fully on the panel horizontally and holes keep `min_wall_mm` to the top/bottom edge and to each other; stiffening ribs stay inside the rail opening minus `rail_side_clearance_mm`, may not reach the rail screw shanks, are at least `min_wall_mm` thick and leave open height; the face must fit the build plate in either rotation unless `allow_oversize_print` is true.
   - cable panel: the opening neck must be at least `cable_bundle_diameter_mm` tall (*obstructed cable path* otherwise); the edge radius is > 0.4 mm and at most half the panel thickness; height ≤ width; every opening, measured at its flared face size, stays inside the rail opening minus `rail_side_clearance_mm`, `min_wall_mm` clear of rail-screw heads, panel edges and ribs, and `min_wall_mm` from every other opening.
-  - rack shelf: `19in` is refused outright (deferred); rail holes are checked as for panels; floor and side walls stay inside the rail opening minus `rail_side_clearance_mm` and clear of the rail screw shanks; floor/wall ≥ `min_wall_mm`; walls (and the device) may not rise above the front plate into the rack space above; the rear lip is no taller than the walls; the shelf must fit `rack_clear_depth_mm`; the measured device plus `fit_clearance_mm` must fit between the walls and in front of the lip (no overhang); vent slots keep `min_wall_mm` to each other, the walls, the front plate and the rear edge; the part must fit the build volume front-face-down or floor-down (refused otherwise, no oversize option).
+  - label panel: everything checked for panels, plus: the front skin is at least `min_wall_mm`; skin + label thickness + clearance leaves at least `min_wall_mm` of rear wall; the lips reach further than `label_clearance_mm` (otherwise a label pushed to one side slips out) and leave a window; the holder stays `min_wall_mm` clear of the rail-screw heads and the panel's top and bottom edges.
+  - rack shelf: a `19in` shelf must have `rear_lip_height_mm` equal to `side_wall_height_mm` (closed frame, see [Rack shelf](#rack-shelf)); rail holes are checked as for panels; floor and side walls stay inside the rail opening minus `rail_side_clearance_mm` and clear of the rail screw shanks; floor/wall ≥ `min_wall_mm`; walls (and the device) may not rise above the front plate into the rack space above; the rear lip is no taller than the walls; the shelf must fit `rack_clear_depth_mm`; the measured device plus `fit_clearance_mm` must fit between the walls and in front of the lip (no overhang); vent slots keep `min_wall_mm` to each other, the walls, the front plate and the rear edge; the part must fit the build volume front-face-down or floor-down (refused otherwise, no oversize option).
   - PDU mount: base, walls and strap bar ≥ `min_wall_mm`; the strap slot (strap width/thickness + clearance) leaves `min_wall_mm` at the bracket ends and its bottom sits at the strip top + `fit_clearance_mm`, so the strap only touches the top face; every bracket span (with `keepout_margin_mm`) is clear of every declared top/side/base keepout rectangle along the strip (*keepout violated*), and at least `end_clearance_mm` from both strip ends (*cord/end clearance*); brackets do not overlap; at least two brackets; keepout rectangles must lie on their face; the screw head bears on the ear clear of the wall and the hole keeps `min_wall_mm`; width and height (including the strap looped over the bar) fit the stated space; the bracket fits the build volume base-down.
+  - lacing bar: rail holes are checked as for panels; the bar stays inside the rail opening minus `rail_side_clearance_mm` and clear of the rail screw shanks; bar height ≤ `panel_height_mm`; bar depth and arm width ≥ `min_wall_mm`; the bar holds the tie tunnel with `min_wall_mm` below and above it; the part fits `rack_clear_depth_mm`; tunnels keep `min_wall_mm` to each other and to the arms, and every bay between two arms gets at least one tunnel (*no tie points* otherwise); the footprint fits the build volume as modelled unless `allow_oversize_print` is true.
   - Holes are modelled slightly larger than the stated diameter so the `facets`-sided polygon still clears it.
 - **Rendered mesh.** OpenSCAD warnings/errors are fatal. The STL must be non-empty, have no zero-area facets, be a closed and consistently oriented manifold (every edge used exactly twice, in opposite directions), have positive volume, be a single connected shell, and its measured bounding box must equal the validator's prediction within 0.01 mm. ADMesh (read-only run) must report one part and zero repairs.
 - **Rounded edges (cable panel).** A test reads the rendered STL and confirms the opening is `cut_h + 2 × radius` tall at both faces, `cut_h` at the neck, and on the quarter circle in between (each of the 6 straight steps per edge ends exactly on the arc; between the ends the chord removes slightly more material than a true round).
-- **Not checked:** general triangle-triangle self-intersection (CSG through CGAL is not expected to produce it, and ADMesh is a second opinion, but no dedicated test exists), wall thickness of the printed result, strength, and real-world fit.
+- **Spec check (separate command).** Wall thickness, overhangs per print orientation and M6 cage-nut holes are measured on the STL by `spec-check`; see [Spec check](#spec-check).
+- **Not checked:** general triangle-triangle self-intersection (CSG through CGAL is not expected to produce it, and ADMesh is a second opinion, but no dedicated test exists), how the printed result turns out (the spec check reads the model, not a print), strength, and real-world fit.
 
 ## Rack dimensions: standard vs. measure-it-yourself
 
@@ -124,6 +134,9 @@ Tolerances (`*_clearance_*`, `fit_clearance_mm`, `rail_side_clearance_mm`, `devi
 | mesh is closed, oriented, one shell, bbox as designed | yes (own checker + ADMesh) | – |
 | shelf: device footprint fits between walls, in front of the lip, inside the shelf's own panel height | yes, against the device size you enter | the real device, its cables and airflow |
 | PDU mount: brackets/straps clear of outlets, switch, vents, cord exit | yes, along the strip, against the keepouts and end clearance you enter | every outlet, plug body, switch, vent and cord on the real strip |
+| label holder keeps a label that is pushed to one side; window left open | yes, against the label size you enter | the real label stock and how it slides in |
+| lacing bar has tie points in every bay, clear of the rail screws | yes | tie size, bundle size and bend radius |
+| model wall thickness ≥ `min_wall_mm`, overhang/bridge spans, M6 hole clearance and EIA-310 nominal alignment | yes, by `spec-check` on the STL (heuristic) | what your printer, slicer and material actually do; your rack's real hole positions |
 | strength, load, stiffness, heat, fire, creep, electrical safety | **no** – no rating of any kind | whether a printed part is appropriate at all |
 
 ## Switch cradle and panels: measuring
@@ -188,11 +201,56 @@ A 19-inch panel is 482.6 mm wide. Few hobby printers can print that in one piece
      0  t        shelf_depth_mm                           |<-- rail_opening - 2 x rail_side_clearance -->|
 ```
 
-- **10-inch only.** `rack_width_class: "19in"` is refused with an explicit *deferred* message, whatever build plate is stated. A ~483 mm front plate does not fit common build plates, and a bolt-together split would need a specified joint whose geometry and assembly can be checked; none is implemented. Use a commercial 19-inch shelf.
-- The shelf **hangs only from the front rail screws** (a cantilever). There is no rear support and no load rating. `shelf_depth_mm` is capped at 250 mm; keep it shallow and the device light.
+- **19-inch: one piece, closed frame.** A 19-inch shelf is 482.6 mm wide, so it is generated only if it fits your stated build volume (floor down needs about 483 × (thickness + depth) mm of plate; front face down about 483 × 44 mm per U plus the depth as height). Common 220–256 mm printers are refused; there is no `allow_oversize_print` for shelves and no bolt-together split (a split would need a specified joint whose geometry and assembly can be checked; none is implemented). The floor between the walls is about 441 mm wide, roughly twice a 10-inch shelf's, and bending stiffness falls with the cube of the span, so a 19-inch shelf must have `rear_lip_height_mm` equal to `side_wall_height_mm`: front plate, walls and rear lip then form a closed frame round the floor. That is a geometry rule, not a load rating. The lip blocks the rear of the device up to the wall height; choose `side_wall_height_mm` (≥ 3 mm) so rear ports and cables clear it. If your printer is smaller, use a commercial 19-inch shelf, or a 10-inch shelf in a 10-inch rack.
+- The shelf **hangs only from the front rail screws** (a cantilever). There is no rear support and no load rating. `shelf_depth_mm` is capped at 250 mm; keep it shallow and the device light (the 19-inch example is sized for a small unmanaged switch, about 160 × 100 × 28 mm).
 - Measure: everything you would measure for a panel, plus `rack_clear_depth_mm` (free depth behind the front face at that height — rear rails, doors, cables) and the device's width, depth and height. The device (with `fit_clearance_mm`) must fit between the walls and in front of the rear lip, and the floor + device must stay within `panel_height_mm`, i.e. inside the rack units the shelf occupies.
-- Printing: refused unless it fits your build volume in one of two orientations: **floor down** (needs `panel_width_mm × (panel_thickness_mm + shelf_depth_mm)` on the plate) or **front face down** (needs the front plate on the plate and `panel_thickness_mm + shelf_depth_mm` of height). `derived.printable_orientations` lists what fits. Only bed fit is checked; **neither orientation is claimed to print without supports**. Overhangs in the model: floor down, the rail holes are horizontal round holes (overhanging tops); front face down, the vent slots stay vertical (depth becomes build height) with rounded overhanging tops, and a rear lip (`rear_lip_height_mm` > 0) becomes a horizontal bridge as long as the space between the side walls (211 mm in the 1U example) with nothing under it, which needs supports or reliable long-span bridging. Check the overhang preview in your slicer.
+- Printing: refused unless it fits your build volume in one of two orientations: **floor down** (needs `panel_width_mm × (panel_thickness_mm + shelf_depth_mm)` on the plate) or **front face down** (needs the front plate on the plate and `panel_thickness_mm + shelf_depth_mm` of height). `derived.printable_orientations` lists what fits. Only bed fit is checked; **neither orientation is claimed to print without supports**. Overhangs in the model: floor down, the rail holes are horizontal round holes (overhanging tops); front face down, the vent slots stay vertical (depth becomes build height) with rounded overhanging tops, and a rear lip (`rear_lip_height_mm` > 0) becomes a horizontal ledge along the whole space between the side walls (211 mm in the 1U example), sticking `rear_lip_height_mm` out from the floor with nothing under it, which needs supports. `spec-check` measures this: in the examples floor down passes and front face down fails on the lip. Check the overhang preview in your slicer.
 - **Fit coupon:** first print a `blanking_panel` with identical `rail_*`/`panel_*` values and `stiffener_depth_mm: 0` and check it against your rails.
+
+## Lacing bar
+
+```
+ top view                                                  side view (section through an arm)
+ +----------------------------------------------------+    z ^  flange
+ |(o=)            flange (panel_width_mm)        (=o)|      |  |
+ +--+--------+---------+---------+---------+------+--+      |  |     standoff      bar
+    |arm     |arm      |arm      |arm      |arm   |         |  |__________________ ___
+    |        |         |         |         |      |         |  |   arm            |   | <- tie tunnel runs
+    +--||-||-+--||-||--+--||-||--+--||-||--+-||-||+  bar    0--+------------------+---+--> y   front to back
+       tie tunnels (front to back), as many per bay as fit at tie_slot_pitch_mm
+```
+
+- A flange on the measured rail holes, `arm_count` arms (one at each bar end) and a bar `bar_standoff_mm` behind the flange, spanning the rail opening minus `rail_side_clearance_mm`. Arms and bar sit on z = 0, flush with the flange bottom edge.
+- Lacing: lay the bundle on the bar, pass a tie front to back through a tunnel, up behind the bar, over the bundle and back down through the gap in front of the bar. The tunnel sits `min_wall_mm` above the bar's bottom, so the tie wraps the bundle and the bar above the tunnel without reaching under the bar into the unit below.
+- Measure: everything you would measure for a panel, `rack_clear_depth_mm`, and the ties you will use (width and thickness).
+- Printing: as modelled (flange edge, arms and bar on the bed): rail holes are horizontal holes in the standing flange and each tunnel top is a bridge of tie width + clearance; `spec-check` reports both. A 19-inch lacing bar needs about 483 mm of bed; the example sets `allow_oversize_print: true` and is flagged as not fitting its 256 mm plate. Ties pulled tight load the bar sideways; no strength is rated.
+
+## Label panel
+
+```
+ front view of the holder                               section through the holder (y grows into the rack)
+ +-------------------------------------------+----+          front skin   pocket   rear wall
+ |  lip                                      |    |           |  lip  |   |    |   |       |
+ |   +---------------------------------------+    |   window ->         label        panel |
+ |   |  window (label shows here)            |entry          |  lip  |   |    |   |       |
+ |   +---------------------------------------+    |
+ |  lip                                      |    |   skin = label_face_thickness_mm; pocket = label thickness
+ +-------------------------------------------+----+   + clearance; rear wall >= min_wall_mm
+```
+
+- A blanking panel (same rail, rib and build-plate fields) with a pocket for a label card or strip behind a thin front skin. The skin is cut away over a window that leaves `label_lip_mm` of lip over the label's top, bottom and left edges, and completely over the `label_entry_length_mm` entry opening at the right end. Slip the label in at the entry and slide it left under the lips; it is held by friction and the lips, not clamped.
+- Measure the label stock you will use (length, height, thickness). `label_clearance_mm` is added on every side and to the thickness.
+- Printing: front face down; the back of the pocket is then a bridge as long as the pocket is tall (18.8 mm in the example). Without ribs (`stiffener_depth_mm: 0`), back face down is listed too; the lips are then short ledges and `spec-check` reports whether they pass.
+
+## Spec check
+
+`python3 -m rackparts spec-check DIR` reads `DIR/manifest.json` from `generate`, verifies the STL against the sha256 recorded there, and measures the mesh. It prints a JSON report and exits `0` (pass) or `5` (fail). Nothing here is a slicer or a print test; the checks are heuristics on the model and are deliberately simple enough to read in [`rackparts/speccheck.py`](rackparts/speccheck.py).
+
+- **Wall thickness.** From the centroid of every facet a ray goes into the material along the inward normal; the distance to the next surface is the local thickness. The thinnest must be at least the input's `min_wall_mm`. This finds thin skins, lips, webs between holes and the material between a hole and an edge (e.g. 2.65 mm above a 6.6 mm hole on a 1U panel). It does not measure thickness in other directions.
+- **Overhangs**, per orientation in the manifest's `print_orientations`. Facets steeper than `--max-overhang-deg` (default 45) from vertical that are not on the bed form regions. An edge of a region is *supported* where the neighbouring surface continues downward from it (or is the bed). Points spread over each region are *bridged* if along one of 8 horizontal lines both nearest region edges are supported and at most `--max-bridge-mm` (default 20) apart; every other point is a *ledge* point, whose horizontal reach from the nearest supported edge, less what a 45° slope covers over the height it rises, must be at most `--max-ledge-mm` (default 1). A region with no supported edge is an island. The part passes if at least one listed orientation passes. Defaults are starting points, not facts about your printer.
+- **M6 cage nut** (`--fastener m6`, the default; `--fastener none` skips it). For parts in the panel frame (`blanking_panel`, `cable_panel`, `label_panel`, `rack_shelf`, `lacing_bar`): `rail_screw_clearance_diameter_mm` must lie between ISO 273 fine and coarse for M6 (6.4–7.0 mm), and rays cast across each rail hole in the mesh must find at least the stated diameter clear. For `19in` parts the holes are also compared with the EIA-310 nominal pattern summarised [above](#rack-dimensions-standard-vs-measure-it-yourself), with the panel assumed centred in the units it occupies: any vertical offset must be absorbed by `(clearance − 6) / 2` around a 6 mm screw, and any horizontal one by that plus half the slot. This compares your input with nominal values, not with your rack; if you measured something else, the measurement wins and the check tells you the screw will need the slack.
+- Results on the examples (CI runs `spec-check` on every rendered example and requires a pass for the three 19-inch accessories): brackets, panels (blanking, cable, label), the lacing bar, PDU brackets and all shelves pass; shelves with a rear lip pass floor down only (front face down fails on the lip ledge), the lip-less 10-inch 2U shelf both ways. The switch cradle fails base down on its vent-window and strap-slot bridges and the SFF cradle on its retention lip — the overhangs the [orientation notes](#slicer-orientation-unvalidated) already warn about.
+- Limits: sampling is finite (up to 8 × 8 sub-triangles per facet), "supported" is decided from the neighbouring facet only, bridging is judged along straight lines, and nothing models layer height, cooling, elephant's foot or warping.
 
 ## PDU mount
 
@@ -236,8 +294,9 @@ The manifest includes a suggestion; none of it has been tested on a printer.
 - Bracket: lay the side flange flat on the bed so layer lines run along the flange; the front flange then stands vertically. Alternatively print front-flange-down. Either way the inner corner sees bending loads across layers in some direction — consider the gusset, more perimeters, or a stronger material, and decide for yourself whether a printed part is appropriate at all.
 - Cradle: base down as modelled; the retention lip is an overhang that likely needs supports or a chamfer you add.
 - Switch cradle: base down as modelled; vent-window and strap-slot tops are bridges.
-- Panels: front face down; stiffeners point up and need no supports.
-- Rack shelf: floor down or front face down, whichever fits your stated build volume (the manifest lists both and their overhangs). Front face down turns a rear lip into a long unsupported bridge; see [Rack shelf](#rack-shelf).
+- Panels: front face down; stiffeners point up and need no supports. Label panel: the pocket back is a bridge as long as the pocket is tall.
+- Lacing bar: as modelled; tunnel tops are short bridges.
+- Rack shelf: floor down or front face down, whichever fits your stated build volume (the manifest lists both and their overhangs). Front face down turns a rear lip into a long unsupported ledge; see [Rack shelf](#rack-shelf).
 - PDU mount: base down as modelled; strap-slot tops are short bridges.
 
 Practical starting slicer settings for all parts are in [Slicer starting settings (untested)](#slicer-starting-settings-untested).
@@ -376,17 +435,52 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `pass_through_edge_radius_mm` | chosen | >0.4 – 10 | Radius of the rounded edge on both faces around each opening; at most half the panel thickness. The opening on each face is wider and taller than the neck by twice this radius. |
 | `cable_bundle_diameter_mm` | measured | 1 – 150 | Largest connector or cable bundle diameter that must pass through; the opening neck must be at least this tall. |
 
+**`label_panel`**: all fields of the shared panel table above, plus:
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `label_panel` | Selects a blanking panel with a slide-in label holder: a pocket behind a thin front skin, lips over the label's top, bottom and left edges, and an entry opening at the right end. |
+| `label_center_x_mm` | chosen | -260 – 260 | Centre of the label holder (pocket including the entry opening) from the rack centreline, +x to the right. |
+| `label_center_z_mm` | chosen | 0 – 400 | Centre of the label holder above the panel bottom edge. |
+| `label_width_mm` | measured | 10 – 400 | Length of the label card/strip you will insert. |
+| `label_height_mm` | measured | 5 – 100 | Height of the label card/strip. |
+| `label_thickness_mm` | measured | >0.05 – 3 | Thickness of the label card/strip. |
+| `label_clearance_mm` | tolerance | 0 – 3 | Gap added around the label in the pocket (each side) and to its thickness. |
+| `label_lip_mm` | chosen | >0 – 10 | How far the top, bottom and left lips reach over the label edges. Must exceed label_clearance_mm, or a label pushed to one side slips out. |
+| `label_face_thickness_mm` | chosen | >0.4 – 5 | Thickness of the front skin that forms the lips (at least min_wall_mm). |
+| `label_entry_length_mm` | chosen | 5 – 100 | Length of the lip-free entry opening at the right end of the pocket; the label goes in there and slides left under the lips. |
+
+**`lacing_bar`**: the eleven fields from `rack_width_class` to `rail_side_clearance_mm` in the panel table above (the panel fields describe the flange), plus:
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `lacing_bar` | Selects a cable-lacing bar: a flange on measured rail holes, standoff arms and a bar with vertical cable-tie slots, all flush with the flange bottom edge. |
+| `rack_clear_depth_mm` | measured | 20 – 1000 | Free depth behind the flange front face (to rear rails, door, wall or cables) at the bar's height. |
+| `bar_standoff_mm` | chosen | 5 – 200 | Clear gap between the flange back face and the bar front face (room for ties and cables). |
+| `bar_depth_mm` | chosen | >1 – 40 | Bar size front to back. |
+| `bar_height_mm` | chosen | >1 – 100 | Bar (and arm) height above the flange bottom edge; at most panel_height_mm. |
+| `arm_count` | chosen | 2 – 12 | Standoff arms from flange to bar, evenly spaced with one at each bar end. |
+| `arm_width_mm` | chosen | >1 – 40 | Arm width across the rack. |
+| `tie_width_mm` | measured | 1 – 20 | Width of the cable ties you will use. |
+| `tie_thickness_mm` | measured | >0.2 – 5 | Thickness of those cable ties. |
+| `tie_clearance_mm` | tolerance | 0 – 3 | Added to tie width and thickness to size the tie slots. |
+| `tie_slot_pitch_mm` | chosen | 5 – 200 | Centre spacing of tie slots along the bar; each bay between two arms gets as many as fit, centred. |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+| `build_plate_z_mm` | measured | 20 – 1000 | Usable build height. |
+| `allow_oversize_print` | chosen | `true` \| `false` | false: refuse a lacing bar whose footprint does not fit the build plate. true: generate it anyway and flag it in the manifest; no split is produced. |
+
 **`rack_shelf`**: the eleven fields from `rack_width_class` to `rail_side_clearance_mm` in the panel table above, plus:
 
 | parameter | kind | allowed | meaning |
 |---|---|---|---|
-| `part` | label | `rack_shelf` | Selects a shallow ventilated shelf: a front plate on measured rail holes with a cantilevered floor, side walls, optional rear lip and vent slots. Only 10-inch is generated; 19-inch is refused (deferred). |
+| `part` | label | `rack_shelf` | Selects a shallow ventilated shelf: a front plate on measured rail holes with a cantilevered floor, side walls, optional rear lip and vent slots. A 19-inch shelf must fit the stated build volume in one piece and needs a rear lip as tall as the side walls. |
 | `rack_clear_depth_mm` | measured | 20 – 1000 | Free depth behind the panel front face (to rear rails, door, wall or cables) at the shelf's height. |
 | `shelf_depth_mm` | chosen | 40 – 250 | Floor depth behind the front plate. The shelf hangs only from the front rail screws; keep it shallow. |
 | `floor_thickness_mm` | chosen | >1 – 10 | Floor thickness (at least min_wall_mm). |
 | `side_wall_height_mm` | chosen | 3 – 300 | Height of the two side walls above the floor top. They are the shelf's main stiffeners. |
 | `side_wall_thickness_mm` | chosen | >1 – 10 | Side wall (and rear lip) thickness. |
-| `rear_lip_height_mm` | chosen | 0 – 300 | Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm. |
+| `rear_lip_height_mm` | chosen | 0 – 300 | Height of a lip along the rear floor edge above the floor top (0 = none). At most side_wall_height_mm; for 19in it must equal side_wall_height_mm (closed frame around the floor). |
 | `vent_slot_count` | chosen | 0 – 40 | Number of rounded vent slots through the floor (0 = none). |
 | `vent_slot_width_mm` | chosen | >1 – 20 | Width of each vent slot (across the rack). |
 | `vent_slot_length_mm` | chosen | 2 – 250 | Length of each vent slot along the depth, centred on the floor between front plate and rear lip. |
@@ -445,8 +539,11 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `examples/shelf-10in-1u-synthetic.json` | 10-inch 1U shelf, 150 mm deep, 16 vent slots, rear lip, for a made-up 180 × 120 × 30 mm device; same invented rack values as the 10-inch panels; fits a 256 mm build volume both ways |
 | `examples/shelf-10in-2u-synthetic.json` | 10-inch 2U shelf, 220 mm deep, no rear lip, 10 wider vent slots, made-up 150 × 210 × 70 mm device, 300 mm build volume |
 | `examples/pdu-strip-synthetic.json` | two brackets for a made-up 300 × 55 × 40 mm strip with two outlet groups and a switch on top, a side vent, feet underneath; brackets sit at the left end and between the outlet groups |
+| `examples/lacing-19in-1u-synthetic.json` | 19-inch lacing bar from EIA-310 nominal summary values: 4 mm flange, 5 arms, bar 30 mm behind it with 16 tunnels for made-up 4.8 × 1.2 mm ties; **does not fit** the stated 256 mm plate (`allow_oversize_print: true`) |
+| `examples/label-19in-1u-synthetic.json` | 19-inch 1U blanking panel, 5 mm thick with ribs, holder for a made-up 100 × 18 × 0.3 mm label strip centred on the middle hole row; **does not fit** the stated plate (`allow_oversize_print: true`) |
+| `examples/shelf-19in-1u-switch-synthetic.json` | 19-inch 1U closed-frame shelf, 160 mm deep, 24 vent slots, 12 mm walls and rear lip, for a made-up 160 × 100 × 28 mm switch; states a 500 × 500 × 300 mm large-format build volume (fits floor down and front face down) |
 | `examples/pdu-compact-synthetic.json` | two brackets at the ends of a made-up 160 × 40 × 30 mm strip with one outlet block; thinner strap, smaller screws |
-| `tests/fixtures/*.json` | inputs that must be refused (19-inch shelf (deferred), shelf larger than the build volume, device taller than the shelf's panel, PDU bracket over an outlet keepout, PDU bracket too close to the cord end, zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN, stop tab over a port, missing retention, vent window against a strap slot, oversize panel without the flag, overlapping rail holes, overlapping pass-throughs, edge radius over half the thickness, cable bundle larger than the opening) |
+| `tests/fixtures/*.json` | inputs that must be refused (19-inch shelf without a full-height rear lip, label lip not exceeding its clearance, label pocket leaving too thin a rear wall, lacing bar with no room for tie slots between arms, lacing bar over the rail screw shanks, shelf larger than the build volume, device taller than the shelf's panel, PDU bracket over an outlet keepout, PDU bracket too close to the cord end, zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN, stop tab over a port, missing retention, vent window against a strap slot, oversize panel without the flag, overlapping rail holes, overlapping pass-throughs, edge radius over half the thickness, cable bundle larger than the opening) |
 
 "Synthetic" means the numbers were made up (or, for 19-inch rails, taken from standard summaries) to exercise the generator. A **real fit** needs your own measurements of your rack, switch, screws, straps and printer, plus a printed fit coupon.
 
@@ -454,10 +551,13 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 
 - No strength, load, temperature or fire rating; no claim that a printed part can safely carry any device. Rack-mounted equipment can be heavy; use the device's own rack kit or a proper shelf when in doubt.
 - No physical print, rack installation, or hardware test has been done. Fit depends on your measurements, printer, material and slicer.
-- Seven part shapes. No cage-nut, threaded-insert or rear-support features. Panels are single pieces: there is no split/joint option, so 19-inch panels need a large printer or another process (see above).
+- Nine part shapes. No cage-nut, threaded-insert or rear-support features (the parts take screws into cage nuts in your rails; `spec-check` checks those holes). Panels are single pieces: there is no split/joint option, so 19-inch panels need a large printer or another process (see above).
 - Switch cradle: port/vent clearance is checked only against the rectangles you enter, not against cable bend radius or plug bodies; the strap is your own hardware; insertion is from above.
 - Cable panel: the rounded edge is a 6-step polygonal approximation of a quarter round (each step ends on the arc); there are no brush strips or covers.
-- Rack shelf: 10-inch only; 19-inch is deferred (no bolt-together joint). Cantilevered from the front rail screws only, with no rear support, no load rating and no deflection estimate. Vent slots are not an airflow or thermal design; the device's own cooling requirements are yours to check.
+- Rack shelf: 19-inch only in one piece on a printer large enough for it (no bolt-together joint) and only as a closed frame. Cantilevered from the front rail screws only, with no rear support, no load rating and no deflection estimate. Vent slots are not an airflow or thermal design; the device's own cooling requirements are yours to check.
+- Lacing bar: no strength rating for tie tension or bundle weight; the bar is held by the flange's rail screws only.
+- Label panel: one holder per panel; the label is held by the lips and friction only.
+- Spec check: heuristic measurements on the model (see [Spec check](#spec-check)); passing it says nothing about how a print turns out.
 - PDU mount: keepout and cord clearance are checked only along the strip against what you enter; the tool cannot know where your outlets, plug bodies or cords really are. Holding force, strap creep, vibration and fire behaviour of the printed part are unknown. Not an electrical product; it must not be used to modify, cover or support a strip in a way its maker does not allow.
 - Starting slicer settings are untested suggestions.
 - Self-intersection is not tested directly (see above).
@@ -465,4 +565,4 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 
 ## License and provenance
 
-MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above. The switch cradle, blanking panel, cable panel, rack shelf and PDU mount are generic CAD written for this repository under the same MIT license; they are not derived from any vendor's design, and no switch, power-strip or rack vendor's dimensions are included.
+MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above. The switch cradle, blanking panel, cable panel, label panel, rack shelf, lacing bar and PDU mount are generic CAD written for this repository under the same MIT license; they are not derived from any vendor's design, and no switch, power-strip or rack vendor's dimensions are included.
