@@ -1,0 +1,1227 @@
+{
+ "sections": {
+  "Artifact": {
+   "Artifact": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AuthFile": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "CertDir": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Creds": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DecryptionKey": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Quiet": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Retry": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RetryDelay": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "TLSVerify": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Build": {
+   "Annotation": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Arch": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AuthFile": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "BuildArg": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNS": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSOption": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSSearch": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Environment": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "File": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ForceRM": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GroupAdd": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IgnoreFile": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ImageTag": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Label": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Network": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Pull": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Retry": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RetryDelay": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Secret": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SetWorkingDirectory": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "TLSVerify": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Target": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Variant": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Volume": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Container": {
+   "AddCapability": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AddDevice": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AddHost": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Annotation": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AppArmor": {
+    "added": "5.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AutoUpdate": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "CgroupsMode": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainerName": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNS": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSOption": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSSearch": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DropCapability": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Entrypoint": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Environment": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "EnvironmentFile": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "EnvironmentHost": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Exec": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ExposeHostPort": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GIDMap": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Group": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GroupAdd": {
+    "added": "5.1.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthCmd": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthInterval": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthLogDestination": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthMaxLogCount": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthMaxLogSize": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthOnFailure": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthRetries": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartPeriod": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartupCmd": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartupInterval": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartupRetries": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartupSuccess": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthStartupTimeout": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HealthTimeout": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HostName": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HttpProxy": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IP": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IP6": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Image": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ImageVolume": {
+    "added": "6.1.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Label": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "LogDriver": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "LogOpt": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Mask": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Memory": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Mount": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Network": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "NetworkAlias": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "NoNewPrivileges": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Notify": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PidsLimit": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Pod": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PublishPort": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Pull": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ReadOnly": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ReadOnlyTmpfs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ReloadCmd": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ReloadSignal": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RemapGid": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUid": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUidSize": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUsers": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "Retry": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RetryDelay": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Rootfs": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RunInit": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SeccompProfile": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Secret": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SecurityLabelDisable": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SecurityLabelFileType": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SecurityLabelLevel": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SecurityLabelNested": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SecurityLabelType": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ShmSize": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "StartWithPod": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "StopSignal": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "StopTimeout": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SubGIDMap": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SubUIDMap": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Sysctl": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Timezone": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Tmpfs": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UIDMap": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Ulimit": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Unmask": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "User": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UserNS": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "VolatileTmp": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "Volume": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "WorkingDir": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Image": {
+   "AllTags": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Arch": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "AuthFile": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "CertDir": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Creds": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DecryptionKey": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Image": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ImageTag": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "OS": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Policy": {
+    "added": "5.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Retry": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RetryDelay": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "TLSVerify": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Variant": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Kube": {
+   "AutoUpdate": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ConfigMap": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ExitCodePropagation": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "KubeDownForce": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "LogDriver": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "LogOpt": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Network": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PublishPort": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RemapGid": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUid": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUidSize": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUsers": {
+    "added": "4.4.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SetWorkingDirectory": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UserNS": {
+    "added": "4.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Yaml": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Network": {
+   "ContainersConfModule": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNS": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DisableDNS": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Driver": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Gateway": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IPAMDriver": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IPRange": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IPv6": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "InterfaceName": {
+    "added": "5.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Internal": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Label": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "NetworkDeleteOnStop": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "NetworkName": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Options": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Subnet": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Pod": {
+   "AddHost": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ContainersConfModule": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNS": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSOption": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "DNSSearch": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ExitPolicy": {
+    "added": "5.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GIDMap": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "HostName": {
+    "added": "5.5.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IP": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "IP6": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Label": {
+    "added": "5.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Network": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "NetworkAlias": {
+    "added": "5.2.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodName": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PublishPort": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "RemapGid": {
+    "added": "5.3.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUid": {
+    "added": "5.3.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUidSize": {
+    "added": "5.3.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "RemapUsers": {
+    "added": "5.3.0",
+    "deprecated": true,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ShmSize": {
+    "added": "5.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "StopTimeout": {
+    "added": "5.7.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SubGIDMap": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "SubUIDMap": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UIDMap": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UserNS": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Volume": {
+    "added": "5.0.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Quadlet": {
+   "DefaultDependencies": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   }
+  },
+  "Volume": {
+   "ContainersConfModule": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Copy": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Device": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Driver": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GID": {
+    "added": "6.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "GlobalArgs": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Group": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Image": {
+    "added": "4.8.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Label": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Options": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "PodmanArgs": {
+    "added": "4.6.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "ServiceName": {
+    "added": "5.3.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "Type": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "UID": {
+    "added": "6.0.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "User": {
+    "added": "4.4.0",
+    "deprecated": false,
+    "removed": null
+   },
+   "VolumeName": {
+    "added": "4.7.0",
+    "deprecated": false,
+    "removed": null
+   }
+  }
+ },
+ "source": "containers/podman pkg/systemd/quadlet/quadlet.go",
+ "versions": [
+  "4.4.0",
+  "4.5.0",
+  "4.6.0",
+  "4.7.0",
+  "4.8.0",
+  "4.9.0",
+  "5.0.0",
+  "5.1.0",
+  "5.2.0",
+  "5.3.0",
+  "5.4.0",
+  "5.5.0",
+  "5.6.0",
+  "5.7.0",
+  "5.8.0",
+  "6.0.0",
+  "6.1.0"
+ ]
+}
