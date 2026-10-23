@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LTO label sheets</title>
+<style>
+  :root { color-scheme: light; font: 15px/1.4 system-ui, sans-serif; }
+  body { margin: 0; background: #eee; color: #111; }
+  form { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; padding: 14px 16px; background: #fff; border-bottom: 1px solid #ccc; }
+  label { display: flex; flex-direction: column; font-size: 13px; gap: 3px; }
+  input, select, button { font: inherit; padding: 4px 6px; }
+  input[type=number] { width: 6em; }
+  #msg { padding: 8px 16px; white-space: pre-wrap; font-size: 14px; }
+  #msg.err { color: #a00; }
+  #pages { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  #pages svg { background: #fff; box-shadow: 0 1px 4px #0003; max-width: 100%; height: auto; }
+  @media print {
+    form, #msg { display: none; }
+    body { background: #fff; }
+    #pages { padding: 0; gap: 0; display: block; }
+    #pages svg { box-shadow: none; max-width: none; display: block; break-after: page; }
+  }
+</style>
+<style id="page-size"></style>
+</head>
+<body>
+<form id="f">
+  <label>First volser <input id="first" value="TAP000" maxlength="6" size="7" autocomplete="off"></label>
+  <label>Count <input id="count" type="number" min="1" max="1000" value="30"></label>
+  <label>Media <select id="media"></select></label>
+  <label>Stock <select id="stock"></select></label>
+  <label>Skip <input id="skip" type="number" min="0" value="0"></label>
+  <label>Offset x mm <input id="ox" type="number" step="0.1" value="0"></label>
+  <label>Offset y mm <input id="oy" type="number" step="0.1" value="0"></label>
+  <label><span>Outlines</span><input id="outline" type="checkbox"></label>
+  <button type="button" id="print">Print</button>
+</form>
+<div id="msg"></div>
+<div id="pages"></div>
+<script type="module">
+import { MEDIA, STOCKS, check, looksChecked, volserRange, sheetSvgs } from "./label.js";
+
+const $ = (id) => document.getElementById(id);
+for (const [k, v] of Object.entries(MEDIA)) $("media").add(new Option(`${k} — ${v}`, k, k === "L9", k === "L9"));
+for (const k of Object.keys(STOCKS)) $("stock").add(new Option(k, k));
+
+function render() {
+  const msg = $("msg");
+  try {
+    const media = $("media").value;
+    const labels = volserRange($("first").value, Number($("count").value)).map((v) => v + media);
+    const warns = labels.flatMap((l) => check(l));
+    const lookalikes = labels.filter(looksChecked);
+    if (lookalikes.length) warns.push(`note: ${lookalikes.length} label(s), e.g. ${lookalikes[0]}, end in the ` +
+      "Code 39 mod-43 check of their first 7 chars; make sure readers are not set to strip check characters.");
+    const s = STOCKS[$("stock").value];
+    const pages = sheetSvgs(labels, s, {
+      skip: Number($("skip").value), offsetX: Number($("ox").value),
+      offsetY: Number($("oy").value), outline: $("outline").checked,
+    });
+    $("pages").innerHTML = pages.join("");
+    $("page-size").textContent = `@page { size: ${s.page_w}mm ${s.page_h}mm; margin: 0; }`;
+    msg.className = "";
+    msg.textContent = `${labels.length} labels, ${labels[0]}–${labels.at(-1)}, ${pages.length} page(s). ` +
+      "Print at 100% / actual size, no margins." + (warns.length ? "\n" + warns.join("\n") : "");
+  } catch (e) {
+    $("pages").innerHTML = "";
+    msg.className = "err";
+    msg.textContent = e.message;
+  }
+}
+
+$("f").addEventListener("input", render);
+$("first").addEventListener("input", (e) => { e.target.value = e.target.value.toUpperCase(); });
+$("print").addEventListener("click", () => window.print());
+render();
+</script>
+</body>
+</html>

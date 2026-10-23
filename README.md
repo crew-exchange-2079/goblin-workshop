@@ -7,6 +7,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
+- [`tape-label-gen/`](tape-label-gen/): LTO Code 39 barcode labels (volser + media ID) as print-ready PDF sheets from a stdlib-only CLI, or from a static web page; includes a volser validator (MIT).
 
 ## Tape tools
 
@@ -26,6 +27,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python
+(cd tape-label-gen && pip install --require-hashes --only-binary=:all: -r requirements-test.txt && python -m pytest -q tests && node --test)   # decode tests skip without the requirements; CI requires them
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.

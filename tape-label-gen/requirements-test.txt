@@ -1,0 +1,6 @@
+# Decode round-trip tests only; tapelabel.py itself needs nothing beyond the
+# standard library. Hashes are for the Linux x86_64 wheels (CPython >= 3.12).
+pypdfium2==5.14.0 \
+    --hash=sha256:11f281613fa22313d9c7ab89947665e84eccf8ebe40e1198a84a88352305648d
+zxing-cpp==3.1.1 \
+    --hash=sha256:9cf67341949946307d086b302cefd453fb47bc6d6ddc7d088839e9481982757b
