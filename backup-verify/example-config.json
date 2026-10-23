@@ -1,0 +1,51 @@
+{
+  "textfile_path": "/var/lib/prometheus/node-exporter/backup_verify.prom",
+  "report_path": "/var/lib/backup-verify/report.json",
+  "work_dir": "/var/tmp",
+  "container_runtime": "docker",
+  "restic": [
+    {
+      "name": "fileserver",
+      "repository": "s3:https://s3.example.net/backups/fileserver",
+      "password_file": "/etc/backup-verify/fileserver.restic-password",
+      "restic_path": "/usr/bin/restic",
+      "pass_env": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+      "host": "fileserver",
+      "tags": ["nightly"],
+      "max_age_hours": 26,
+      "read_data_subset": "2%",
+      "sample_restore": {"files": 20, "max_file_bytes": 268435456, "compare_to_source": false},
+      "timeout_seconds": 7200
+    }
+  ],
+  "postgres": [
+    {
+      "name": "app_dump",
+      "method": "pg_dump",
+      "dump": "/backups/pg/app-*.dump",
+      "image": "postgres:16-bookworm",
+      "database": "app",
+      "max_age_hours": 26,
+      "jobs": 4,
+      "assertions": [
+        {"name": "users_present", "sql": "SELECT count(*) FROM users", "min": 1000},
+        {"name": "orders_recent", "sql": "SELECT max(created_at) > now() - interval '2 days' FROM orders"},
+        {"name": "schema_version", "sql": "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1", "expect": "20261020"}
+      ]
+    },
+    {
+      "name": "app_pgbackrest",
+      "method": "pgbackrest",
+      "image": "registry.example.net/postgres-pgbackrest:16",
+      "stanza": "main",
+      "config_file": "/etc/backup-verify/pgbackrest.conf",
+      "mounts": [{"source": "/srv/pgbackrest", "target": "/var/lib/pgbackrest"}],
+      "database": "app",
+      "max_age_hours": 26,
+      "restore_timeout_seconds": 7200,
+      "assertions": [
+        {"name": "users_present", "sql": "SELECT count(*) FROM users", "min": 1000}
+      ]
+    }
+  ]
+}

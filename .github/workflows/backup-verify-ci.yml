@@ -1,0 +1,105 @@
+name: backup-verify CI
+
+# Unit tests on every supported Python, then the integration suite: real
+# restic (against a throwaway rest-server container and local repos) and
+# real PostgreSQL 16 / pgBackRest containers, all on synthetic data. Every
+# healthy case has a broken twin (corrupted pack, truncated dump, missing
+# WAL, failing assertion) that must be reported as a failure.
+
+on:
+  push:
+    paths: ["backup-verify/**", ".github/workflows/backup-verify-ci.yml"]
+  pull_request:
+    paths: ["backup-verify/**", ".github/workflows/backup-verify-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-verify-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backup-verify
+
+env:
+  RESTIC_VERSION: "0.18.1"
+  RESTIC_SHA256: "680838f19d67151adba227e1570cdd8af12c19cf1735783ed1ba928bc41f363d"
+  # Docker Hub's library images via Google's mirror (no anonymous pull
+  # limit), pinned by digest.
+  PG_IMAGE: "mirror.gcr.io/library/postgres:16-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0"
+  REST_IMAGE: "mirror.gcr.io/restic/rest-server:0.14.0@sha256:d2aff06f47eb38637dff580c3e6bce4af98f386c396a25d32eb6727ec96214a5"
+  UBUNTU_IMAGE: "mirror.gcr.io/library/ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+
+jobs:
+  unit:
+    name: unit tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests/test_unit.py
+      - name: installs and runs as a console script
+        run: |
+          python -m pip install --disable-pip-version-check .
+          backup-verify --version
+          backup-verify check-config --config example-config.json
+
+  integration:
+    name: integration (restic, PostgreSQL, pgBackRest containers)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - name: install restic ${{ env.RESTIC_VERSION }} (checksum-pinned)
+        timeout-minutes: 3
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/restic.bz2" \
+            "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2"
+          echo "${RESTIC_SHA256}  $RUNNER_TEMP/restic.bz2" | sha256sum -c -
+          bunzip2 -c "$RUNNER_TEMP/restic.bz2" > "$RUNNER_TEMP/restic"
+          chmod 755 "$RUNNER_TEMP/restic"
+          "$RUNNER_TEMP/restic" version
+      - name: pull images
+        timeout-minutes: 5
+        run: |
+          for i in "$PG_IMAGE" "$REST_IMAGE" "$UBUNTU_IMAGE"; do docker pull -q "$i"; done
+      - name: build the PostgreSQL + pgBackRest test image
+        timeout-minutes: 8
+        run: docker build -q --build-arg "BASE=$UBUNTU_IMAGE" -t backup-verify-pgbackrest:ci ci/pgbackrest
+      - name: integration tests
+        timeout-minutes: 15
+        env:
+          BACKUP_VERIFY_INTEGRATION: "1"
+          BACKUP_VERIFY_PGBR_IMAGE: backup-verify-pgbackrest:ci
+        run: |
+          export BACKUP_VERIFY_RESTIC="$RUNNER_TEMP/restic"
+          export BACKUP_VERIFY_PG_IMAGE="$PG_IMAGE" BACKUP_VERIFY_REST_IMAGE="$REST_IMAGE"
+          python -m pytest -v -rs tests/integration
+      - name: no containers left behind
+        if: always()
+        run: |
+          left=$(docker ps -aq --filter label=io.goblin-workshop.backup-verify)
+          if [ -n "$left" ]; then docker ps -a --filter label=io.goblin-workshop.backup-verify; exit 1; fi

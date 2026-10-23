@@ -6,6 +6,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
+- [`backup-verify/`](backup-verify/): CLI that proves restic and PostgreSQL (pg_dump, pgBackRest) backups are restorable — freshness, `restic check`, sample restore-and-hash, throwaway-container restores with SQL assertions; Prometheus textfile + JSON report (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 
 ## Tape tools
@@ -24,8 +25,11 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
+(cd backup-verify && python -m pytest -q tests/test_unit.py)   # integration suite: see backup-verify/README.md
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python
 ```
+
+[`backup-verify-ci.yml`](.github/workflows/backup-verify-ci.yml) runs backup-verify's integration suite against throwaway restic, PostgreSQL and pgBackRest containers.
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.
