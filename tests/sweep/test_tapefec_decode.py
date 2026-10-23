@@ -37,13 +37,15 @@ class _Budget:
 def test_group_data_len_above_k_is_not_trusted():
     # k=2, m=1; a data frame claims its group holds 3 data blocks, so the
     # decoder emits 3 blocks (12 bytes) for a group that can hold only 2.
+    # No k=2 encoder writes such a frame, so it is ignored as not ours
+    # (it may well belong to a stream with a larger k).
     stream = (_header(2, 1)
               + _frame(t.FT_DATA, 1, 0, b"abcd", gdl=3)
               + _frame(t.FT_PARITY, 2, 0, b"\0" * BS, gdl=3))
     out = io.BytesIO()
     rep = t.decode_stream(io.BytesIO(stream), out)
     assert len(out.getvalue()) <= 2 * BS
-    assert rep.blocks_seen >= 1
+    assert rep.implausible_frames == 2
 
 
 def test_trailer_total_length_must_be_consistent_with_frame_count(monkeypatch):
