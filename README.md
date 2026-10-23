@@ -8,6 +8,10 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 
+## Examples
+
+[`examples/`](examples/) has end-to-end walkthroughs that chain these tools on synthetic data. Each one runs in containers, comes with a short recording, and is run in CI. The first is [exporter → Prometheus → Grafana](examples/exporter-to-grafana/).
+
 ## Tape tools
 
 The tape tools here are open and vendor-agnostic, aimed at tape administrators. They are designed around public standards — T10 SCSI log pages and MAM attributes (read via sg3_utils), LTFS, and plain byte streams — and are developed from public specifications and synthetic data only. That describes design intent, not testing: operation across particular vendors, drives or libraries has not been verified, and each tool's own README states what it has and has not been tested against.
@@ -26,6 +30,8 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python
+python -m pytest -q examples/tests               # examples/: static checks (from the repo root)
+python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, needs Docker + compose
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.
