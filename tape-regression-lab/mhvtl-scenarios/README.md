@@ -79,7 +79,7 @@ unnamed ones must be 0; "media > 0" because mhvtl compresses with LZO):
 | `load_unload` | load: bytes 0 · 3×64 KiB WRITE + filemark: host-write = 196608, media-write > 0 · rewind + 3 READ: host-read = 196608, media-read > 0, write side unchanged · **unload: all four unchanged** · **reload: all four back to 0** |
 | `full_tape` | 4 MiB cartridge, 64 KiB WRITEs until refused. Harness must see plain accepts, then early-warning accepts (NO SENSE + EOM), then VOLUME OVERFLOW. Exporter: host-write = accepted × 64 KiB exactly; a further refused WRITE doesn't change it; collectors stay `ok` at end of medium |
 | `cleaning_cartridge` | after a host TapeAlert read: cleaning 0 · cleaning cart mounted: **cleaning 1**, bytes 0, collectors `ok`; a WRITE is refused NOT READY · two more scrapes: still 1 (the exporter's reads don't clear it) · unload: **still 1** · host reads TapeAlert page 0x2E: **0** |
-| `drive_offline` | data cart, one WRITE: host-write = 65536 · sysfs `state=offline`: every collector **`os_error`** (sg open → ENXIO, sg_logs exit 56), success 0, **no** byte/cleaning/error/present series, twice · `state=running`: `ok` again, host-write still 65536 |
+| `drive_offline` | data cart, one WRITE: host-write = 65536 · sysfs `state=offline`: every collector **`error`**, success 0, **no** byte/cleaning/error/present series, twice · `state=running`: `ok` again, host-write still 65536 |
 | `worm` | blank WORM cart: 2 WRITEs + filemark accepted, host-write = 131072 · rewind, WRITE at BOT refused **DATA PROTECT**, host-write unchanged · SPACE to EOD, WRITE accepted: host-write = 196608 |
 
 ### Why these numbers (mhvtl at the pinned commit)
@@ -107,9 +107,13 @@ about real drives.
 - **Error counter pages 0x02/0x03 are static zeros** in mhvtl (never updated),
   so their assertions only cover parsing and presence, not counting.
 - **Offline** is the SCSI midlayer's state, as after failed error recovery.
-  `sg_open()` refuses an offline device with ENXIO. The exporter's per-scrape
-  device re-check still passes (same node, still type 1), so the status comes from
-  sg_logs' exit code.
+  sg3_utils opens the node `O_NONBLOCK`, and `sg_open()` only refuses an offline
+  device on a *blocking* open, so the open succeeds. The midlayer then rejects
+  the LOG SENSE, and sg_logs exits with a code outside its documented table, which
+  the exporter maps to `error`. The driver prints the exact exit codes into the job
+  log. The exporter's per-scrape device re-check still passes (same node, still
+  type 1), so the status comes from sg_logs alone. A distinct `offline` status
+  would need the exporter to read sysfs `state`; that is out of scope here.
 
 `test_scenarios.py` runs every scenario against a small fake of exactly these
 behaviours, scraped by the real `lto_exporter` collector. It also checks that the

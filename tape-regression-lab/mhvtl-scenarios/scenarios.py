@@ -15,7 +15,7 @@ Scenarios (see README.md for what each asserts and why):
   full_tape           write to a 4 MiB cartridge until VOLUME OVERFLOW
   cleaning_cartridge  cleaning flag set by a cleaning cart, survives exporter
                       scrapes and unload, clears only when the host reads 0x2E
-  drive_offline       SCSI device state offline: every collector os_error,
+  drive_offline       SCSI device state offline: every collector failed (error),
                       no counters; back to running: values unchanged
   worm                WORM cartridge: append accepted, overwrite refused and
                       not counted
@@ -297,6 +297,7 @@ class Run:
     def __init__(self, rig, evidence):
         self.rig, self.evidence = rig, evidence
         self.checks, self.scenario, self.n = [], None, 0
+        self.last_rcs = {}
 
     def check(self, name, ok, detail=None):
         self.checks.append({"scenario": self.scenario, "check": name,
@@ -308,6 +309,7 @@ class Run:
         self.n += 1
         text = self.rig.scrape()
         reads = self.rig.harness_reads()
+        self.last_rcs = {p: rc for p, (rc, _) in reads.items()}
         s, h = snapshot(text), harness_view(reads)
         if self.evidence:
             d = os.path.join(self.evidence, "scenarios", self.scenario)
@@ -434,12 +436,15 @@ def drive_offline(run, rig):
                                            "bytes_written_media": positive})
     rig.set_state("offline")
     try:
-        # sg_open() refuses an offline device with ENXIO; sg_logs exits 50+6.
-        off = run.expect(run.snap("offline"), status="os_error")
+        # sg3_utils opens O_NONBLOCK, which sg_open() lets through even for an
+        # offline device; the midlayer then rejects LOG SENSE and sg_logs exits
+        # with a code outside its documented table -> exporter status "error".
+        off = run.expect(run.snap("offline"), status="error")
+        print(f"offline: harness sg_logs exit codes {run.last_rcs}", flush=True)
         run.check("offline: no counters, flags or present series exported",
                   not any(p["values"] or p["present"] for p in off["pages"].values()),
                   {p: (v["values"], v["present"]) for p, v in off["pages"].items()})
-        run.expect(run.snap("offline_again"), status="os_error")
+        run.expect(run.snap("offline_again"), status="error")
     finally:
         rig.set_state("running")
     rig.wait_for("drive answering after online", lambda c, t: c == "ok")

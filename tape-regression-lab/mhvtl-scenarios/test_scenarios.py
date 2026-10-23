@@ -25,7 +25,7 @@ SG = "/dev/sg7"
 MiB = 1024 * 1024
 EW = 2 * MiB
 TA_CLEANING_MEDIA = 0x400
-ENXIO_RC = 56   # sg_convert_errno(ENXIO) = 50 + 6
+OFFLINE_RC = 99   # observed class on mhvtl: outside sg_logs' table -> "error"
 
 SENSE = ("    SCSI Status: Check Condition \n\nSense Information:\n"
          "Fixed format, current; Sense key: {key}\nAdditional sense: {asc}\n"
@@ -75,7 +75,7 @@ class FakeDrive:
 
     def sg_logs(self, page):
         if self.state != "running":
-            return ENXIO_RC, ""
+            return OFFLINE_RC, ""
         if page == "0x2":
             return 0, ec_page("write")
         if page == "0x3":
@@ -226,7 +226,7 @@ class ScenarioTests(unittest.TestCase):
 
         def zeros_when_offline(argv, timeout, max_bytes):
             res = rig.runner(argv, timeout, max_bytes)
-            if res.returncode == ENXIO_RC:   # a broken exporter: pretend the page read fine
+            if res.returncode == OFFLINE_RC:   # a broken exporter: pretend the page read fine
                 page = [a for a in argv if a.startswith("--page=")][0][7:]
                 text = sa_page({"wi": 0, "wm": 0, "rm": 0, "ri": 0}, 0) if page == "0xc" else (
                     ec_page("write" if page == "0x2" else "read"))
@@ -368,7 +368,7 @@ class AgreementTests(unittest.TestCase):
         s, _ = self._snap(d)
         d.state = "offline"
         h = sc.harness_view(FakeRig(d).harness_reads())
-        self.assertEqual(h["0x2"]["status"], "os_error")
+        self.assertEqual(h["0x2"]["status"], "error")
         problems = sc.agreement_problems(s, h)
         self.assertTrue(any("but exporter has values" in p for p in problems), problems)
 
