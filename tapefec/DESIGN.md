@@ -34,8 +34,14 @@ little-endian.
 
 Frame size on the wire is `40 + payload_len`.
 
-`frame_index` exists for humans and for gap visualisation. It is **not** trusted
-for recovery: a dropped span breaks it, so `block_id` is what the decoder uses.
+`frame_index` exists for humans and for gap visualisation. It is **not** used to
+place data: a dropped span breaks it, so `block_id` is what the decoder uses for
+recovery. The decoder does use it as a plausibility bound on other header fields,
+because every block occupies its own frame: a data or parity frame whose
+`block_id` is not below its `frame_index` is impossible and is skipped, and a
+trailer whose `total_length` exceeds `max(frame_index, frames read) * block_size`
+is treated as damaged. These checks reject only internally inconsistent headers;
+a stream that consistently declares a huge `frame_index` is not bounded by them.
 
 ### 1.2 CRC choice
 
