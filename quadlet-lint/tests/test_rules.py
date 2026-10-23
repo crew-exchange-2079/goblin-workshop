@@ -232,3 +232,33 @@ def test_disable_next_line_only_hits_that_line():
     text = container("# quadlet-lint: disable-next-line=QL303\nNetwork=host\nPodmanArgs=--network=host")
     found = lint(text, select={"QL303"})
     assert [f.message.startswith("PodmanArgs") for f in found] == [True]
+
+
+# ---- quoting: single-valued keys follow Quadlet's Lookup() on the target release
+
+@pytest.mark.parametrize("version", ["5.2", "6.1"])
+def test_quoted_scalars_are_unquoted_on_5_and_later(version):
+    assert ids(container('SeccompProfile="unconfined"'), version=version) == ["QL307"]
+    assert ids(container('SecurityLabelDisable="true"'), version=version) == ["QL302"]
+    assert ids(container().replace("ReadOnly=true", 'ReadOnly="yes"'), version=version) == []
+
+
+def test_quoted_boolean_on_4_x_is_read_as_false():
+    # Podman 4.x's Lookup() keeps the quotes, so "true" is not a true word there.
+    found = ids(container().replace("ReadOnly=true", 'ReadOnly="true"'), version="4.9")
+    assert "QL007" in found and "QL601" in found
+
+
+def test_5_x_strips_unbalanced_quotes_6_x_does_not():
+    text = container('SeccompProfile="unconfined')
+    assert ids(text, version="5.8") == ["QL307"]
+    assert ids(text, version="6.0") == []
+
+
+def test_quoted_image_and_stop_timeout():
+    text = container('StopTimeout="120"', image='"quay.io/a/b:1"')
+    assert ids(text, version="6.1") == ["QL101", "QL501"]
+
+
+def test_quoted_capability_words_are_unquoted():
+    assert ids(container('AddCapability="SYS_ADMIN" CHOWN')) == ["QL306"]

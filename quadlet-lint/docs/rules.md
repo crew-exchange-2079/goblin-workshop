@@ -21,6 +21,14 @@ Network=host
 
 or for the whole run with `--disable QL201`.
 
+Quoting follows Quadlet's own lookups on the target release. Single-valued
+keys (`Image=`, `ReadOnly=`, `SeccompProfile=`, `StopTimeout=`, ...) lose
+surrounding double quotes from Podman 5.0: 5.x strips every leading and
+trailing `"`, 6.0+ strips one matched pair, and 4.x keeps them, so
+`ReadOnly="true"` is false on 4.x (QL007). Multi-valued keys (`Volume=`,
+`Network=`, `Mount=`) are used as written; `AddCapability=` and
+`PodmanArgs=` are split into words with quotes removed.
+
 Rule groups: `QL0xx` structure and keys, `QL1xx` images, `QL2xx` health
 checks, `QL3xx` risky options, `QL4xx` restart and service settings, `QL5xx`
 stop timeouts, `QL6xx` read-only root filesystem.

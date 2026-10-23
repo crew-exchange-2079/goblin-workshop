@@ -103,9 +103,25 @@ class Context:
     def service(self, key):
         return self.unit.last("Service", key)
 
+    def scalar(self, entry):
+        """entry.value as Quadlet's single-value Lookup() returns it on the target release.
+
+        Lookup() trims trailing whitespace and, since 5.0, double quotes: 5.x
+        strips every leading and trailing '"' (strings.Trim), 6.0+ strips one
+        matched pair. 4.x keeps quotes. LookupAll() (Volume=, Network=, ...)
+        never strips them, so this is only for single-valued keys.
+        """
+        v = entry.value.rstrip()
+        if self.target[:2] >= (6, 0):
+            if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+                v = v[1:-1]
+        elif self.target[:2] >= (5, 0):
+            v = v.strip('"')
+        return v
+
     def is_true(self, key):
         e = self.main(key)
-        return e is not None and e.value.lower() in TRUE_WORDS
+        return e is not None and self.scalar(e).lower() in TRUE_WORDS
 
     def first_line(self):
         return self.unit.sections.get(self.section, 1)
@@ -182,11 +198,11 @@ def invalid_boolean(ctx):
         for e in ctx.unit.in_section(section):
             if e.key not in BOOLEAN_KEYS.get(section, ()):
                 continue
-            if e.value.lower() not in TRUE_WORDS | FALSE_WORDS:
+            if ctx.scalar(e).lower() not in TRUE_WORDS | FALSE_WORDS:
                 yield e.line, (f"{e.key}={e.value} is not 1/yes/true/on or 0/no/false/off; "
                                "quadlet reads anything else as false")
     e = ctx.main("Notify") if ctx.kind == "container" else None
-    if e is not None and e.value.lower() not in TRUE_WORDS | FALSE_WORDS | {"healthy"}:
+    if e is not None and ctx.scalar(e).lower() not in TRUE_WORDS | FALSE_WORDS | {"healthy"}:
         yield e.line, f"Notify={e.value} is not a boolean or 'healthy'; quadlet reads it as false"
 
 
@@ -201,11 +217,11 @@ def missing_image(ctx):
 def _image_entries(ctx):
     if ctx.kind == "container":
         e = ctx.main("Image")
-        return [e] if e is not None and e.value else []
+        return [e] if e is not None and ctx.scalar(e) else []
     if ctx.kind == "volume":
         e = ctx.main("Image")
         driver = ctx.main("Driver")
-        if e is not None and e.value and (driver is None or driver.value == "image"):
+        if e is not None and ctx.scalar(e) and (driver is None or ctx.scalar(driver) == "image"):
             return [e]
     return []
 
@@ -224,7 +240,7 @@ def _has_registry(image):
       kinds=("container", "volume"))
 def image_not_pinned(ctx):
     for e in _image_entries(ctx):
-        image = e.value
+        image = ctx.scalar(e)
         if _is_quadlet_ref(image) or DIGEST_RE.search(image):
             continue
         name = image.rsplit("/", 1)[-1]
@@ -238,9 +254,9 @@ def image_not_pinned(ctx):
       kinds=("container", "volume"))
 def image_short_name(ctx):
     for e in _image_entries(ctx):
-        if _is_quadlet_ref(e.value) or _has_registry(e.value):
+        if _is_quadlet_ref(ctx.scalar(e)) or _has_registry(ctx.scalar(e)):
             continue
-        yield e.line, (f"Image={e.value} is a short name; resolution depends on registries.conf "
+        yield e.line, (f"Image={ctx.scalar(e)} is a short name; resolution depends on registries.conf "
                        "and AutoUpdate=registry rejects it. Use a fully qualified name such as "
                        "docker.io/library/<name>")
 
@@ -249,7 +265,7 @@ def image_short_name(ctx):
 
 def _health_cmd(ctx):
     e = ctx.main("HealthCmd")
-    if e is not None and e.value and e.value.lower() != "none":
+    if e is not None and ctx.scalar(e) and ctx.scalar(e).lower() != "none":
         return e
     for name, value, entry in ctx.opts("--health-cmd"):
         if value.lower() != "none":
@@ -270,7 +286,7 @@ def missing_healthcheck(ctx):
       kinds=("container",))
 def notify_healthy(ctx):
     e = ctx.main("Notify")
-    if e is not None and e.value.lower() == "healthy" and _health_cmd(ctx) is None:
+    if e is not None and ctx.scalar(e).lower() == "healthy" and _health_cmd(ctx) is None:
         yield e.line, ("Notify=healthy needs a health check, and none is defined here; unless the image "
                        "itself has a HEALTHCHECK, podman refuses to start the container")
 
@@ -280,7 +296,7 @@ def notify_healthy(ctx):
 @rule("QL301", "privileged", ERROR, "Container runs privileged.", kinds=("container",))
 def privileged(ctx):
     e = ctx.main("Privileged")
-    if e is not None and e.value.lower() in TRUE_WORDS:
+    if e is not None and ctx.scalar(e).lower() in TRUE_WORDS:
         yield e.line, ("Privileged= is not a Quadlet key and is ignored, but the intent is a "
                        "privileged container; grant specific AddCapability=/AddDevice= instead")
     for _, value, entry in ctx.opts("--privileged"):
@@ -342,7 +358,8 @@ def host_namespace(ctx):
 
 @rule("QL306", "dangerous-capability", WARNING, "Adds a broad Linux capability.", kinds=("container",))
 def dangerous_capability(ctx):
-    found = [(cap, e) for e in ctx.main_all("AddCapability") for cap in e.value.split()]
+    # AddCapability is read with LookupAllStrv, which splits on whitespace and unquotes words.
+    found = [(cap, e) for e in ctx.main_all("AddCapability") for cap in podmanargs.split(e.value)]
     found += [(cap, entry) for _, value, entry in ctx.opts("--cap-add") for cap in value.split(",")]
     for cap, entry in found:
         norm = cap.upper().removeprefix("CAP_")
@@ -354,10 +371,10 @@ def dangerous_capability(ctx):
       kinds=("container",))
 def confinement_disabled(ctx):
     e = ctx.main("SeccompProfile")
-    if e is not None and e.value == "unconfined":
+    if e is not None and ctx.scalar(e) == "unconfined":
         yield e.line, "SeccompProfile=unconfined removes the syscall filter"
     e = ctx.main("AppArmor")
-    if e is not None and e.value == "unconfined":
+    if e is not None and ctx.scalar(e) == "unconfined":
         yield e.line, "AppArmor=unconfined removes the AppArmor profile"
     for _, value, entry in ctx.opts("--security-opt"):
         norm = value.replace(":", "=", 1)
@@ -431,11 +448,11 @@ def service_type_invalid(ctx):
       "HealthOnFailure=kill/stop without a Restart= that brings the container back.", kinds=("container",))
 def health_action_without_restart(ctx):
     e = ctx.main("HealthOnFailure")
-    if e is None or e.value not in ("kill", "stop"):
+    if e is None or ctx.scalar(e) not in ("kill", "stop"):
         return
     value, _ = _restart(ctx)
-    if value not in ("on-failure", "on-abnormal", "always") and not (value == "on-abort" and e.value == "kill"):
-        yield e.line, (f"HealthOnFailure={e.value} stops an unhealthy container, but Restart={value} "
+    if value not in ("on-failure", "on-abnormal", "always") and not (value == "on-abort" and ctx.scalar(e) == "kill"):
+        yield e.line, (f"HealthOnFailure={ctx.scalar(e)} stops an unhealthy container, but Restart={value} "
                        "never starts it again; add Restart=on-failure")
 
 
@@ -445,7 +462,7 @@ def _stop_timeout(ctx):
     """(seconds, entry, explicit) for the container's stop timeout."""
     e = ctx.main("StopTimeout")
     if e is not None:
-        return e.value, e, True
+        return ctx.scalar(e), e, True
     opts = ctx.opts("--stop-timeout")
     if opts:
         return opts[-1][1], opts[-1][2], True
@@ -545,7 +562,7 @@ def read_only_no_tmpfs(ctx):
     if not _read_only(ctx):
         return
     e = ctx.main("ReadOnlyTmpfs")
-    if e is None or e.value.lower() in TRUE_WORDS:
+    if e is None or ctx.scalar(e).lower() in TRUE_WORDS:
         return
     if ctx.main_all("Tmpfs") or ctx.is_true("VolatileTmp"):
         return

@@ -11,3 +11,5 @@ First version.
   `--disable`, in-file suppression comments.
 * pre-commit hook (repository root `.pre-commit-hooks.yaml`) and a composite
   GitHub Action (`quadlet-lint/action.yml`).
+* Quoted values are read the way each Podman release's Quadlet reads them
+  (no unquoting on 4.x, `strings.Trim` on 5.x, one matched pair on 6.0+).
