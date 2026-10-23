@@ -1,0 +1,38 @@
+{
+  "comment": "Releasable tools. Read by .github/release/release.py; see RELEASING.md. Tags are <name>-v<semver>.",
+  "tools": {
+    "tape-exporter": {
+      "path": "tape-exporter",
+      "kind": "python",
+      "version": {"file": "lto_exporter/__init__.py", "regex": "^__version__ = \"([^\"]+)\"$"},
+      "legacy_tag_prefix": "v",
+      "smoke": [["lto-exporter", "--version"]]
+    },
+    "tapefec": {
+      "path": "tapefec",
+      "kind": "python",
+      "version": {"file": "tapefec.py", "regex": "^__version__ = \"([^\"]+)\"$"},
+      "smoke": [["tapefec", "--version"]]
+    },
+    "rack-parts": {
+      "path": "rack-parts",
+      "kind": "source",
+      "version": {"file": "rackparts/__init__.py", "regex": "^__version__ = \"([^\"]+)\"$"}
+    },
+    "ltfs-index-validator": {
+      "path": "ltfs-index-validator",
+      "kind": "source",
+      "version": {"file": "validate.py", "regex": "^TOOL_VERSION = \"([^\"]+)\"$"}
+    },
+    "tape-library-playground": {
+      "path": "tape-library-playground",
+      "kind": "static",
+      "version": {"file": "package.json", "json": "version"},
+      "files": ["index.html", "sim.js", "ui.js", "style.css", "README.md", "TEACHES.md", "LICENSE", "CHANGELOG.md"]
+    }
+  },
+  "not_released": {
+    "tape-regression-lab": "regression evidence kit for an upstream project, not a tool",
+    "tests": "cross-project regression tests"
+  }
+}

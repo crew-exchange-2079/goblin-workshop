@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.3.0 (not yet tagged)
+## Unreleased
+
+To be tagged `tape-exporter-v0.3.0` (the version in `lto_exporter/__init__.py`).
 
 Synthetic fixtures (0x0c decoded by the real sg_logs 1.46 binary), unit
 tests, mhvtl emulation and the Grafana smoke test only. Still **not** run
@@ -53,7 +55,7 @@ against real tape hardware.
   (needs exclusive-open `/dev/stN`/`nstN`; `/dev/stN` rewinds on close). See
   README "Out of scope".
 
-## 0.2.0
+## 0.2.0 - 2026-10-17
 
 Synthetic fixtures, unit tests, mhvtl emulation and the Grafana smoke test
 only. Still **not** run against real tape hardware.
@@ -103,7 +105,7 @@ only. Still **not** run against real tape hardware.
   through a pinned Prometheus, and checked through Grafana's HTTP API and a
   headless browser. See README "Grafana smoke test".
 
-## 0.1.0
+## 0.1.0 - 2026-10-11
 
 First public release of lto-exporter: a read-only Prometheus exporter for
 the SCSI Write (0x02) and Read (0x03) Error Counter log pages of Linux
