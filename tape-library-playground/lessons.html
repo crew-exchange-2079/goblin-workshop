@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tape library lessons</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="lessons-page">
+<header class="topbar">
+  <div class="brand">
+    <h1>Tape library lessons</h1>
+    <p class="sub">five guided operator drills · everything on screen is invented · <a href="index.html">scheduling playground</a></p>
+  </div>
+  <div class="clockbox">
+    <span id="clock" class="clock">00:00</span>
+    <span class="clocklabel">lesson time</span>
+  </div>
+</header>
+
+<main class="lessons">
+  <nav class="panel picker" aria-label="Lessons">
+    <div class="paneltitle"><h2>Lessons</h2><span id="progress" class="tagline">0/5 done</span></div>
+    <ol id="lessonlist" class="lessonlist"></ol>
+    <p class="hint">Type commands in the console. <kbd>↑</kbd> <kbd>↓</kbd> recall earlier ones; <code>help</code> lists them all.</p>
+  </nav>
+
+  <section class="panel workbench" aria-label="Library and console">
+    <div class="paneltitle">
+      <h2 id="lessontitle">Lesson</h2>
+      <span id="libstate" class="tagline"></span>
+    </div>
+    <p id="brief" class="brief"></p>
+    <div class="lstage">
+      <div class="lgrid-wrap">
+        <div id="lgrid" class="lgrid" role="img" aria-label="Storage slots as the library's inventory records them"></div>
+        <div class="iecol">
+          <div class="ielabel">I/E <span id="door" class="doorstate">door closed</span></div>
+          <div id="ieslots" class="ieslots"></div>
+        </div>
+      </div>
+      <div class="lbottom">
+        <div id="robotbox" class="robotbox">robot ok</div>
+        <div id="ldrives" class="ldrives"></div>
+      </div>
+    </div>
+    <div id="console" class="console">
+      <pre id="output" class="output" aria-live="polite" tabindex="0" aria-label="Console output"></pre>
+      <form id="cmdform" class="cmdform" autocomplete="off">
+        <label for="cmd" class="prompt">library&gt;</label>
+        <input id="cmd" name="cmd" type="text" spellcheck="false" autocapitalize="off" placeholder="type a command, e.g. status">
+        <button type="submit">Run</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel steps" aria-label="Steps">
+    <div class="paneltitle"><h2>Steps</h2><span id="stepcount" class="tagline"></span></div>
+    <ol id="steplist" class="steplist"></ol>
+    <p id="feedback" class="feedback" role="status"></p>
+    <div class="row buttons">
+      <button id="hintbtn" type="button">Hint</button>
+      <button id="resetbtn" type="button">Restart lesson</button>
+    </div>
+    <div id="debrief" class="debrief" hidden>
+      <h3>Lesson complete</h3>
+      <p id="debrieftext"></p>
+      <button id="nextbtn" type="button">Next lesson</button>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="lessons-ui.js"></script>
+</body>
+</html>
