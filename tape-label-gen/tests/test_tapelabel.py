@@ -121,6 +121,9 @@ class Stocks(unittest.TestCase):
             (dict(base, cols=1.5), "positive integers"),
             (dict(base, left=-1), "non-negative"),
             (dict(base, left="1"), "non-negative"),
+            (dict(base, page_w=float("inf")), "finite"),
+            (dict(base, page_w=float("nan")), "finite"),
+            (dict(base, label_h=float("nan")), "finite"),
             ({k: v for k, v in base.items() if k != "top"}, "exactly keys"),
         ]
         for stock, why in cases:
@@ -173,6 +176,21 @@ class Pdf(unittest.TestCase):
             tl.build_pdf([], s)
 
 
+    def test_offsets_must_keep_every_label_on_the_page(self):
+        lab = self.labels(1)
+        with self.assertRaisesRegex(tl.LabelError, r"off the page \(x allows 0\.\.0"):
+            tl.build_pdf(lab, tl.STOCKS["single"], offset_x=100)
+        letter = tl.STOCKS["letter-2x15"]
+        for ox, oy in ((25, 0), (-25, 0), (0, 13), (0, -13)):
+            with self.assertRaisesRegex(tl.LabelError, "off the page", msg=(ox, oy)):
+                tl.build_pdf(lab, letter, offset_x=ox, offset_y=oy)
+        for bad in (float("nan"), float("inf"), float("-inf"), "1", True):
+            with self.assertRaisesRegex(tl.LabelError, "finite", msg=bad):
+                tl.build_pdf(lab, letter, offset_x=bad)
+        # Right up to the edge is fine.
+        tl.build_pdf(lab, letter, offset_x=24.95, offset_y=-12.95)
+
+
 class Cli(unittest.TestCase):
     def test_validate_exit_codes(self):
         rc, out, _ = cli("validate", "TAP001L9", "CLN001CU")
@@ -213,6 +231,23 @@ class Cli(unittest.TestCase):
             rc, out, err = cli("pdf", *args, "-o", "-")
             self.assertEqual((rc, out), (2, b""), args)
             self.assertIn(why, err, args)
+
+    def test_offset_and_non_finite_refusals(self):
+        for args, why in (
+            (["--stock", "single", "--offset-x", "100"], "off the page"),
+            (["--offset-y", "nan"], "finite"),
+            (["--offset-x", "inf"], "finite"),
+        ):
+            rc, out, err = cli("pdf", "TAP001L9", *args, "-o", "-")
+            self.assertEqual((rc, out), (2, b""), args)
+            self.assertIn(why, err, args)
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "s.json")
+            for bad in ("1e400", "NaN", "Infinity", "-Infinity"):
+                Path(p).write_text(json.dumps(tl.STOCKS["single"]).replace("78.0", bad, 1))
+                rc, out, err = cli("pdf", "TAP001L9", "--stock-json", p, "-o", "-")
+                self.assertEqual((rc, out), (2, b""), bad)
+                self.assertIn("finite", err, bad)
 
     def test_stock_json(self):
         with tempfile.TemporaryDirectory() as td:

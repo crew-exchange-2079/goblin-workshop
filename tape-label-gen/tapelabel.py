@@ -12,6 +12,7 @@ WORM LV..LZ, cleaning CU), with no check character and '*' start/stop.
 
 import argparse
 import json
+import math
 import re
 import sys
 import zlib
@@ -160,8 +161,9 @@ def check_stock(s):
     need = {"page_w", "page_h", "cols", "rows", "left", "top", "pitch_x", "pitch_y", "label_w", "label_h"}
     if set(s) != need:
         raise LabelError(f"stock needs exactly keys {sorted(need)}")
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0 for v in s.values()):
-        raise LabelError("stock values must be non-negative numbers")
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v < 0
+           for v in s.values()):
+        raise LabelError("stock values must be finite non-negative numbers")
     if s["cols"] < 1 or s["rows"] < 1 or s["cols"] != int(s["cols"]) or s["rows"] != int(s["rows"]):
         raise LabelError("stock cols/rows must be positive integers")
     right = s["left"] + (s["cols"] - 1) * s["pitch_x"] + s["label_w"]
@@ -215,9 +217,30 @@ def outline_ops(x0, y0, s):
             f"{_f(s['label_w'] * PT)} {_f(s['label_h'] * PT)} re S 0 G"]
 
 
+def check_offsets(s, offset_x, offset_y):
+    """Every label position, shifted, must still lie wholly on the page.
+
+    The label box holds the quiet zones and bars, so this rejects any offset
+    that would clip a symbol instead of printing a label that cannot scan.
+    """
+    for v in (offset_x, offset_y):
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+            raise LabelError("offsets must be finite numbers")
+    left = s["left"] + offset_x
+    top = s["top"] + offset_y
+    right = left + (s["cols"] - 1) * s["pitch_x"] + s["label_w"]
+    bottom = top + (s["rows"] - 1) * s["pitch_y"] + s["label_h"]
+    if left < -1e-6 or top < -1e-6 or right > s["page_w"] + 1e-6 or bottom > s["page_h"] + 1e-6:
+        lo_x, hi_x = 0.0 - s["left"], s["page_w"] - right + offset_x
+        lo_y, hi_y = 0.0 - s["top"], s["page_h"] - bottom + offset_y
+        raise LabelError(f"offset {offset_x:g},{offset_y:g} mm moves labels off the page "
+                         f"(x allows {lo_x + 0:g}..{hi_x + 0:g}, y allows {lo_y + 0:g}..{hi_y + 0:g})")
+
+
 def build_pdf(labels, stock, skip=0, offset_x=0.0, offset_y=0.0, outline=False):
     """Return PDF bytes. Deterministic: same input, same bytes."""
     s = check_stock(dict(stock))
+    check_offsets(s, offset_x, offset_y)
     per = int(s["cols"]) * int(s["rows"])
     if not labels:
         raise LabelError("no labels")

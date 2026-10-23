@@ -55,6 +55,17 @@ test("sheetSvgs: pages, skip, bar count", () => {
   assert.throws(() => L.sheetSvgs(labels, L.STOCKS.single, { skip: 1 }));
 });
 
+test("offsets that move any label off the page are refused", () => {
+  const lab = ["TAP001L9"];
+  assert.throws(() => L.sheetSvgs(lab, L.STOCKS.single, { offsetX: 100 }), /off the page \(x allows 0\.\.0/);
+  assert.throws(() => L.sheetSvgs(lab, L.STOCKS["letter-2x15"], { offsetX: 25 }), /off the page/);
+  assert.throws(() => L.sheetSvgs(lab, L.STOCKS["letter-2x15"], { offsetY: -13 }), /off the page/);
+  for (const bad of [NaN, Infinity, -Infinity]) {
+    assert.throws(() => L.sheetSvgs(lab, L.STOCKS["letter-2x15"], { offsetX: bad }), /finite/);
+  }
+  assert.equal(L.sheetSvgs(lab, L.STOCKS["letter-2x15"], { offsetX: 24.95, offsetY: -12.95 }).length, 1);
+});
+
 test("bar geometry matches what the PDF draws for the same label", () => {
   // Same x positions relative to the label's left edge as tapelabel.label_ops.
   const s = L.STOCKS.single;

@@ -83,8 +83,12 @@ top-left corner, `pitch_*` the distance between label corners):
 small for the quiet zones or minimum bar height. Barcodes are never scaled.
 For a partly used sheet, `--skip N` leaves the first N positions empty. For
 printer drift, print once with `--outline` on plain paper, hold it over a label
-sheet against the light, and correct with `--offset-x/--offset-y` (mm). Print at
-100 % / "actual size": any fit-to-page scaling changes X.
+sheet against the light, and correct with `--offset-x/--offset-y` (mm). An
+offset that would push any label position (and so its quiet zones or bars) off
+the page is refused, in the CLI and the page alike; the error gives the allowed
+range. Stock values and offsets must be finite (`1e400`, `NaN`, `Infinity` in
+the JSON are refused). Print at 100 % / "actual size": any fit-to-page scaling
+changes X.
 
 ## Web page
 

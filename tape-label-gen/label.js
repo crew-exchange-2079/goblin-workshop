@@ -117,8 +117,23 @@ function labelSvg(label, x0, y0, s, outline) {
   return box + rects + text;
 }
 
+// Every label position, shifted, must still lie wholly on the page; the label
+// box holds the quiet zones and bars, so a clipped symbol is refused, not drawn.
+export function checkOffsets(s, offsetX, offsetY) {
+  if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) throw new Error("offsets must be finite numbers");
+  const left = s.left + offsetX, top = s.top + offsetY;
+  const right = left + (s.cols - 1) * s.pitch_x + s.label_w;
+  const bottom = top + (s.rows - 1) * s.pitch_y + s.label_h;
+  if (left < -1e-6 || top < -1e-6 || right > s.page_w + 1e-6 || bottom > s.page_h + 1e-6) {
+    const g = (v) => String(Math.round(v * 1000) / 1000 + 0);
+    throw new Error(`offset ${offsetX},${offsetY} mm moves labels off the page ` +
+      `(x allows ${g(-s.left)}..${g(s.page_w - right + offsetX)}, y allows ${g(-s.top)}..${g(s.page_h - bottom + offsetY)})`);
+  }
+}
+
 // One SVG string per page, sized in mm so a 100% print matches the stock.
 export function sheetSvgs(labels, s, { skip = 0, offsetX = 0, offsetY = 0, outline = false } = {}) {
+  checkOffsets(s, offsetX, offsetY);
   const per = s.cols * s.rows;
   if (!labels.length) throw new Error("no labels");
   if (!(skip >= 0 && skip < per)) throw new Error(`skip must be 0..${per - 1}`);
