@@ -5,18 +5,23 @@
     tapefec encode [-k K] [-m M] [--block-size B] < in > out
     tapefec decode < in > out
     tapefec inspect < in
+    tapefec damage [--per-group N | --rate P] < in > out
 
-Python 3 standard library only. See DESIGN.md for the wire format.
+Python 3 standard library only. numpy, when importable, is used as an optional
+fast path for the Reed-Solomon arithmetic; its output is byte-identical to the
+pure path (see `--engine`). See DESIGN.md for the wire format.
 """
 
 import argparse
 import hashlib
 import json
+import os
+import random
 import struct
 import sys
 import zlib
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 FORMAT_VERSION = 2
 SUPPORTED_VERSIONS = (1, 2)
 
@@ -255,6 +260,145 @@ def rs_repair(known, erased, parity, length, g, m):
     return out
 
 
+# --------------------------------------------------------- numpy fast path ---
+#
+# Optional.  The functions above are the reference implementation and need
+# nothing outside the standard library.  When numpy is importable the two
+# functions below compute the same GF(2^8) products a different way; the
+# golden tests in test_tapefec.py pin both engines to the same stream digests.
+#
+# The trick: every output row is XOR_j c_ij * d_j.  For input block j, pack
+# the products c_0j*x, c_1j*x, ... of up to 8 output rows into one machine
+# word per byte value x, giving a 256-entry table.  One np.take over block j
+# then yields that block's contribution to all of those rows at once, and a
+# lane-wise XOR accumulates it.  That is one gather per input block instead
+# of one translate (plus a big-integer round trip) per (row, block) pair.
+
+_NUMPY = None          # (numpy module, 256x256 product table); False if absent
+_LANES = ((1, "u1"), (2, "u2"), (4, "u4"), (8, "u8"))
+
+
+def _numpy_tables():
+    global _NUMPY
+    if _NUMPY is None:
+        try:
+            import numpy as np
+        except ImportError:
+            _NUMPY = False
+        else:
+            mul = np.frombuffer(bytes(256) + b"".join(_MULTAB[1:]),
+                                dtype=np.uint8).reshape(256, 256)
+            _NUMPY = (np, mul)
+    return _NUMPY
+
+
+def numpy_available():
+    return bool(_numpy_tables())
+
+
+def _np_combine(coeffs, blocks, length):
+    """rows[i] = XOR_j coeffs[i][j] * blocks[j] over GF(2^8).  Every block is
+    exactly `length` bytes.  Returns a list of len(coeffs) bytes objects."""
+    np, mul = _numpy_tables()
+    data = [np.frombuffer(b, dtype=np.uint8) for b in blocks]
+    out = []
+    for r0 in range(0, len(coeffs), 8):
+        chunk = coeffs[r0:r0 + 8]
+        width, code = next(lane for lane in _LANES if lane[0] >= len(chunk))
+        dtype = np.dtype(code)
+        cmat = np.zeros((width, len(blocks)), dtype=np.intp)
+        cmat[:len(chunk)] = chunk
+        # tab[j, x] packs (c_0j*x, c_1j*x, ...) into one word of `width` bytes
+        tab = np.ascontiguousarray(mul[cmat].transpose(1, 2, 0)) \
+            .view(dtype)[..., 0]
+        live = cmat.any(axis=0)
+        acc = np.zeros(length, dtype=dtype)
+        tmp = np.empty(length, dtype=dtype)
+        for j, d in enumerate(data):
+            if live[j]:
+                # uint8 indices into a 256-entry table never wrap; "wrap"
+                # just skips the bounds-check pass that "raise" makes.
+                np.take(tab[j], d, out=tmp, mode="wrap")
+                acc ^= tmp
+        lanes = acc.view(np.uint8).reshape(length, width)
+        out.extend(lanes[:, i].tobytes() for i in range(len(chunk)))
+    return out
+
+
+def np_rs_encode_group(blocks, length, g, m):
+    """numpy twin of rs_encode_group(): same arguments, same bytes out."""
+    return _np_combine([row[:len(blocks)] for row in g[:m]], blocks, length)
+
+
+def np_rs_repair(known, erased, parity, length, g, m):
+    """numpy twin of rs_repair(): same arguments, results and exceptions."""
+    e = len(erased)
+    if e == 0:
+        return {}
+    rows = sorted(parity)
+    if len(rows) < e:
+        raise Unrecoverable(e, len(rows))
+    rows = rows[:e]
+    known = {pos: b + bytes(length - len(b)) if len(b) < length else b
+             for pos, b in known.items()}
+    # b_i = p_i XOR sum over known data of G[i][j]*d_j: the parity block is
+    # one more input with coefficient 1 in its own row and 0 elsewhere.
+    kpos = list(known)
+    coeffs = [[g[i][j] for j in kpos] + [int(r == i) for r in rows]
+              for i in rows]
+    b = _np_combine(coeffs, [known[j] for j in kpos]
+                    + [parity[i] for i in rows], length)
+    a_inv = gf_matrix_invert([[g[i][j] for j in erased] for i in rows])
+    return dict(zip(erased, _np_combine(a_inv, b, length)))
+
+
+# ------------------------------------------------------------------ engines ---
+
+ENGINES = ("auto", "pure", "numpy")
+_default_engine = "auto"
+
+
+def resolve_engine(name=None):
+    """Return (engine name, encode_group, repair) for `name`, or for the
+    default chosen with set_engine() when `name` is None.  "auto" is numpy
+    when it can be imported, else pure."""
+    name = _default_engine if name is None else name
+    if name == "auto":
+        name = "numpy" if numpy_available() else "pure"
+    if name == "pure":
+        return "pure", rs_encode_group, rs_repair
+    if name == "numpy":
+        if not numpy_available():
+            raise TapefecError("engine 'numpy' requested but numpy cannot "
+                               "be imported")
+        return "numpy", np_rs_encode_group, np_rs_repair
+    raise TapefecError("unknown engine %r (choose one of %s)"
+                       % (name, ", ".join(ENGINES)))
+
+
+def set_engine(name):
+    """Make `name` the default engine.  Raises TapefecError for an unknown
+    name, or for "numpy" when numpy cannot be imported.  "auto" is resolved
+    only when arithmetic is first needed, so choosing it imports nothing."""
+    global _default_engine
+    if name != "auto":
+        resolve_engine(name)
+    _default_engine = name
+
+
+def _repair_for(engine):
+    """The repair function for `engine`.  For "auto" it defers resolving --
+    and so importing numpy -- until a group actually needs repair, which an
+    undamaged stream never does."""
+    name = _default_engine if engine is None else engine
+    if name != "auto":
+        return resolve_engine(name)[2]
+
+    def repair(*args):
+        return resolve_engine("auto")[2](*args)
+    return repair
+
+
 # ------------------------------------------------------------- frame reader ---
 
 
@@ -267,6 +411,10 @@ class FrameReader:
 
     def __init__(self, fh, max_payload=ABSOLUTE_MAX_PAYLOAD, chunk=1 << 20):
         self.fh = fh
+        # read1() returns whatever one read of the pipe delivers instead of
+        # blocking until `chunk` bytes arrive, so frames are decoded as soon
+        # as they are complete rather than a megabyte at a time.
+        self._read = getattr(fh, "read1", fh.read)
         self.max_payload = max_payload
         self.chunk = chunk
         self.buf = bytearray()
@@ -278,7 +426,7 @@ class FrameReader:
     def _pull(self):
         if self.eof:
             return False
-        data = self.fh.read(self.chunk)
+        data = self._read(self.chunk)
         if not data:
             self.eof = True
             return False
@@ -348,13 +496,16 @@ class FrameReader:
 
 def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
                   block_size=DEFAULT_BLOCK_SIZE, stream_id=0,
-                  version=FORMAT_VERSION):
+                  version=FORMAT_VERSION, engine=None):
     """Read a stream from `fin`, write a FEC stream to `fout`.  Returns a dict
     of encode parameters.  Memory use is bounded at (k+1) blocks.
 
     `version` selects the stream format (and with it the Reed-Solomon
     generator matrix); it exists so tests can build version-1 streams with
     the old Vandermonde matrix.  New streams always use FORMAT_VERSION.
+    `engine` picks the parity arithmetic (see resolve_engine); every engine
+    writes the same bytes.  `fout` is flushed after every group, so a pipe
+    reader sees each group as soon as it is encoded.
     """
     if version not in SUPPORTED_VERSIONS:
         raise TapefecError("format version must be one of %s, got %r"
@@ -370,6 +521,8 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
     if not 0 <= stream_id <= 0xFFFF:
         raise TapefecError("stream_id must be 0..65535")
 
+    engine, encode_group, _repair = resolve_engine(engine)
+    flush = getattr(fout, "flush", lambda: None)
     g = generator_matrix(k, m, version)
     digest = hashlib.sha256()
     total = 0
@@ -399,7 +552,9 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
             del buf[:]
             if len(group) == k:
                 _flush_group(fout, g, k, m, block_size, stream_id, group,
-                             frame_index, block_id, parity_id, zeros)
+                             frame_index, block_id, parity_id, zeros,
+                             encode_group)
+                flush()
                 frame_index += k + m
                 block_id += k
                 parity_id += m
@@ -409,7 +564,7 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
         del buf[:]
     if group:
         _flush_group(fout, g, k, m, block_size, stream_id, group,
-                     frame_index, block_id, parity_id, zeros)
+                     frame_index, block_id, parity_id, zeros, encode_group)
         frame_index += len(group) + m
         block_id += len(group)
         parity_id += m
@@ -420,11 +575,12 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
     fout.write(trailer)
     return dict(stream_id=stream_id, k=k, m=m, block_size=block_size,
                 total_length=total, data_blocks=block_id,
-                parity_blocks=parity_id, frame_index=frame_index + 1)
+                parity_blocks=parity_id, frame_index=frame_index + 1,
+                engine=engine)
 
 
 def _flush_group(fout, g, k, m, block_size, stream_id, group, frame_index,
-                 block_id, parity_id, zeros):
+                 block_id, parity_id, zeros, encode_group=rs_encode_group):
     n = len(group)
     # Zero-pad every data block to block_size at the END before encoding
     # parity (only the final block of the stream can be short).  The short
@@ -433,12 +589,16 @@ def _flush_group(fout, g, k, m, block_size, stream_id, group, frame_index,
     blocks = [b + bytes(block_size - len(b)) if len(b) < block_size else b
               for b in group]
     blocks += [zeros] * (k - n)
-    parity = rs_encode_group(blocks, block_size, g, m)
     for pos, payload in enumerate(group):
         fout.write(pack_header(FT_DATA, stream_id, frame_index + pos,
                                block_id + pos, len(payload), crc32(payload),
                                n))
         fout.write(payload)
+    # The data frames do not depend on the parity: push them out before
+    # computing it, so a decoder downstream can finish the previous group
+    # while this one's parity is being worked out.
+    getattr(fout, "flush", lambda: None)()
+    parity = encode_group(blocks, block_size, g, m)
     for pos, payload in enumerate(parity):
         fout.write(pack_header(FT_PARITY, stream_id, frame_index + n + pos,
                                parity_id + pos, len(payload), crc32(payload),
@@ -542,8 +702,11 @@ class _DelayLine:
 
 
 class _GroupDecoder:
-    def __init__(self, fout, rep, k, m, block_size, version=FORMAT_VERSION):
+    def __init__(self, fout, rep, k, m, block_size, version=FORMAT_VERSION,
+                 repair=rs_repair):
         self.fout = fout
+        self.flush = getattr(fout, "flush", lambda: None)
+        self.repair = repair
         self.rep = rep
         self.k, self.m, self.block_size = k, m, block_size
         self.g = generator_matrix(k, m, version)
@@ -624,6 +787,7 @@ class _GroupDecoder:
         self.advance()
 
     def advance(self):
+        self.flush()
         self.group_index += 1
         self.cur_group = None
         self.cur_data = {}
@@ -666,8 +830,8 @@ class _GroupDecoder:
             return
 
         try:
-            fixed = rs_repair(known, lost, live, self.block_size, self.g,
-                              self.m)
+            fixed = self.repair(known, lost, live, self.block_size, self.g,
+                                self.m) if lost else {}
         except Unrecoverable:
             self._record_group("unrecoverable", gdl, len(lost),
                                self.m - len(live))
@@ -720,14 +884,18 @@ class _GroupDecoder:
         return trimmed
 
 
-def decode_stream(fin, fout, report_foreign=True):
+def decode_stream(fin, fout, report_foreign=True, engine=None):
     """Decode the FEC stream in `fin` into `fout`; returns a DecodeReport.
 
     Every recoverable byte is written.  Unrecoverable ranges are written as
     zeros so downstream tools see the right stream length; they are listed in
-    the report.
+    the report.  `engine` picks the repair arithmetic (see resolve_engine);
+    the output and the report do not depend on it.
     """
+    repair = _repair_for(engine)
     rep = DecodeReport()
+    bad_length = 0
+    closed_early = closed_gdl = None
     reader = FrameReader(fin, ABSOLUTE_MAX_PAYLOAD)
     dec = None
     stream_id = None
@@ -759,7 +927,7 @@ def decode_stream(fin, fout, report_foreign=True):
             reader.max_payload = max(block_size, STREAM_HEADER_SIZE,
                                      TRAILER_SIZE)
             dec = _GroupDecoder(fout, rep, k, m, block_size,
-                                version=head["version"])
+                                version=head["version"], repair=repair)
             continue
 
         if ftype == FT_TRAILER:
@@ -786,6 +954,14 @@ def decode_stream(fin, fout, report_foreign=True):
 
         if head["block_id"] >= head["frame_index"]:
             continue      # every block occupies a frame, so this id is impossible
+        if payload is not None and (
+                len(payload) > dec.block_size if ftype == FT_DATA
+                else len(payload) != dec.block_size):
+            # Parity is always exactly block_size and data never longer: a
+            # CRC-valid payload of any other length cannot be a codeword
+            # symbol, so it is an erasure rather than repair input.
+            bad_length += 1
+            payload = None
         if not 0 < head["group_data_len"] <= dec.k:
             head["group_data_len"] = 0      # out of range: assume a full group
 
@@ -796,6 +972,15 @@ def decode_stream(fin, fout, report_foreign=True):
             ordinal = head["block_id"]
             gidx = ordinal // dec.m
 
+        if gidx == closed_early and dec.cur_group is None:
+            # A late frame of a group that was complete and already emitted:
+            # report exactly what the open group would have, then drop it.
+            gdl = head["group_data_len"] or dec.k
+            if gdl != closed_gdl:
+                rep.notes.append("group %d: inconsistent group_data_len (%d "
+                                 "vs %d); keeping %d" % (gidx, gdl, closed_gdl,
+                                                         closed_gdl))
+            continue
         if gidx < dec.group_index:
             rep.notes.append("ignoring frame for group %d, already past it"
                              % gidx)
@@ -823,8 +1008,18 @@ def decode_stream(fin, fout, report_foreign=True):
             dec.add_data(ordinal - gidx * dec.k, payload)
         else:
             dec.add_parity(ordinal - gidx * dec.m, payload)
+        if len(dec.cur_data) == dec.cur_gdl and len(dec.cur_parity) == dec.m:
+            # Every frame of the group is in and intact, so nothing later
+            # can change it: emit it now instead of when the next group's
+            # first frame arrives, which lets a pipe's two ends overlap.
+            closed_early, closed_gdl = gidx, dec.cur_gdl
+            dec.finalize_group()
 
     rep.read_stats = dict(reader.stats)
+    if bad_length:
+        rep.notes.append("%d frame(s) carried a payload length impossible "
+                         "for block_size %d and were treated as damaged"
+                         % (bad_length, dec.block_size))
 
     if not seen_header:
         raise TapefecError("no stream header frame found (not a tapefec "
@@ -909,6 +1104,112 @@ def inspect_stream(fin):
     return frames, info, counts, stats, damaged
 
 
+# ------------------------------------------------------------------- damage ---
+
+
+def _read_exact(fin, n):
+    """Read exactly n bytes unless EOF comes first."""
+    parts, got = [], 0
+    while got < n:
+        part = fin.read(n - got)
+        if not part:
+            break
+        parts.append(part)
+        got += len(part)
+    return b"".join(parts)
+
+
+def damage_stream(fin, fout, per_group=None, rate=0.0, mode="mixed", seed=0):
+    """Copy an undamaged FEC stream from `fin` to `fout`, simulating a bad
+    tape on the way: in every parity group, `per_group` randomly chosen data
+    or parity frames (or each frame with probability `rate`) are dropped or
+    have 1..8 payload bytes flipped.  The stream header and trailer frames
+    pass through untouched, so what the decoder can or cannot repair is down
+    to the parity alone.
+
+    Streams group by group: memory is one group of frames, and each group is
+    written (and flushed) as soon as its last frame, or the next group's
+    first, has been read.  Deterministic for
+    a given `seed`.  Returns a summary dict.
+    """
+    if mode not in ("drop", "corrupt", "mixed"):
+        raise TapefecError("damage mode must be drop, corrupt or mixed")
+    if per_group is not None and per_group < 0:
+        raise TapefecError("--per-group must be >= 0")
+    if not 0.0 <= rate <= 1.0:
+        raise TapefecError("--rate must be between 0 and 1")
+    rng = random.Random(seed)
+    flush = getattr(fout, "flush", lambda: None)
+    summary = dict(frames=0, groups=0, dropped=0, corrupted=0)
+    k = m = None
+    max_payload = ABSOLUTE_MAX_PAYLOAD
+    group, group_key = [], None
+
+    def emit_group():
+        if not group:
+            return
+        if per_group is not None:
+            hit = set(rng.sample(range(len(group)),
+                                 min(per_group, len(group))))
+        else:
+            hit = {i for i in range(len(group)) if rng.random() < rate}
+        for i, (raw, plen) in enumerate(group):
+            if i in hit:
+                how = mode if mode != "mixed" else rng.choice(
+                    ("drop", "corrupt"))
+                if how == "drop" or plen == 0:
+                    summary["dropped"] += 1
+                    continue
+                raw = bytearray(raw)
+                for off in rng.sample(range(plen), min(plen,
+                                                       rng.randint(1, 8))):
+                    raw[HEADER_SIZE + off] ^= rng.randint(1, 255)
+                summary["corrupted"] += 1
+            fout.write(raw)
+        summary["groups"] += 1
+        del group[:]
+        flush()
+
+    while True:
+        raw = _read_exact(fin, HEADER_SIZE)
+        if not raw:
+            break
+        head = unpack_header(raw)
+        if head is None or head["payload_len"] > max_payload:
+            raise TapefecError("damage needs an undamaged tapefec stream; "
+                               "bad frame header at frame %d"
+                               % summary["frames"])
+        payload = _read_exact(fin, head["payload_len"])
+        if len(payload) < head["payload_len"]:
+            raise TapefecError("damage input is truncated inside frame %d"
+                               % summary["frames"])
+        summary["frames"] += 1
+        ftype = head["ftype"]
+        if ftype == FT_HEADER:
+            if len(payload) != STREAM_HEADER_SIZE:
+                raise TapefecError("damage: bad stream header frame")
+            k, m, block_size, _f, _r = STREAM_HEADER_FMT.unpack(payload)
+            if not k or not m:
+                raise TapefecError("damage: stream header declares bad k/m")
+            max_payload = max(block_size, STREAM_HEADER_SIZE, TRAILER_SIZE)
+        if ftype in (FT_DATA, FT_PARITY):
+            if k is None:
+                raise TapefecError("damage: data before the stream header")
+            key = head["block_id"] // (k if ftype == FT_DATA else m)
+            if key != group_key:
+                emit_group()
+                group_key = key
+            group.append((raw + payload, head["payload_len"]))
+            if len(group) == (head["group_data_len"] or k) + m:
+                emit_group()       # complete: no need to wait for the next
+            continue
+        emit_group()
+        fout.write(raw + payload)
+        flush()
+    emit_group()
+    return summary
+
+
 # ---------------------------------------------------------------------- CLI ---
 
 
@@ -922,6 +1223,7 @@ def _build_parser():
   tar -c -C /srv photos | tapefec encode | dd of=photos.tapefec bs=1M
   tapefec decode < photos.tapefec > photos.tar
   tapefec inspect < photos.tapefec
+  tapefec encode < x | tapefec damage --per-group 4 | tapefec decode > y
 
 Exit status:
   0  every byte recovered and the SHA-256 in the trailer matched
@@ -934,7 +1236,12 @@ Write to a FILE, never to a tape device: tapefec cannot re-read what it wrote.
     p.add_argument("--version", action="version",
                    version="tapefec %s (format v%d)"
                            % (__version__, FORMAT_VERSION))
-    sub = p.add_subparsers(dest="command", metavar="{encode,decode,inspect}")
+    p.add_argument("--engine", choices=ENGINES, default=None,
+                   help="Reed-Solomon arithmetic: pure Python, numpy, or "
+                        "auto (numpy if importable). Output is identical. "
+                        "Default: $TAPEFEC_ENGINE, else auto")
+    sub = p.add_subparsers(dest="command",
+                           metavar="{encode,decode,inspect,damage}")
 
     e = sub.add_parser("encode", help="read a stream, write a FEC stream")
     e.add_argument("-k", type=int, default=DEFAULT_K,
@@ -963,6 +1270,22 @@ Write to a FILE, never to a tape device: tapefec cannot re-read what it wrote.
     i = sub.add_parser("inspect", help="print the frame map of a FEC stream")
     i.add_argument("--json", action="store_true",
                    help="emit the frame map as JSON")
+
+    dm = sub.add_parser("damage",
+                        help="simulate bad tape blocks in a FEC stream "
+                             "(for recovery demos and restore drills)")
+    how = dm.add_mutually_exclusive_group()
+    how.add_argument("--per-group", type=int, default=None, metavar="N",
+                     help="damage exactly N data/parity frames in every "
+                          "group (default 1)")
+    how.add_argument("--rate", type=float, default=None, metavar="P",
+                     help="damage each data/parity frame with probability P")
+    dm.add_argument("--mode", choices=("drop", "corrupt", "mixed"),
+                    default="mixed",
+                    help="delete frames, flip payload bytes, or a 50/50 mix "
+                         "(default %(default)s)")
+    dm.add_argument("--seed", type=int, default=0,
+                    help="random seed (default %(default)s)")
     return p
 
 
@@ -971,10 +1294,22 @@ def cmd_encode(args, fin, fout, err):
                          block_size=args.block_size,
                          stream_id=args.stream_id)
     err.write("tapefec: encoded %d bytes into %d data + %d parity blocks "
-              "(k=%d m=%d block=%d stream_id=%d, %d frames)\n"
+              "(k=%d m=%d block=%d stream_id=%d, %d frames, engine=%s)\n"
               % (info["total_length"], info["data_blocks"],
                  info["parity_blocks"], info["k"], info["m"],
-                 info["block_size"], info["stream_id"], info["frame_index"]))
+                 info["block_size"], info["stream_id"], info["frame_index"],
+                 info["engine"]))
+    return 0
+
+
+def cmd_damage(args, fin, fout, err):
+    per_group = args.per_group
+    if per_group is None and args.rate is None:
+        per_group = 1
+    summary = damage_stream(fin, fout, per_group=per_group,
+                            rate=args.rate or 0.0, mode=args.mode,
+                            seed=args.seed)
+    err.write("tapefec: damage: %s\n" % json.dumps(summary, sort_keys=True))
     return 0
 
 
@@ -1079,6 +1414,22 @@ def cmd_inspect(args, fin, fout, err):
     return 0
 
 
+def widen_pipe(fh, size=1 << 20):
+    """Best effort: grow a Linux pipe's buffer from 64 KiB to `size`.
+
+    Each stage of `encode | damage | decode` works a whole group at a time.
+    With a 64 KiB pipe the writer blocks a few frames into every group until
+    the reader catches up, so the stages take turns instead of overlapping.
+    A pipe that holds most of a group lets them run concurrently.  Anything
+    that is not a Linux pipe, or a size above /proc/sys/fs/pipe-max-size, is
+    left alone."""
+    try:
+        import fcntl
+        fcntl.fcntl(fh.fileno(), fcntl.F_SETPIPE_SZ, size)
+    except (ImportError, AttributeError, OSError, ValueError):
+        pass
+
+
 def check_not_a_tty(fout):
     """True when `fout` is a terminal.  Writing a binary FEC stream to a
     terminal would garble it, so encode/decode refuse; the hint tells the
@@ -1096,18 +1447,33 @@ def main(argv=None):
         parser.print_help(sys.stderr)
         return 2
     err = sys.stderr
-    binary_output = args.command in ("encode", "decode")
+    # tapefec makes no BLAS calls, but numpy's BLAS spins up one thread per
+    # core at import, which costs more CPU than encoding a few MB.  Only
+    # defaults: a value the user exported wins.
+    for var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+        os.environ.setdefault(var, "1")
+    try:
+        set_engine(args.engine or os.environ.get("TAPEFEC_ENGINE") or "auto")
+    except TapefecError as exc:
+        err.write("tapefec: %s\n" % exc)
+        return 2
+    binary_output = args.command in ("encode", "decode", "damage")
     if binary_output and check_not_a_tty(sys.stdout):
         err.write("tapefec: refusing to write a binary stream to a terminal; "
                   "redirect stdout to a file or pipe\n")
         return 2
     fin = sys.stdin.buffer
     fout = sys.stdout.buffer if binary_output else None
+    if binary_output:
+        widen_pipe(fin)
+        widen_pipe(fout)
     try:
         if args.command == "encode":
             rc = cmd_encode(args, fin, fout, err)
         elif args.command == "decode":
             rc = cmd_decode(args, fin, fout, err)
+        elif args.command == "damage":
+            rc = cmd_damage(args, fin, fout, err)
         else:
             rc = cmd_inspect(args, fin, sys.stdout, err)
         if binary_output:

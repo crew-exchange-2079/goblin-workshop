@@ -9,15 +9,21 @@ Sections:
   B  Reed-Solomon construction and erasure decoding
   C  stream round trips (0, 1, block-1, block, block+1, 10 MB)
   D  damage: corruption, deletion, garbage, truncation, wrong stream id
+  G  engines: golden stream digests, numpy fast path == pure path
+  S  streaming CLI: output before EOF, the damage filter, the recovery demo
 """
 
+import hashlib
 import io
 import itertools
 import json
 import os
 import random
+import select
 import subprocess
 import sys
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -1122,6 +1128,397 @@ class TestVerifiedFindings(unittest.TestCase):
             with self.assertRaises(RuntimeError) as caught:
                 T.encode_stream(object(), object(), block_size=2**32 - 1)
         self.assertIs(caught.exception, sentinel)
+
+
+# ------------------------------------------------------------ G: engines ----
+
+HAS_NUMPY = T.numpy_available()
+# CI's numpy job sets this so a broken numpy install fails instead of skipping.
+if os.environ.get("TAPEFEC_REQUIRE_NUMPY") and not HAS_NUMPY:
+    raise ImportError("TAPEFEC_REQUIRE_NUMPY is set but numpy is unavailable")
+ENGINES = ["pure"] + (["numpy"] if HAS_NUMPY else [])
+needs_numpy = unittest.skipUnless(HAS_NUMPY, "numpy is not installed")
+
+# SHA-256 of encode_stream() output for random.Random(name).randbytes(n).
+# Captured from the pure-Python encoder at tapefec 1.0.0 (before the numpy
+# engine existed), so they pin the wire bytes, not just engine agreement.
+GOLDEN = [
+    # name, n, k, m, block_size, version, sha256 of the encoded stream
+    ("default-1.3MB", 1310720, 20, 4, 65536, 2,
+     "421dfe9a3b5d65bca98bc5deb8fe44a6490fd1b07451eb70092de285c720bc4b"),
+    ("short-tail", 100003, 6, 3, 512, 2,
+     "62ae32fd37b9b9e582cedc3e15c471a52e3367f1af1e9489ca4d3f00ac9a2f93"),
+    ("k1-m1", 4097, 1, 1, 1024, 2,
+     "a945e10112c47538b40c6d0daa25366a966324f3930a3dc098c56a44a6dae99b"),
+    ("k255-m1", 70000, 255, 1, 256, 2,
+     "5b256aaede60420faf17ac0193a86ccac8ed66337646c529ab4a64d1897a14ea"),
+    ("m9-wide", 50000, 7, 9, 333, 2,
+     "f84b594a8d4d2197efecae3d6aa3736cae640dfa1267234821f369396bf0f4d6"),
+    ("m17-wide", 30000, 3, 17, 128, 2,
+     "7f2bcba67c2805669c367f8bbb8735699f41426f33b5bf4edc91d1168471c4a6"),
+    ("v1-vandermonde", 90000, 10, 6, 1000, 1,
+     "8909a3f26a4751186efc085fc823e596f622a55336183efd6d37056a6f5214fe"),
+    ("empty", 0, 20, 4, 65536, 2,
+     "0ee3010be90e85e5550100f6f0755c427b008e01680da0c15ce7728e1f461189"),
+]
+
+
+class TestGolden(unittest.TestCase):
+    def test_encoded_streams_match_golden_digests(self):
+        for name, n, k, m, bs, version, want in GOLDEN:
+            data = random.Random(name).randbytes(n)
+            for engine in ENGINES:
+                with self.subTest(case=name, engine=engine):
+                    enc = encode(data, k=k, m=m, block_size=bs,
+                                 version=version, engine=engine)
+                    self.assertEqual(hashlib.sha256(enc).hexdigest(), want)
+                    rep, out = decode(enc)
+                    self.assertTrue(rep.verified)
+                    self.assertEqual(out, data)
+
+    @unittest.skipIf(HAS_NUMPY, "numpy is installed")
+    def test_without_numpy_auto_is_pure_and_numpy_is_refused(self):
+        self.assertEqual(T.resolve_engine("auto")[0], "pure")
+        with self.assertRaises(T.TapefecError):
+            T.resolve_engine("numpy")
+
+    def test_auto_decode_of_a_clean_stream_never_imports_numpy(self):
+        code = ("import sys, io; sys.path.insert(0, %r); import tapefec as T;"
+                "enc = io.BytesIO(); T.encode_stream(io.BytesIO(b'x' * 5000),"
+                " enc, k=2, m=1, block_size=512, engine='pure');"
+                "rep = T.decode_stream(io.BytesIO(enc.getvalue()),"
+                " io.BytesIO(), engine='auto'); assert rep.verified;"
+                "T.set_engine('auto');"
+                "print('numpy' in sys.modules)" % HERE)
+        p = subprocess.run([sys.executable, "-c", code],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), b"False")
+
+    def test_engine_selection(self):
+        self.assertEqual(T.resolve_engine("pure")[1], T.rs_encode_group)
+        self.assertEqual(T.resolve_engine("auto")[0],
+                         "numpy" if HAS_NUMPY else "pure")
+        with self.assertRaises(T.TapefecError):
+            T.resolve_engine("fortran")
+        with self.assertRaises(T.TapefecError):
+            encode(b"x", engine="fortran")
+        old = T._default_engine
+        try:
+            T.set_engine("pure")
+            self.assertEqual(T.resolve_engine()[0], "pure")
+            with self.assertRaises(T.TapefecError):
+                T.set_engine("fortran")
+            self.assertEqual(T._default_engine, "pure")
+        finally:
+            T._default_engine = old
+
+
+@needs_numpy
+class TestNumpyMatchesPure(unittest.TestCase):
+    def test_encode_group_matches_for_every_lane_width(self):
+        rng = random.Random(11)
+        for k, m in [(1, 1), (2, 2), (3, 3), (5, 4), (4, 5), (6, 8), (2, 9),
+                     (20, 4), (10, 16), (1, 255), (255, 1), (128, 128)]:
+            for version in T.SUPPORTED_VERSIONS:
+                g = T.generator_matrix(k, m, version)
+                for length in (0, 1, 7, 64):
+                    for n in {1, k}:
+                        blocks = [rng.randbytes(length) for _ in range(n)]
+                        with self.subTest(k=k, m=m, v=version, len=length,
+                                          n=n):
+                            self.assertEqual(
+                                T.np_rs_encode_group(blocks, length, g, m),
+                                T.rs_encode_group(blocks, length, g, m))
+
+    def test_repair_matches_for_random_erasure_patterns(self):
+        rng = random.Random(12)
+        for k, m, length in [(6, 3, 48), (20, 4, 64), (10, 6, 32),
+                             (3, 11, 16), (30, 9, 8)]:
+            for version in T.SUPPORTED_VERSIONS:
+                g = T.generator_matrix(k, m, version)
+                for _trial in range(25):
+                    gdl = rng.randint(1, k)
+                    data = [rng.randbytes(length) for _ in range(gdl)]
+                    if rng.random() < 0.5:     # short final block
+                        data[-1] = data[-1][:rng.randint(1, length)]
+                    padded = [d + bytes(length - len(d)) for d in data]
+                    parity = T.rs_encode_group(
+                        padded + [bytes(length)] * (k - gdl), length, g, m)
+                    lost = rng.sample(range(gdl), rng.randint(0, min(gdl, m)))
+                    live = rng.sample(range(m), rng.randint(0, m))
+                    known = {j: d for j, d in enumerate(data)
+                             if j not in lost}
+                    par = {i: parity[i] for i in live}
+                    results = []
+                    for fn in (T.rs_repair, T.np_rs_repair):
+                        try:
+                            results.append(fn(dict(known), list(lost),
+                                              dict(par), length, g, m))
+                        except T.Unrecoverable as exc:
+                            results.append(("unrecoverable", exc.need,
+                                            exc.have))
+                        except T.TapefecError as exc:
+                            results.append(("singular", str(exc)))
+                    with self.subTest(k=k, m=m, v=version, lost=lost,
+                                      live=live):
+                        self.assertEqual(results[0], results[1])
+                        if isinstance(results[0], dict):
+                            for j in lost:
+                                self.assertEqual(results[0][j], padded[j])
+
+    def test_damaged_decode_output_and_report_match(self):
+        rng = random.Random(13)
+        for version, (k, m, bs) in [(2, (6, 3, 512)), (2, (20, 4, 1024)),
+                                    (1, (10, 6, 256))]:
+            data = rnd(rng.randint(1, 40) * k * bs + rng.randint(0, bs),
+                       seed=version * 100 + k)
+            enc = encode(data, k=k, m=m, block_size=bs, version=version)
+            offs, _ = frame_offsets(enc)
+            for _trial in range(8):
+                body = range(1, len(offs) - 1)
+                lost = rng.sample(body, len(body) // 6)
+                bad = [(i, rng.randrange(8)) for i in
+                       rng.sample(body, len(body) // 10) if i not in lost]
+                # corrupt first: damage() locates frames before deleting any
+                broken = damage(damage(enc, corrupt=bad), lost=lost)
+                outs = []
+                for engine in ("pure", "numpy"):
+                    out = io.BytesIO()
+                    rep = T.decode_stream(io.BytesIO(broken), out,
+                                          engine=engine)
+                    outs.append((out.getvalue(), rep.to_json()))
+                with self.subTest(v=version, k=k, trial=_trial):
+                    self.assertEqual(outs[0][0], outs[1][0])
+                    self.assertEqual(outs[0][1], outs[1][1])
+
+    def test_cli_engine_flag_and_env_give_identical_bytes(self):
+        data = rnd(300000, seed=14)
+        streams = []
+        for argv, env in [(["--engine", "pure"], {}),
+                          (["--engine", "numpy"], {}),
+                          ([], {"TAPEFEC_ENGINE": "pure"}),
+                          ([], {"TAPEFEC_ENGINE": "numpy"})]:
+            p = subprocess.run([sys.executable, SCRIPT] + argv + ["encode"],
+                               input=data, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE,
+                               env=dict(os.environ, **env))
+            self.assertEqual(p.returncode, 0, p.stderr)
+            want = argv[1] if argv else env["TAPEFEC_ENGINE"]
+            self.assertIn(b"engine=" + want.encode(), p.stderr)
+            streams.append(p.stdout)
+        self.assertEqual(len(set(streams)), 1)
+
+
+class TestPayloadLengthIsChecked(unittest.TestCase):
+    """A CRC-valid data/parity payload of a length the stream header rules
+    out is an erasure: before 1.1 a 40-byte parity payload with block_size 4
+    crashed the repair with OverflowError, and a short one repaired garbage."""
+
+    def _stream(self, parity_payload):
+        hdr = encode(b"", k=2, m=1, block_size=4)[:56]
+
+        def frame(ftype, index, block_id, payload):
+            return T.pack_header(ftype, 0, index, block_id, len(payload),
+                                 T.crc32(payload), 2) + payload
+        return hdr + frame(T.FT_DATA, 2, 1, b"abcd") \
+            + frame(T.FT_PARITY, 3, 0, parity_payload)
+
+    def test_wrong_length_parity_is_an_erasure(self):
+        for engine in ENGINES:
+            for payload in (b"\xff" * 40, b"\xff" * 2):
+                with self.subTest(engine=engine, n=len(payload)):
+                    out = io.BytesIO()
+                    rep = T.decode_stream(io.BytesIO(self._stream(payload)),
+                                          out, engine=engine)
+                    self.assertEqual(rep.blocks_unrecoverable, 1)
+                    self.assertEqual(rep.blocks_repaired, 0)
+                    self.assertEqual(out.getvalue(), bytes(4) + b"abcd")
+                    self.assertTrue(any("payload length impossible" in n
+                                        for n in rep.notes))
+
+    def test_cli_does_not_crash(self):
+        p = subprocess.run([sys.executable, SCRIPT, "decode"],
+                           input=self._stream(b"\xff" * 40),
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn(b"Traceback", p.stderr)
+
+
+# ------------------------------------------------------ S: streaming CLI ----
+
+
+def _read_before_eof(argv, feed, want, timeout=10.0):
+    """Start the CLI, write `feed` WITHOUT closing stdin, and return how many
+    stdout bytes arrive (up to `want`) before `timeout`."""
+    p = subprocess.Popen([sys.executable, SCRIPT] + argv,
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL)
+    try:
+        p.stdin.write(feed)
+        p.stdin.flush()
+        got, deadline = 0, time.monotonic() + timeout
+        while got < want and time.monotonic() < deadline:
+            ready, _w, _x = select.select([p.stdout], [], [], 0.1)
+            if ready:
+                chunk = os.read(p.stdout.fileno(), 1 << 16)
+                if not chunk:
+                    break
+                got += len(chunk)
+        return got
+    finally:
+        p.stdin.close()
+        p.stdout.read()
+        p.wait()
+
+
+@unittest.skipIf(sys.platform == "win32", "select() on pipes is POSIX-only")
+class TestStreamingCLI(unittest.TestCase):
+    K, M, BS = 2, 1, 256     # tiny frames: a group is far below any buffer
+
+    def test_encode_emits_each_group_before_stdin_closes(self):
+        data = rnd(self.K * self.BS * 3, seed=21)
+        want = 56 + 3 * (self.K + self.M) * (self.BS + 40)
+        got = _read_before_eof(["encode", "-k", str(self.K), "-m",
+                                str(self.M), "--block-size", str(self.BS)],
+                               data, want)
+        self.assertGreaterEqual(got, want)
+
+    def test_decode_emits_output_before_stdin_closes(self):
+        data = rnd(self.K * self.BS * 20, seed=22)
+        enc = encode(data, k=self.K, m=self.M, block_size=self.BS)
+        group = (self.K + self.M) * (self.BS + 40)
+        # The open group is held until the next one starts and the delay
+        # line keeps k+1 blocks for the trailer to trim: of 6 groups fed in,
+        # 5 are finalized and all but k+1 of their blocks must be out.
+        want = (5 * self.K - (self.K + 1)) * self.BS
+        self.assertGreaterEqual(
+            _read_before_eof(["decode"], enc[:56 + 6 * group], want), want)
+
+    def test_damage_emits_each_group_before_stdin_closes(self):
+        enc = encode(rnd(self.K * self.BS * 10, seed=23), k=self.K,
+                     m=self.M, block_size=self.BS)
+        group = (self.K + self.M) * (self.BS + 40)
+        # 5 groups in: the first 4 are complete once the 5th starts, and
+        # each is written minus its one dropped frame.
+        want = 56 + 4 * (group - (self.BS + 40))
+        got = _read_before_eof(["damage", "--per-group", "1", "--mode",
+                                "drop"], enc[:56 + 5 * group], want)
+        self.assertGreaterEqual(got, want)
+
+
+class TestDamageFilter(unittest.TestCase):
+    def setUp(self):
+        self.data = rnd(37 * 512 + 100, seed=31)
+        self.enc = encode(self.data, **SMALL)
+
+    def run_damage(self, **kw):
+        out = io.BytesIO()
+        summary = T.damage_stream(io.BytesIO(self.enc), out, **kw)
+        return summary, out.getvalue()
+
+    def test_m_per_group_is_always_repaired(self):
+        for mode in ("drop", "corrupt", "mixed"):
+            for seed in range(5):
+                with self.subTest(mode=mode, seed=seed):
+                    summary, broken = self.run_damage(
+                        per_group=SMALL["m"], mode=mode, seed=seed)
+                    self.assertEqual(summary["dropped"] + summary["corrupted"],
+                                     SMALL["m"] * summary["groups"])
+                    rep, out = decode(broken)
+                    self.assertTrue(rep.verified)
+                    self.assertEqual(out, self.data)
+                    self.assertEqual(rep.blocks_unrecoverable, 0)
+
+    def test_m_plus_one_per_group_is_reported(self):
+        _s, broken = self.run_damage(per_group=SMALL["m"] + 1, seed=1)
+        rep, out = decode(broken)
+        self.assertFalse(rep.ok)
+        self.assertEqual(len(out), len(self.data))
+        self.assertTrue(rep.unrecoverable_ranges)
+
+    def test_header_and_trailer_pass_through(self):
+        _s, broken = self.run_damage(rate=1.0, mode="drop")
+        frames, info, counts, _st, _d = T.inspect_stream(io.BytesIO(broken))
+        self.assertEqual(counts, {T.FT_HEADER: 1, T.FT_TRAILER: 1})
+        self.assertEqual(info["total_length"], len(self.data))
+
+    def test_zero_damage_is_the_identity_and_seed_is_deterministic(self):
+        self.assertEqual(self.run_damage(per_group=0)[1], self.enc)
+        self.assertEqual(self.run_damage(rate=0.0)[1], self.enc)
+        a = self.run_damage(rate=0.3, seed=7)[1]
+        self.assertEqual(a, self.run_damage(rate=0.3, seed=7)[1])
+        self.assertNotEqual(a, self.run_damage(rate=0.3, seed=8)[1])
+
+    def test_bad_input_and_arguments(self):
+        for kw in (dict(mode="melt"), dict(per_group=-1), dict(rate=1.5)):
+            with self.subTest(**kw), self.assertRaises(T.TapefecError):
+                T.damage_stream(io.BytesIO(self.enc), io.BytesIO(), **kw)
+        with self.assertRaises(T.TapefecError):
+            T.damage_stream(io.BytesIO(b"nonsense" * 10), io.BytesIO())
+        with self.assertRaises(T.TapefecError):
+            T.damage_stream(io.BytesIO(self.enc[:-10]), io.BytesIO())
+        p = subprocess.run([sys.executable, SCRIPT, "damage"],
+                           input=b"nonsense" * 10, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+        self.assertEqual(p.returncode, 2)
+        self.assertNotIn(b"Traceback", p.stderr)
+
+
+class TestRecoveryDemo(unittest.TestCase):
+    """encode | damage | decode as three real processes joined by pipes."""
+
+    def run_demo(self, data, per_group):
+        cmds = [["encode", "-k", "4", "-m", "2", "--block-size", "1024"],
+                ["damage", "--per-group", str(per_group), "--seed", "5"],
+                ["decode"]]
+        p1 = subprocess.Popen([sys.executable, SCRIPT] + cmds[0],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL)
+        p2 = subprocess.Popen([sys.executable, SCRIPT] + cmds[1],
+                              stdin=p1.stdout, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL)
+        p3 = subprocess.Popen([sys.executable, SCRIPT] + cmds[2],
+                              stdin=p2.stdout, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+        p1.stdout.close()
+        p2.stdout.close()
+        feeder = threading.Thread(target=lambda: (p1.stdin.write(data),
+                                                  p1.stdin.close()))
+        feeder.start()
+        out, err = p3.communicate()
+        feeder.join()
+        self.assertEqual(p1.wait(), 0)
+        self.assertEqual(p2.wait(), 0)
+        return p3.returncode, out, err
+
+    def test_m_losses_per_group_come_back_byte_identical(self):
+        data = rnd(400000, seed=41)
+        rc, out, err = self.run_demo(data, per_group=2)
+        self.assertEqual(rc, 0, err[-500:])
+        self.assertEqual(out, data)
+        doc = json.loads(err.strip().splitlines()[-1])
+        self.assertTrue(doc["verified"])
+        self.assertGreater(doc["blocks_repaired"], 0)
+
+    def test_m_plus_one_losses_per_group_fail_loudly(self):
+        data = rnd(400000, seed=42)
+        rc, out, err = self.run_demo(data, per_group=3)
+        self.assertEqual(rc, 1)
+        self.assertEqual(len(out), len(data))
+        doc = json.loads(err.strip().splitlines()[-1])
+        self.assertFalse(doc["ok"])
+        self.assertTrue(doc["unrecoverable_ranges"])
+
+    def test_demo_script_runs(self):
+        if sys.platform == "win32":
+            self.skipTest("demo.sh is a POSIX shell script")
+        p = subprocess.run(["sh", os.path.join(HERE, "demo.sh"), "2"],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           env=dict(os.environ, PYTHON=sys.executable))
+        self.assertEqual(p.returncode, 0, p.stdout[-2000:])
+        self.assertIn(b"byte-identical", p.stdout)
+        self.assertIn(b"exit status 1", p.stdout)
 
 
 if __name__ == "__main__":
