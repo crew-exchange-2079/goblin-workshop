@@ -438,7 +438,7 @@ def drive_offline(run, rig):
     try:
         # sg3_utils opens O_NONBLOCK, which sg_open() lets through even for an
         # offline device; the midlayer then rejects LOG SENSE and sg_logs exits
-        # with a code outside its documented table -> exporter status "error".
+        # 99 ("other", observed in CI) -> exporter status "error".
         off = run.expect(run.snap("offline"), status="error")
         print(f"offline: harness sg_logs exit codes {run.last_rcs}", flush=True)
         run.check("offline: no counters, flags or present series exported",

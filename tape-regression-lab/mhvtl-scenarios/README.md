@@ -109,9 +109,9 @@ about real drives.
 - **Offline** is the SCSI midlayer's state, as after failed error recovery.
   sg3_utils opens the node `O_NONBLOCK`, and `sg_open()` only refuses an offline
   device on a *blocking* open, so the open succeeds. The midlayer then rejects
-  the LOG SENSE, and sg_logs exits with a code outside its documented table, which
-  the exporter maps to `error`. The driver prints the exact exit codes into the job
-  log. The exporter's per-scrape device re-check still passes (same node, still
+  the LOG SENSE, and sg_logs exits 99 (sg_lib's catch-all "other"; observed in CI,
+  and the driver prints the exit codes into the job log every run), which the
+  exporter maps to `error`. The exporter's per-scrape device re-check still passes (same node, still
   type 1), so the status comes from sg_logs alone. A distinct `offline` status
   would need the exporter to read sysfs `state`; that is out of scope here.
 

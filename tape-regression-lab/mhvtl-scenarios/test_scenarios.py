@@ -25,7 +25,7 @@ SG = "/dev/sg7"
 MiB = 1024 * 1024
 EW = 2 * MiB
 TA_CLEANING_MEDIA = 0x400
-OFFLINE_RC = 99   # observed class on mhvtl: outside sg_logs' table -> "error"
+OFFLINE_RC = 99   # observed on mhvtl in CI: sg_lib "other" -> "error"
 
 SENSE = ("    SCSI Status: Check Condition \n\nSense Information:\n"
          "Fixed format, current; Sense key: {key}\nAdditional sense: {asc}\n"
