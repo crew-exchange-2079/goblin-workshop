@@ -99,14 +99,17 @@ function num(v, fallback, bounds) {
 
 /*
  * Ceiling that forgives floating-point noise: 12.000000000000002 tapes is 12
- * tapes, not 13. The tolerance is relative (a part in 10^12, still ~1000×
- * the error of the few multiplications behind x), so a real remainder rounds
- * up at any scale, and any positive amount of data needs at least one tape.
+ * tapes, not 13. The tolerance is NOISE_ULPS units in the last place of the
+ * result: x comes from about ten multiplications and divisions, each off by at
+ * most half an ulp, so anything further from a whole number is a real
+ * remainder and rounds up at any scale. Any positive amount of data needs at
+ * least one tape.
  */
+const NOISE_ULPS = 16;
 export function ceilTapes(x) {
   if (!(x > 0)) return 0;
   const r = Math.round(x);
-  return r >= 1 && Math.abs(x - r) <= 1e-12 * r ? r : Math.ceil(x);
+  return r >= 1 && Math.abs(x - r) <= NOISE_ULPS * Number.EPSILON * r ? r : Math.ceil(x);
 }
 
 /* Turn loose input (form values, URL params, partial objects) into a valid plan input. */

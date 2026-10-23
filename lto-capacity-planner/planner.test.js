@@ -11,6 +11,7 @@ import {
   DEFAULTS,
   DEFAULT_PRICES,
   UNITS,
+  LIMITS,
   plan,
   normalizeInput,
   ceilTapes,
@@ -57,11 +58,37 @@ test('ceilTapes boundaries: tiny positive data, large quotients, float noise', (
   assert.equal(ceilTapes(0.4), 1);
   assert.equal(ceilTapes(1000000000.2), 1000000001, 'a real remainder rounds up at large scale');
   assert.equal(ceilTapes(1e9 + 0.01), 1e9 + 1);
+  assert.equal(ceilTapes(1000000000.0001), 1000000001, '~800 ulps over is a real remainder');
+  assert.equal(ceilTapes(1000000000000.2), 1000000000001);
+  assert.equal(ceilTapes(1e12 + 0.01), 1e12 + 1, '~80 ulps over at 1e12 still rounds up');
   assert.equal(ceilTapes(18 + 4 * Number.EPSILON * 18), 18, 'a few ulps over is noise');
   assert.equal(ceilTapes(1e9 * (1 + 4 * Number.EPSILON)), 1e9);
   assert.equal(ceilTapes(0), 0);
   assert.equal(ceilTapes(-1), 0);
   assert.equal(ceilTapes(NaN), 0);
+});
+
+test('exact multiples stay exact through the whole plan pipeline', () => {
+  // size chosen so the true answer is exactly n cartridges; the float path
+  // (unit conversion, growth, ratio, fill) must not add one
+  const cases = [
+    { unit: 'TB', ratio: 1, fill: 90 },
+    { unit: 'PB', ratio: 2.5, fill: 95 },
+    { unit: 'GB', ratio: 1.3, fill: 87 },
+  ];
+  for (const c of cases) {
+    for (const g of GENERATIONS) {
+      for (const n of [1, 3, 7, 10, 99, 1000, 123457, 98765432]) {
+        const size = (n * g.native * c.ratio * (c.fill / 100)) / UNITS[c.unit];
+        if (size > LIMITS.size[1]) continue; // input is clamped there
+        const p = plan({ ...base, ...c, size });
+        assert.equal(row(p, g.id).tapesPerCopy, n, `${g.name} n=${n} ${JSON.stringify(c)}`);
+      }
+    }
+  }
+  // and with compounding: 100 TB at 10%/yr for 2 years is 121 TB = 11 × 11 TB cartridges at 1:1
+  const grown = plan({ ...base, size: 100, growth: 10, years: 2, ratio: 11 / 12, fill: 100 });
+  assert.equal(row(grown, 'lto8').tapesPerCopy, 11);
 });
 
 test('a positive dataset needs at least one cartridge per copy', () => {
