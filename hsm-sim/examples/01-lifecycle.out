@@ -1,0 +1,55 @@
+# hsm-sim 0.1.0: lifecycle
+# Three files are written, age past migrate_after_s and are copied to tape
+# (premigrated). Later writes push the cache over its high watermark, so the
+# least recently used premigrated copies are purged to stubs. A read of a stub
+# is a miss and triggers a recall; the second read is a hit.
+# cache 1000 MB, watermarks 80% high / 50% low
+# 1 drive(s), 3 tape(s) x 4000 MB, mount 60 s, seek 20 s, 100 MB/s
+# scan every 300 s, migrate after 600 s, auto-repack off
+
+== timeline ==
+00:00:00  write     alpha.dat 200 MB (new) cache 200/1000 MB
+00:00:30  write     beta.dat 200 MB (new) cache 400/1000 MB
+00:01:00  write     gamma.dat 200 MB (new) cache 600/1000 MB
+00:10:00  scan      1 file(s) at least 600 s old, migration queued
+00:10:00  migrate   start on drive0: 1 file(s) 200 MB -> T01 (aged): alpha.dat, 82 s, done at 00:11:22
+00:11:22  migrate   done -> T01: 1 file(s) premigrated [T01 200/4000 MB]
+00:11:22  migrate   start on drive0: 2 file(s) 400 MB -> T01 (aged): beta.dat, gamma.dat, 24 s, done at 00:11:46
+00:11:40  read      alpha.dat hit (premigrated)
+00:11:46  migrate   done -> T01: 2 file(s) premigrated [T01 600/4000 MB]
+00:20:00  write     delta.dat 300 MB (new) cache 900/1000 MB
+00:20:00  purge     2 file(s) 400 MB for watermark cycle (down to 50%): beta.dat, gamma.dat -> stubs, cache 500/1000 MB
+00:30:00  read      beta.dat miss: stub only, recall queued from T01
+00:30:00  recall    start on drive0: 1 file(s) 200 MB from T01 in tape order: beta.dat, 22 s, done at 00:30:22
+00:30:00  scan      1 file(s) at least 600 s old, migration queued
+00:30:00  wait      migrate open tape T01 is in use
+00:30:22  recall    done from T01: 1 file(s) back on disk cache 700/1000 MB
+00:30:22  served    beta.dat: 1 read(s) served after waiting 22 s
+00:30:22  migrate   start on drive0: 1 file(s) 300 MB -> T01 (aged): delta.dat, 23 s, done at 00:30:45
+00:30:45  migrate   done -> T01: 1 file(s) premigrated [T01 900/4000 MB]
+00:31:40  read      beta.dat hit (premigrated)
+00:40:00  read      gamma.dat miss: stub only, recall queued from T01
+00:40:00  recall    start on drive0: 1 file(s) 200 MB from T01 in tape order: gamma.dat, 22 s, done at 00:40:22
+00:40:00  purge     2 file(s) 500 MB for watermark cycle (down to 50%): alpha.dat, delta.dat -> stubs, cache 400/1000 MB
+00:40:22  recall    done from T01: 1 file(s) back on disk cache 400/1000 MB
+00:40:22  served    gamma.dat: 1 read(s) served after waiting 22 s
+
+== stats ==
+simulated    3600 s (01:00:00)
+writes       4 (0 rejected), deletes 0
+reads        4: 2 hit, 2 miss, 0 error, hit ratio 50.0%
+recall wait  n=2 mean 22.0 s, median 22 s, max 22 s
+migrated     4 file(s) 900 MB
+purged       4 file(s) 900 MB
+recalled     2 file(s) 400 MB
+repacked     0 tape(s), 0 MB copied; 0 tape(s) returned to scratch
+cache        peak 900/1000 MB, end 400/1000 MB
+files        0 resident, 2 premigrated, 2 migrated
+
+drive    mounts  busy s  util
+drive0        1     173    5%
+
+tape  state     used MB  live MB  live  mounts
+T01   filling       900      900  100%       1
+T02   scratch         0        0     -       0
+T03   scratch         0        0     -       0

@@ -1,0 +1,41 @@
+# Many reads of purged files at once: recall queueing, mounts, and tape-order batching.
+name: recall-storm
+description: |
+  Thirty 100 MB files are archived across three tapes and purged. At 01:00:00
+  a user asks for twelve of them in an order that hops between tapes. With two
+  drives, recalls queue; when a drive starts on a tape it takes every queued
+  recall for that tape in one mount, in tape order. Mount and seek time, not
+  transfer time, dominate the wait. The 20 % high watermark is so tight
+  that some freshly recalled files are purged again minutes later.
+duration_s: 7200
+cache:
+  capacity_mb: 4000
+  high_watermark: 0.20
+  low_watermark: 0.05
+library:
+  drives: 2
+  tapes: 4
+  tape_capacity_mb: 1000
+  mount_s: 90
+  seek_s: 30
+  rate_mb_s: 100
+policy:
+  scan_interval_s: 600
+  migrate_after_s: 0
+events:
+  - {t: 0, op: write, file: "scan-{i:02d}.tif", size_mb: 100, count: 30, every_s: 10}
+  # Twelve reads, interleaved across the three tapes (00-09 on T01, 10-19 on T02, 20-29 on T03).
+  - {t: 3600, op: read, file: scan-00.tif}
+  - {t: 3601, op: read, file: scan-10.tif}
+  - {t: 3602, op: read, file: scan-20.tif}
+  - {t: 3603, op: read, file: scan-07.tif}
+  - {t: 3604, op: read, file: scan-17.tif}
+  - {t: 3605, op: read, file: scan-27.tif}
+  - {t: 3606, op: read, file: scan-03.tif}
+  - {t: 3607, op: read, file: scan-13.tif}
+  - {t: 3608, op: read, file: scan-23.tif}
+  - {t: 3609, op: read, file: scan-09.tif}
+  - {t: 3610, op: read, file: scan-19.tif}
+  - {t: 3611, op: read, file: scan-29.tif}
+  # The same file again while its recall is still in flight joins it.
+  - {t: 3620, op: read, file: scan-23.tif}
