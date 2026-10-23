@@ -9,6 +9,7 @@ no repository-wide version.
 | `tapefec` | `tapefec.py` (`__version__`) | sdist + wheel |
 | `rack-parts` | `rackparts/__init__.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
 | `ltfs-index-validator` | `validate.py` (`TOOL_VERSION`) | source bundle (`.tar.gz`, `.zip`) |
+| `hsm-sim` | `hsm_sim.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
 | `tape-library-playground` | `package.json` (`version`) | static bundle (`.tar.gz`, `.zip`) |
 
 Every release also carries `SHA256SUMS` and `<tool>-<version>.intoto.jsonl`
@@ -20,6 +21,8 @@ are not released. `rack-parts` and `ltfs-index-validator` ship as source
 bundles rather than wheels because they read data from outside a Python
 package (`scad/`, `schema/`) and, for the validator, install `lxml` from a
 hash-pinned `requirements.txt` that a wheel's metadata cannot express.
+`hsm-sim` is a bundle for the same reason (PyYAML pinned by hash) and because
+its tests compare against golden outputs in `examples/`.
 
 ## Versions
 

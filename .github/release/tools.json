@@ -24,6 +24,11 @@
       "kind": "source",
       "version": {"file": "validate.py", "regex": "^TOOL_VERSION = \"([^\"]+)\"$"}
     },
+    "hsm-sim": {
+      "path": "hsm-sim",
+      "kind": "source",
+      "version": {"file": "hsm_sim.py", "regex": "^__version__ = \"([^\"]+)\"$"}
+    },
     "tape-library-playground": {
       "path": "tape-library-playground",
       "kind": "static",

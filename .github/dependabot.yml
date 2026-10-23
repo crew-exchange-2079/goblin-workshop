@@ -16,6 +16,7 @@ updates:
   - package-ecosystem: pip
     directories:
       - /.github                 # ci-requirements.txt (pytest for the CI jobs)
+      - /.github/release         # requirements.txt, hash-pinned release build toolchain
       - /ltfs-index-validator    # requirements.txt, hash-pinned
       - /tape-exporter           # pyproject.toml
     schedule:
