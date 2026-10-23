@@ -1,0 +1,16 @@
+{
+  "name": "lto-capacity-planner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static, dependency-free calculator: LTO cartridges, library slots and media cost for a dataset over its retention period.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "e2e": "playwright test",
+    "serve": "node serve.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

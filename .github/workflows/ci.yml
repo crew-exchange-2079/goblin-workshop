@@ -150,3 +150,27 @@ jobs:
         with:
           node-version: "22"
       - run: node --test
+
+  lto-capacity-planner:
+    # JavaScript project: unit tests need no install; the Playwright smoke test
+    # installs the one pinned dev dependency and Chromium.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: lto-capacity-planner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lto-capacity-planner/package-lock.json
+      - name: Unit tests
+        run: node --test
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright smoke test
+        run: npx playwright test
