@@ -1,0 +1,231 @@
+# hsm-sim 0.1.0: contention
+# Two drives serve three kinds of work. Recalls go first (a reader is
+# waiting), then migration, then repack. Repack needs both drives at the
+# same moment, so the queued repack of T01 waits for a gap in the reads;
+# once it starts it is not preempted, and the reads that arrive meanwhile
+# wait for it (old-20.dat waits 310 s where a recall from a mounted tape
+# takes 32 s). New writes are migrated in the gaps between recalls.
+# cache 5000 MB, watermarks 10% high / 2% low
+# 2 drive(s), 6 tape(s) x 1000 MB, mount 120 s, seek 30 s, 50 MB/s
+# scan every 600 s, migrate after 0 s, auto-repack below 50% live
+
+== timeline ==
+00:00:00  write     old-00.dat 100 MB (new) cache 100/5000 MB
+00:00:05  write     old-01.dat 100 MB (new) cache 200/5000 MB
+00:00:10  write     old-02.dat 100 MB (new) cache 300/5000 MB
+00:00:15  write     old-03.dat 100 MB (new) cache 400/5000 MB
+00:00:20  write     old-04.dat 100 MB (new) cache 500/5000 MB
+00:00:25  write     old-05.dat 100 MB (new) cache 600/5000 MB
+00:00:25  pressure  cache 600/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:00:25  migrate   start on drive0: 6 file(s) 600 MB -> T01 (early, cache pressure): old-00.dat, old-01.dat, old-02.dat, old-03.dat, old-04.dat, old-05.dat, 162 s, done at 00:03:07
+00:00:30  write     old-06.dat 100 MB (new) cache 700/5000 MB
+00:00:35  write     old-07.dat 100 MB (new) cache 800/5000 MB
+00:00:40  write     old-08.dat 100 MB (new) cache 900/5000 MB
+00:00:45  write     old-09.dat 100 MB (new) cache 1000/5000 MB
+00:00:50  write     old-10.dat 100 MB (new) cache 1100/5000 MB
+00:00:55  write     old-11.dat 100 MB (new) cache 1200/5000 MB
+00:01:00  write     old-12.dat 100 MB (new) cache 1300/5000 MB
+00:01:05  write     old-13.dat 100 MB (new) cache 1400/5000 MB
+00:01:10  write     old-14.dat 100 MB (new) cache 1500/5000 MB
+00:01:15  write     old-15.dat 100 MB (new) cache 1600/5000 MB
+00:01:20  write     old-16.dat 100 MB (new) cache 1700/5000 MB
+00:01:25  write     old-17.dat 100 MB (new) cache 1800/5000 MB
+00:01:30  write     old-18.dat 100 MB (new) cache 1900/5000 MB
+00:01:35  write     old-19.dat 100 MB (new) cache 2000/5000 MB
+00:01:40  write     old-20.dat 100 MB (new) cache 2100/5000 MB
+00:01:45  write     old-21.dat 100 MB (new) cache 2200/5000 MB
+00:01:50  write     old-22.dat 100 MB (new) cache 2300/5000 MB
+00:01:55  write     old-23.dat 100 MB (new) cache 2400/5000 MB
+00:02:00  write     old-24.dat 100 MB (new) cache 2500/5000 MB
+00:02:05  write     old-25.dat 100 MB (new) cache 2600/5000 MB
+00:02:10  write     old-26.dat 100 MB (new) cache 2700/5000 MB
+00:02:15  write     old-27.dat 100 MB (new) cache 2800/5000 MB
+00:02:20  write     old-28.dat 100 MB (new) cache 2900/5000 MB
+00:02:25  write     old-29.dat 100 MB (new) cache 3000/5000 MB
+00:03:07  migrate   done -> T01: 6 file(s) premigrated [T01 600/1000 MB]
+00:03:07  purge     6 file(s) 600 MB for watermark cycle (down to 2%): old-00.dat, old-01.dat, old-02.dat, old-03.dat, old-04.dat, old-05.dat -> stubs, cache 2400/5000 MB
+00:03:07  pressure  cache 2400/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:03:07  migrate   start on drive0: 4 file(s) 400 MB -> T01 (early, cache pressure): old-06.dat, old-07.dat, old-08.dat, old-09.dat, 38 s, done at 00:03:45
+00:03:45  migrate   done -> T01: 4 file(s) premigrated [T01 1000/1000 MB]
+00:03:45  tape      T01 full
+00:03:45  purge     4 file(s) 400 MB for watermark cycle (down to 2%): old-06.dat, old-07.dat, old-08.dat, old-09.dat -> stubs, cache 2000/5000 MB
+00:03:45  pressure  cache 2000/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:03:45  migrate   start on drive1: 10 file(s) 1000 MB -> T02 (early, cache pressure): old-10.dat, old-11.dat, old-12.dat, old-13.dat, old-14.dat, old-15.dat +4 more, 170 s, done at 00:06:35
+00:06:35  migrate   done -> T02: 10 file(s) premigrated [T02 1000/1000 MB]
+00:06:35  tape      T02 full
+00:06:35  purge     10 file(s) 1000 MB for watermark cycle (down to 2%): old-10.dat, old-11.dat, old-12.dat, old-13.dat, old-14.dat, old-15.dat +4 more -> stubs, cache 1000/5000 MB
+00:06:35  pressure  cache 1000/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:06:35  migrate   start on drive0: 10 file(s) 1000 MB -> T03 (early, cache pressure): old-20.dat, old-21.dat, old-22.dat, old-23.dat, old-24.dat, old-25.dat +4 more, 170 s, done at 00:09:25
+00:09:25  migrate   done -> T03: 10 file(s) premigrated [T03 1000/1000 MB]
+00:09:25  tape      T03 full
+00:09:25  purge     9 file(s) 900 MB for watermark cycle (down to 2%): old-20.dat, old-21.dat, old-22.dat, old-23.dat, old-24.dat, old-25.dat +3 more -> stubs, cache 100/5000 MB
+00:25:00  delete    old-00.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-01.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-02.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-03.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-04.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-05.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:25:00  delete    old-06.dat, tape copy on T01 is now dead space; cache 100/5000 MB
+00:30:00  read      old-10.dat miss: stub only, recall queued from T02
+00:30:00  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-10.dat, 32 s, done at 00:30:32
+00:30:00  repack    T01 queued (live 30% < 50%): 300/1000 MB live
+00:30:00  wait      repack T01: needs 2 free drives
+00:30:32  recall    done from T02: 1 file(s) back on disk cache 200/5000 MB
+00:30:32  served    old-10.dat: 1 read(s) served after waiting 32 s
+00:30:32  repack    start on drive0+drive1: T01 -> T04, 3 live file(s) 300 MB of 1000 MB used, 216 s, done at 00:34:08
+00:31:30  read      old-20.dat miss: stub only, recall queued from T03
+00:31:30  wait      recall old-20.dat: no free drive
+00:33:00  read      old-11.dat miss: stub only, recall queued from T02
+00:33:00  wait      recall old-11.dat: no free drive
+00:33:20  write     new-0.dat 150 MB (new) cache 350/5000 MB
+00:34:08  repack    done: 300 MB live now on T04
+00:34:08  reclaim   T01 -> scratch (repacked onto T04)
+00:34:08  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-20.dat, 152 s, done at 00:36:40
+00:34:08  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-11.dat, 152 s, done at 00:36:40
+00:34:30  read      old-21.dat miss: stub only, recall queued from T03
+00:34:30  wait      recall old-21.dat: T03 is in use
+00:36:00  read      old-12.dat miss: stub only, recall queued from T02
+00:36:00  wait      recall old-12.dat: T02 is in use
+00:36:40  recall    done from T03: 1 file(s) back on disk cache 550/5000 MB
+00:36:40  served    old-20.dat: 1 read(s) served after waiting 310 s
+00:36:40  purge     3 file(s) 300 MB for watermark cycle (down to 2%): old-29.dat, old-10.dat, old-20.dat -> stubs, cache 250/5000 MB
+00:36:40  pressure  cache 250/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:36:40  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-21.dat, 32 s, done at 00:37:12
+00:36:40  wait      migrate no free drive
+00:36:40  recall    done from T02: 1 file(s) back on disk cache 350/5000 MB
+00:36:40  served    old-11.dat: 1 read(s) served after waiting 220 s
+00:36:40  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-11.dat -> stubs, cache 250/5000 MB
+00:36:40  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-12.dat, 32 s, done at 00:37:12
+00:37:12  recall    done from T03: 1 file(s) back on disk cache 350/5000 MB
+00:37:12  served    old-21.dat: 1 read(s) served after waiting 162 s
+00:37:12  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-21.dat -> stubs, cache 250/5000 MB
+00:37:12  migrate   start on drive0: 1 file(s) 150 MB -> T04 (early, cache pressure): new-0.dat, 153 s, done at 00:39:45
+00:37:12  recall    done from T02: 1 file(s) back on disk cache 250/5000 MB
+00:37:12  served    old-12.dat: 1 read(s) served after waiting 72 s
+00:37:12  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-12.dat -> stubs, cache 150/5000 MB
+00:37:30  read      old-22.dat miss: stub only, recall queued from T03
+00:37:30  recall    start on drive1: 1 file(s) 100 MB from T03 in tape order: old-22.dat, 152 s, done at 00:40:02
+00:38:20  write     new-1.dat 150 MB (new) cache 400/5000 MB
+00:39:00  read      old-13.dat miss: stub only, recall queued from T02
+00:39:00  wait      recall old-13.dat: no free drive
+00:39:45  migrate   done -> T04: 1 file(s) premigrated [T04 450/1000 MB]
+00:39:45  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-0.dat -> stubs, cache 250/5000 MB
+00:39:45  pressure  cache 250/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:39:45  recall    start on drive0: 1 file(s) 100 MB from T02 in tape order: old-13.dat, 152 s, done at 00:42:17
+00:39:45  wait      migrate no free drive
+00:40:02  recall    done from T03: 1 file(s) back on disk cache 350/5000 MB
+00:40:02  served    old-22.dat: 1 read(s) served after waiting 152 s
+00:40:02  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-22.dat -> stubs, cache 250/5000 MB
+00:40:02  migrate   start on drive1: 1 file(s) 150 MB -> T04 (early, cache pressure): new-1.dat, 153 s, done at 00:42:35
+00:40:30  read      old-23.dat miss: stub only, recall queued from T03
+00:40:30  wait      recall old-23.dat: no free drive
+00:42:00  read      old-14.dat miss: stub only, recall queued from T02
+00:42:00  wait      recall old-14.dat: T02 is in use
+00:42:17  recall    done from T02: 1 file(s) back on disk cache 250/5000 MB
+00:42:17  served    old-13.dat: 1 read(s) served after waiting 197 s
+00:42:17  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-13.dat -> stubs, cache 150/5000 MB
+00:42:17  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-23.dat, 152 s, done at 00:44:49
+00:42:17  wait      recall old-14.dat: no free drive
+00:42:35  migrate   done -> T04: 1 file(s) premigrated [T04 600/1000 MB]
+00:42:35  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-1.dat -> stubs, cache 100/5000 MB
+00:42:35  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-14.dat, 152 s, done at 00:45:07
+00:43:20  write     new-2.dat 150 MB (new) cache 350/5000 MB
+00:43:30  read      old-24.dat miss: stub only, recall queued from T03
+00:43:30  wait      recall old-24.dat: T03 is in use
+00:44:49  recall    done from T03: 1 file(s) back on disk cache 350/5000 MB
+00:44:49  served    old-23.dat: 1 read(s) served after waiting 259 s
+00:44:49  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-24.dat, 32 s, done at 00:45:21
+00:45:00  read      old-15.dat miss: stub only, recall queued from T02
+00:45:00  wait      recall old-15.dat: T02 is in use
+00:45:07  recall    done from T02: 1 file(s) back on disk cache 450/5000 MB
+00:45:07  served    old-14.dat: 1 read(s) served after waiting 187 s
+00:45:07  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-15.dat, 32 s, done at 00:45:39
+00:45:21  recall    done from T03: 1 file(s) back on disk cache 550/5000 MB
+00:45:21  served    old-24.dat: 1 read(s) served after waiting 111 s
+00:45:21  purge     3 file(s) 300 MB for watermark cycle (down to 2%): old-23.dat, old-14.dat, old-24.dat -> stubs, cache 250/5000 MB
+00:45:21  pressure  cache 250/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:45:21  migrate   start on drive0: 1 file(s) 150 MB -> T04 (early, cache pressure): new-2.dat, 153 s, done at 00:47:54
+00:45:39  recall    done from T02: 1 file(s) back on disk cache 250/5000 MB
+00:45:39  served    old-15.dat: 1 read(s) served after waiting 39 s
+00:45:39  purge     1 file(s) 100 MB for watermark cycle (down to 2%): old-15.dat -> stubs, cache 150/5000 MB
+00:46:30  read      old-25.dat miss: stub only, recall queued from T03
+00:46:30  recall    start on drive1: 1 file(s) 100 MB from T03 in tape order: old-25.dat, 152 s, done at 00:49:02
+00:47:54  migrate   done -> T04: 1 file(s) premigrated [T04 750/1000 MB]
+00:47:54  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-2.dat -> stubs, cache 100/5000 MB
+00:48:00  read      old-16.dat miss: stub only, recall queued from T02
+00:48:00  recall    start on drive0: 1 file(s) 100 MB from T02 in tape order: old-16.dat, 152 s, done at 00:50:32
+00:48:20  write     new-3.dat 150 MB (new) cache 350/5000 MB
+00:49:02  recall    done from T03: 1 file(s) back on disk cache 350/5000 MB
+00:49:02  served    old-25.dat: 1 read(s) served after waiting 152 s
+00:49:30  read      old-26.dat miss: stub only, recall queued from T03
+00:49:30  recall    start on drive1: 1 file(s) 100 MB from T03 in tape order: old-26.dat, 32 s, done at 00:50:02
+00:50:00  scan      1 file(s) at least 0 s old, migration queued
+00:50:00  wait      migrate no free drive
+00:50:02  recall    done from T03: 1 file(s) back on disk cache 450/5000 MB
+00:50:02  served    old-26.dat: 1 read(s) served after waiting 32 s
+00:50:02  migrate   start on drive1: 1 file(s) 150 MB -> T04 (aged): new-3.dat, 153 s, done at 00:52:35
+00:50:32  recall    done from T02: 1 file(s) back on disk cache 450/5000 MB
+00:50:32  served    old-16.dat: 1 read(s) served after waiting 152 s
+00:51:00  read      old-17.dat miss: stub only, recall queued from T02
+00:51:00  recall    start on drive0: 1 file(s) 100 MB from T02 in tape order: old-17.dat, 32 s, done at 00:51:32
+00:51:32  recall    done from T02: 1 file(s) back on disk cache 550/5000 MB
+00:51:32  served    old-17.dat: 1 read(s) served after waiting 32 s
+00:51:32  purge     4 file(s) 400 MB for watermark cycle (down to 2%): old-25.dat, old-26.dat, old-16.dat, old-17.dat -> stubs, cache 150/5000 MB
+00:52:30  read      old-27.dat miss: stub only, recall queued from T03
+00:52:30  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-27.dat, 152 s, done at 00:55:02
+00:52:35  migrate   done -> T04: 1 file(s) premigrated [T04 900/1000 MB]
+00:52:35  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-3.dat -> stubs, cache 100/5000 MB
+00:53:20  write     new-4.dat 150 MB (new) cache 250/5000 MB
+00:54:00  read      old-18.dat miss: stub only, recall queued from T02
+00:54:00  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-18.dat, 152 s, done at 00:56:32
+00:55:02  recall    done from T03: 1 file(s) back on disk cache 350/5000 MB
+00:55:02  served    old-27.dat: 1 read(s) served after waiting 152 s
+00:55:30  read      old-28.dat miss: stub only, recall queued from T03
+00:55:30  recall    start on drive0: 1 file(s) 100 MB from T03 in tape order: old-28.dat, 32 s, done at 00:56:02
+00:56:02  recall    done from T03: 1 file(s) back on disk cache 450/5000 MB
+00:56:02  served    old-28.dat: 1 read(s) served after waiting 32 s
+00:56:32  recall    done from T02: 1 file(s) back on disk cache 450/5000 MB
+00:56:32  served    old-18.dat: 1 read(s) served after waiting 152 s
+00:57:00  read      old-19.dat miss: stub only, recall queued from T02
+00:57:00  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: old-19.dat, 32 s, done at 00:57:32
+00:57:32  recall    done from T02: 1 file(s) back on disk cache 550/5000 MB
+00:57:32  served    old-19.dat: 1 read(s) served after waiting 32 s
+00:57:32  purge     4 file(s) 400 MB for watermark cycle (down to 2%): old-27.dat, old-28.dat, old-18.dat, old-19.dat -> stubs, cache 150/5000 MB
+00:57:32  pressure  cache 150/5000 MB still above low watermark after purging: migrating early, ignoring age
+00:57:32  tape      T04 closed: 100 MB free < next file 150 MB
+00:57:32  migrate   start on drive0: 1 file(s) 150 MB -> T01 (early, cache pressure): new-4.dat, 153 s, done at 01:00:05
+00:58:20  write     new-5.dat 150 MB (new) cache 300/5000 MB
+00:58:30  read      old-29.dat miss: stub only, recall queued from T03
+00:58:30  recall    start on drive1: 1 file(s) 100 MB from T03 in tape order: old-29.dat, 152 s, done at 01:01:02
+01:00:05  migrate   done -> T01: 1 file(s) premigrated [T01 150/1000 MB]
+01:00:05  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-4.dat -> stubs, cache 250/5000 MB
+01:00:05  pressure  cache 250/5000 MB still above low watermark after purging: migrating early, ignoring age
+01:00:05  migrate   start on drive0: 1 file(s) 150 MB -> T01 (early, cache pressure): new-5.dat, 33 s, done at 01:00:38
+01:00:38  migrate   done -> T01: 1 file(s) premigrated [T01 300/1000 MB]
+01:00:38  purge     1 file(s) 150 MB for watermark cycle (down to 2%): new-5.dat -> stubs, cache 100/5000 MB
+01:01:02  recall    done from T03: 1 file(s) back on disk cache 100/5000 MB
+01:01:02  served    old-29.dat: 1 read(s) served after waiting 152 s
+
+== stats ==
+simulated    4200 s (01:10:00)
+writes       36 (0 rejected), deletes 7
+reads        20: 0 hit, 20 miss, 0 error, hit ratio 0.0%
+recall wait  n=20 mean 131.4 s, median 152 s, max 310 s
+migrated     36 file(s) 3900 MB, 9 early batch(es) under cache pressure
+purged       55 file(s) 5800 MB
+recalled     20 file(s) 2000 MB
+repacked     1 tape(s), 300 MB copied; 1 tape(s) returned to scratch
+cache        peak 3000/5000 MB, end 100/5000 MB
+files        0 resident, 1 premigrated, 28 migrated
+
+drive    mounts  busy s  util
+drive0       11    1966   47%
+drive1       10    1764   42%
+
+tape  state     used MB  live MB  live  mounts
+T01   filling       300      300  100%       3
+T02   full         1000     1000  100%       6
+T03   full         1000     1000  100%       7
+T04   full          900      900  100%       5
+T05   scratch         0        0     -       0
+T06   scratch         0        0     -       0

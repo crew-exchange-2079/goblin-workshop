@@ -1,0 +1,35 @@
+# Two drives shared by recalls, migration and repack: priorities and starvation.
+name: contention
+description: |
+  Two drives serve three kinds of work. Recalls go first (a reader is
+  waiting), then migration, then repack. Repack needs both drives at the
+  same moment, so the queued repack of T01 waits for a gap in the reads;
+  once it starts it is not preempted, and the reads that arrive meanwhile
+  wait for it (old-20.dat waits 310 s where a recall from a mounted tape
+  takes 32 s). New writes are migrated in the gaps between recalls.
+duration_s: 4200
+cache:
+  capacity_mb: 5000
+  high_watermark: 0.10
+  low_watermark: 0.02
+library:
+  drives: 2
+  tapes: 6
+  tape_capacity_mb: 1000
+  mount_s: 120
+  seek_s: 30
+  rate_mb_s: 50
+policy:
+  scan_interval_s: 600
+  migrate_after_s: 0
+  repack_below: 0.50
+events:
+  # Thirty files fill T01, T02 and T03; the 10 % high watermark then purges them all.
+  - {t: 0, op: write, file: "old-{i:02d}.dat", size_mb: 100, count: 30, every_s: 5}
+  # Most of T01's files are deleted, so the next scan queues a repack of T01.
+  - {t: 1500, op: delete, file: "old-{i:02d}.dat", count: 7}
+  # A read every 90 s, alternating between T02 and T03, for half an hour.
+  - {t: 1800, op: read, file: "old-1{i}.dat", count: 10, every_s: 180}
+  - {t: 1890, op: read, file: "old-2{i}.dat", count: 10, every_s: 180}
+  # Fresh data keeps arriving and must be migrated in the gaps.
+  - {t: 2000, op: write, file: "new-{i}.dat", size_mb: 150, count: 6, every_s: 300}

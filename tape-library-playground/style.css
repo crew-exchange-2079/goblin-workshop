@@ -6,7 +6,7 @@
   --panel2: #1b2431;
   --line: #26324380;
   --ink: #e6edf6;
-  --dim: #8fa3bd;
+  --dim: #97abc4;
   --accent: #4cc2ff;
   --robot: #ffb454;
   --ok: #58d68d;
@@ -99,8 +99,21 @@ button {
   cursor: pointer;
 }
 button:hover { border-color: var(--accent); color: #fff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.events:focus-visible, .tablewrap:focus-visible { outline-offset: -2px; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 button.ghost { padding: 3px 8px; font-size: 11px; }
-input[type=range] { flex: 1; accent-color: var(--accent); }
+input[type=range] { flex: 1; min-height: 24px; accent-color: var(--accent); }
 output { font: 12px ui-monospace, monospace; color: var(--dim); min-width: 38px; text-align: right; }
 
 .blurb { margin: 0 0 10px; font-size: 12px; color: var(--dim); }
@@ -151,7 +164,7 @@ kbd {
   right: 2px;
   bottom: 1px;
   font-size: 8px;
-  color: #7f97b5;
+  color: #9ab0cb;
 }
 
 .robot {
@@ -245,7 +258,7 @@ kbd {
   color: #b9c9dd;
 }
 .events li { display: flex; gap: 8px; }
-.events .t { color: #5f7794; min-width: 42px; }
+.events .t { color: var(--dim); min-width: 42px; }
 .events .m.read { color: #bfe8cf; }
 .events .m.mount, .events .m.unmount { color: #cfe3ff; }
 .events .m.failure, .events .m.bug { color: var(--warn); }
@@ -277,6 +290,10 @@ tr.best td { color: #b8f0cf; background: #58d68d14; }
   .grid { gap: 4px; padding: 8px; }
   .statgrid { grid-template-columns: 1fr 1fr; }
 }
+@media (max-width: 420px) {
+  /* 10 slots across leave no room for the mount count beside the label */
+  .slot .passes { display: none; }
+}
 
 /* ---------- reduced motion: no robot animation, stats only ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -285,4 +302,3 @@ tr.best td { color: #b8f0cf; background: #58d68d14; }
   html { scroll-behavior: auto; }
 }
 body.reduced-motion .robot { display: none; }
-body.reduced-motion .slot .passes { opacity: 0.75; }

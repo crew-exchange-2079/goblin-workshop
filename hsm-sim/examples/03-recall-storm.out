@@ -1,0 +1,132 @@
+# hsm-sim 0.1.0: recall-storm
+# Thirty 100 MB files are archived across three tapes and purged. At 01:00:00
+# a user asks for twelve of them in an order that hops between tapes. With two
+# drives, recalls queue; when a drive starts on a tape it takes every queued
+# recall for that tape in one mount, in tape order. Mount and seek time, not
+# transfer time, dominate the wait. The 20 % high watermark is so tight
+# that some freshly recalled files are purged again minutes later.
+# cache 4000 MB, watermarks 20% high / 5% low
+# 2 drive(s), 4 tape(s) x 1000 MB, mount 90 s, seek 30 s, 100 MB/s
+# scan every 600 s, migrate after 0 s, auto-repack off
+
+== timeline ==
+00:00:00  write     scan-00.tif 100 MB (new) cache 100/4000 MB
+00:00:10  write     scan-01.tif 100 MB (new) cache 200/4000 MB
+00:00:20  write     scan-02.tif 100 MB (new) cache 300/4000 MB
+00:00:30  write     scan-03.tif 100 MB (new) cache 400/4000 MB
+00:00:40  write     scan-04.tif 100 MB (new) cache 500/4000 MB
+00:00:50  write     scan-05.tif 100 MB (new) cache 600/4000 MB
+00:01:00  write     scan-06.tif 100 MB (new) cache 700/4000 MB
+00:01:10  write     scan-07.tif 100 MB (new) cache 800/4000 MB
+00:01:20  write     scan-08.tif 100 MB (new) cache 900/4000 MB
+00:01:20  pressure  cache 900/4000 MB still above low watermark after purging: migrating early, ignoring age
+00:01:20  migrate   start on drive0: 9 file(s) 900 MB -> T01 (early, cache pressure): scan-00.tif, scan-01.tif, scan-02.tif, scan-03.tif, scan-04.tif, scan-05.tif +3 more, 129 s, done at 00:03:29
+00:01:30  write     scan-09.tif 100 MB (new) cache 1000/4000 MB
+00:01:40  write     scan-10.tif 100 MB (new) cache 1100/4000 MB
+00:01:50  write     scan-11.tif 100 MB (new) cache 1200/4000 MB
+00:02:00  write     scan-12.tif 100 MB (new) cache 1300/4000 MB
+00:02:10  write     scan-13.tif 100 MB (new) cache 1400/4000 MB
+00:02:20  write     scan-14.tif 100 MB (new) cache 1500/4000 MB
+00:02:30  write     scan-15.tif 100 MB (new) cache 1600/4000 MB
+00:02:40  write     scan-16.tif 100 MB (new) cache 1700/4000 MB
+00:02:50  write     scan-17.tif 100 MB (new) cache 1800/4000 MB
+00:03:00  write     scan-18.tif 100 MB (new) cache 1900/4000 MB
+00:03:10  write     scan-19.tif 100 MB (new) cache 2000/4000 MB
+00:03:20  write     scan-20.tif 100 MB (new) cache 2100/4000 MB
+00:03:29  migrate   done -> T01: 9 file(s) premigrated [T01 900/1000 MB]
+00:03:29  purge     9 file(s) 900 MB for watermark cycle (down to 5%): scan-00.tif, scan-01.tif, scan-02.tif, scan-03.tif, scan-04.tif, scan-05.tif +3 more -> stubs, cache 1200/4000 MB
+00:03:29  pressure  cache 1200/4000 MB still above low watermark after purging: migrating early, ignoring age
+00:03:29  migrate   start on drive0: 1 file(s) 100 MB -> T01 (early, cache pressure): scan-09.tif, 31 s, done at 00:04:00
+00:03:30  write     scan-21.tif 100 MB (new) cache 1300/4000 MB
+00:03:40  write     scan-22.tif 100 MB (new) cache 1400/4000 MB
+00:03:50  write     scan-23.tif 100 MB (new) cache 1500/4000 MB
+00:04:00  migrate   done -> T01: 1 file(s) premigrated [T01 1000/1000 MB]
+00:04:00  tape      T01 full
+00:04:00  purge     1 file(s) 100 MB for watermark cycle (down to 5%): scan-09.tif -> stubs, cache 1400/4000 MB
+00:04:00  pressure  cache 1400/4000 MB still above low watermark after purging: migrating early, ignoring age
+00:04:00  migrate   start on drive1: 10 file(s) 1000 MB -> T02 (early, cache pressure): scan-10.tif, scan-11.tif, scan-12.tif, scan-13.tif, scan-14.tif, scan-15.tif +4 more, 130 s, done at 00:06:10
+00:04:00  write     scan-24.tif 100 MB (new) cache 1500/4000 MB
+00:04:10  write     scan-25.tif 100 MB (new) cache 1600/4000 MB
+00:04:20  write     scan-26.tif 100 MB (new) cache 1700/4000 MB
+00:04:30  write     scan-27.tif 100 MB (new) cache 1800/4000 MB
+00:04:40  write     scan-28.tif 100 MB (new) cache 1900/4000 MB
+00:04:50  write     scan-29.tif 100 MB (new) cache 2000/4000 MB
+00:06:10  migrate   done -> T02: 10 file(s) premigrated [T02 1000/1000 MB]
+00:06:10  tape      T02 full
+00:06:10  purge     10 file(s) 1000 MB for watermark cycle (down to 5%): scan-10.tif, scan-11.tif, scan-12.tif, scan-13.tif, scan-14.tif, scan-15.tif +4 more -> stubs, cache 1000/4000 MB
+00:06:10  pressure  cache 1000/4000 MB still above low watermark after purging: migrating early, ignoring age
+00:06:10  migrate   start on drive0: 10 file(s) 1000 MB -> T03 (early, cache pressure): scan-20.tif, scan-21.tif, scan-22.tif, scan-23.tif, scan-24.tif, scan-25.tif +4 more, 130 s, done at 00:08:20
+00:08:20  migrate   done -> T03: 10 file(s) premigrated [T03 1000/1000 MB]
+00:08:20  tape      T03 full
+00:08:20  purge     8 file(s) 800 MB for watermark cycle (down to 5%): scan-20.tif, scan-21.tif, scan-22.tif, scan-23.tif, scan-24.tif, scan-25.tif +2 more -> stubs, cache 200/4000 MB
+01:00:00  read      scan-00.tif miss: stub only, recall queued from T01
+01:00:00  recall    start on drive0: 1 file(s) 100 MB from T01 in tape order: scan-00.tif, 121 s, done at 01:02:01
+01:00:01  read      scan-10.tif miss: stub only, recall queued from T02
+01:00:01  recall    start on drive1: 1 file(s) 100 MB from T02 in tape order: scan-10.tif, 31 s, done at 01:00:32
+01:00:02  read      scan-20.tif miss: stub only, recall queued from T03
+01:00:02  wait      recall scan-20.tif: no free drive
+01:00:03  read      scan-07.tif miss: stub only, recall queued from T01
+01:00:03  wait      recall scan-07.tif: T01 is in use
+01:00:04  read      scan-17.tif miss: stub only, recall queued from T02
+01:00:04  wait      recall scan-17.tif: T02 is in use
+01:00:05  read      scan-27.tif miss: stub only, recall queued from T03
+01:00:05  wait      recall scan-27.tif: no free drive
+01:00:06  read      scan-03.tif miss: stub only, recall queued from T01
+01:00:06  wait      recall scan-03.tif: T01 is in use
+01:00:07  read      scan-13.tif miss: stub only, recall queued from T02
+01:00:07  wait      recall scan-13.tif: T02 is in use
+01:00:08  read      scan-23.tif miss: stub only, recall queued from T03
+01:00:08  wait      recall scan-23.tif: no free drive
+01:00:09  read      scan-09.tif miss: stub only, recall queued from T01
+01:00:09  wait      recall scan-09.tif: T01 is in use
+01:00:10  read      scan-19.tif miss: stub only, recall queued from T02
+01:00:10  wait      recall scan-19.tif: T02 is in use
+01:00:11  read      scan-29.tif hit (premigrated)
+01:00:20  read      scan-23.tif miss, joins the queued recall
+01:00:32  recall    done from T02: 1 file(s) back on disk cache 400/4000 MB
+01:00:32  served    scan-10.tif: 1 read(s) served after waiting 31 s
+01:00:32  recall    start on drive1: 3 file(s) 300 MB from T03 in tape order: scan-20.tif, scan-23.tif, scan-27.tif, 183 s, done at 01:03:35
+01:00:32  wait      recall scan-17.tif: no free drive
+01:00:32  wait      recall scan-13.tif: no free drive
+01:00:32  wait      recall scan-19.tif: no free drive
+01:02:01  recall    done from T01: 1 file(s) back on disk cache 700/4000 MB
+01:02:01  served    scan-00.tif: 1 read(s) served after waiting 121 s
+01:02:01  recall    start on drive0: 3 file(s) 300 MB from T01 in tape order: scan-03.tif, scan-07.tif, scan-09.tif, 93 s, done at 01:03:34
+01:03:34  recall    done from T01: 3 file(s) back on disk cache 1000/4000 MB
+01:03:34  served    scan-03.tif: 1 read(s) served after waiting 208 s
+01:03:34  served    scan-07.tif: 1 read(s) served after waiting 211 s
+01:03:34  served    scan-09.tif: 1 read(s) served after waiting 205 s
+01:03:34  purge     7 file(s) 700 MB for watermark cycle (down to 5%): scan-28.tif, scan-29.tif, scan-10.tif, scan-00.tif, scan-03.tif, scan-07.tif +1 more -> stubs, cache 300/4000 MB
+01:03:34  recall    start on drive0: 3 file(s) 300 MB from T02 in tape order: scan-13.tif, scan-17.tif, scan-19.tif, 183 s, done at 01:06:37
+01:03:35  recall    done from T03: 3 file(s) back on disk cache 600/4000 MB
+01:03:35  served    scan-20.tif: 1 read(s) served after waiting 213 s
+01:03:35  served    scan-23.tif: 2 read(s) served after waiting 207 s, 195 s
+01:03:35  served    scan-27.tif: 1 read(s) served after waiting 210 s
+01:03:35  purge     3 file(s) 300 MB for watermark cycle (down to 5%): scan-20.tif, scan-23.tif, scan-27.tif -> stubs, cache 300/4000 MB
+01:06:37  recall    done from T02: 3 file(s) back on disk cache 300/4000 MB
+01:06:37  served    scan-13.tif: 1 read(s) served after waiting 390 s
+01:06:37  served    scan-17.tif: 1 read(s) served after waiting 393 s
+01:06:37  served    scan-19.tif: 1 read(s) served after waiting 387 s
+01:06:37  purge     1 file(s) 100 MB for watermark cycle (down to 5%): scan-13.tif -> stubs, cache 200/4000 MB
+
+== stats ==
+simulated    7200 s (02:00:00)
+writes       30 (0 rejected), deletes 0
+reads        13: 1 hit, 12 miss, 0 error, hit ratio 7.7%
+recall wait  n=12 mean 230.9 s, median 208 s, max 393 s
+migrated     30 file(s) 3000 MB, 4 early batch(es) under cache pressure
+purged       39 file(s) 3900 MB
+recalled     11 file(s) 1100 MB
+repacked     0 tape(s), 0 MB copied; 0 tape(s) returned to scratch
+cache        peak 2100/4000 MB, end 200/4000 MB
+files        0 resident, 2 premigrated, 28 migrated
+
+drive    mounts  busy s  util
+drive0        4     687   10%
+drive1        2     344    5%
+
+tape  state     used MB  live MB  live  mounts
+T01   full         1000     1000  100%       2
+T02   full         1000     1000  100%       2
+T03   full         1000     1000  100%       2
+T04   scratch         0        0     -       0

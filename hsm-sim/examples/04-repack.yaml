@@ -1,0 +1,35 @@
+# Deletes and overwrites leave dead copies on tape; repack copies the live rest off and frees the cartridge.
+name: repack
+description: |
+  Ten 100 MB files fill tape T01. Deleting or overwriting a file does not
+  erase its tape copy: the space becomes dead until the whole cartridge is
+  repacked. When T01 drops below the auto-repack threshold of 50 % live data,
+  a scan queues a repack that needs two drives (read T01, write a scratch
+  tape) and returns T01 to scratch. Tape T02, whose files are all deleted,
+  is reclaimed without mounting anything. An overwrite during migration
+  leaves a copy that is stale the moment it lands.
+duration_s: 7200
+cache:
+  capacity_mb: 3000
+  high_watermark: 0.60
+  low_watermark: 0.20
+library:
+  drives: 2
+  tapes: 4
+  tape_capacity_mb: 1000
+  mount_s: 60
+  seek_s: 20
+  rate_mb_s: 50
+policy:
+  scan_interval_s: 600
+  migrate_after_s: 300
+  repack_below: 0.50
+events:
+  - {t: 0, op: write, file: "doc-{i}.pdf", size_mb: 100, count: 10}
+  - {t: 60, op: write, file: "tmp-{i}.bin", size_mb: 250, count: 4}
+  # doc-1 changes while it is being copied to tape: the copy is stale on arrival.
+  - {t: 90, op: write, file: doc-1.pdf, size_mb: 100}
+  # Drop most of T01's documents and all of T02's temporaries.
+  - {t: 1500, op: delete, file: "doc-{i}.pdf", count: 6, every_s: 1}
+  - {t: 1500, op: delete, file: "tmp-{i}.bin", count: 4, every_s: 1}
+  - {t: 2500, op: read, file: doc-9.pdf}
