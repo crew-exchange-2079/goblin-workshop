@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/job fetch
+ExecStart=/usr/local/bin/job process
+ExecStartPost=/usr/local/bin/job report

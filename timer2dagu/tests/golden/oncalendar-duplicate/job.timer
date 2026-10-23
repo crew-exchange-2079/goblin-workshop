@@ -1,0 +1,6 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=daily
+OnCalendar=*-*-* 00:00:00

@@ -1,0 +1,8 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.timer: no schedule could be translated: the DAG runs only when started by hand
+  job.timer:5 OnBootSec=: relative to boot; Dagu has no boot-time trigger
+
+ignored (1):
+  job.timer Persistent=: no calendar schedule to catch up

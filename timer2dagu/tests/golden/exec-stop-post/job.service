@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/job
+ExecStopPost=/usr/bin/logger job finished

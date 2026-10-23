@@ -1,0 +1,18 @@
+timer2dagu report: restic.timer + restic.service (user unit)
+
+untranslated (1):
+  restic.service:3 After=: unit dependencies have no Dagu equivalent
+
+approximated (8):
+  restic.timer RandomizedDelaySec=: became a first step sleeping 0..900s; the delay shows as a step and counts towards the DAG's run time
+  restic.timer RandomizedDelaySec=: timeout_sec includes the 900s maximum random delay, which systemd does not count
+  restic.timer Persistent=: catch-up is limited to a 7d window (systemd has no limit) and Dagu may queue more than one missed run; overlap_policy=latest keeps the newest
+  restic.service:8 EnvironmentFile=: %h became ${HOME}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager (pass --home to fix it)
+  restic.service:8 EnvironmentFile=: '-' (optional file) dropped: check how your Dagu version treats a missing dotenv file
+  restic.service:9 WorkingDirectory=: %h became ${HOME}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager (pass --home to fix it)
+  restic.service:11 ExecStart=: %h became ${HOME}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager (pass --home to fix it)
+  restic.service:12 ExecStopPost=: ExecStopPost= became handler_on.exit; $SERVICE_RESULT, $EXIT_CODE and $EXIT_STATUS are not set, and TimeoutStopSec does not bound it
+
+ignored (2):
+  restic.timer:11 WantedBy=: [Install] does not apply: Dagu schedules the DAG itself
+  restic.service: Dagu also loads a .env file from the working directory if one exists; systemd would not

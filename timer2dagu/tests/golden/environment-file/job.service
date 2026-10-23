@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/job
+EnvironmentFile=-/etc/job/secrets.env
+ExecStart=/usr/local/bin/job

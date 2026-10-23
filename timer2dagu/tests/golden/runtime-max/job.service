@@ -1,0 +1,4 @@
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/job
+RuntimeMaxSec=2h

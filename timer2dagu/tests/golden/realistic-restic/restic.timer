@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly restic backup
+
+[Timer]
+OnCalendar=*-*-* 02:30
+OnCalendar=Sat,Sun 10:00 Europe/Berlin
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/report \
+  --format pdf \
+# comment inside a continuation
+  --mail ops@example.org
