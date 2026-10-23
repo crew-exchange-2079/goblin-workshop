@@ -9,6 +9,14 @@
   "delivered_schema": "schema/ltfs-index-2.4.0.xsd",
   "delivered_schema_sha256": "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65",
   "license": "BSD-3-Clause, Copyright (c) 2017 SNIA (printed page 2); see NOTICE",
-  "reference_implementation_read_only": "LinearTapeFileSystem/ltfs@efc9e3a5c498504c03c2f1d0b931bae058922104 (not used, not built)",
-  "dependency": "lxml==6.0.2 binary wheel, hash-pinned in requirements.txt"
+  "reference_implementation_read_only": "LinearTapeFileSystem/ltfs@efc9e3a5c498504c03c2f1d0b931bae058922104 (read for semantic rules; no code copied, not built, not run)",
+  "dependency": "lxml==6.0.2 binary wheel, hash-pinned in requirements.txt; test-only: hypothesis==6.168.5 and sortedcontainers==2.4.0, hash-pinned in requirements-dev.txt",
+  "errata_schema": {
+    "file": "schema/ltfs-index-2.4.0-errata1.xsd",
+    "sha256": "13c497c8816e9c76bf903857739873267f14f8a4b4d50c29b8feb4d44aed2d20",
+    "derived_from": "schema/ltfs-index-2.4.0.xsd (c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65)",
+    "change": "Only change: xattr <value> wraps its existing 'type' attribute in <xs:simpleContent><xs:extension base=\"xs:string\">. As printed, Annex B gives <value> an empty content model, which rejects every xattr that has a value (reproduced with lxml 6.0.2). Nothing else differs; check with `diff schema/ltfs-index-2.4.0.xsd schema/ltfs-index-2.4.0-errata1.xsd`.",
+    "default": true
+  },
+  "semantic_rules_source": "RULES.md. Rules follow the reference implementation below (read only, at the pinned commit; file and function cited per rule). The SNIA prose was not consulted for v0.2."
 }

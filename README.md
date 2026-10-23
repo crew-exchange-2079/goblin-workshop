@@ -22,7 +22,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tapefec && python -m pytest -q test_tapefec.py)
 (cd tape-exporter && python -m pytest -q tests)
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
-(cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
+(cd ltfs-index-validator && pip install -r requirements.txt -r requirements-dev.txt && python -m pytest -q tests)   # needs lxml, hypothesis
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python

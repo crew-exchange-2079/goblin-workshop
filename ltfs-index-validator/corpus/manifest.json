@@ -1,0 +1,351 @@
+{
+  "cases": [
+    {
+      "codes": [],
+      "file": "good/sample.xml",
+      "previous": null,
+      "status": "VALID"
+    },
+    {
+      "codes": [],
+      "file": "good/sample-reordered.xml",
+      "previous": null,
+      "status": "VALID"
+    },
+    {
+      "codes": [],
+      "file": "good/first-index.xml",
+      "previous": null,
+      "status": "VALID"
+    },
+    {
+      "codes": [],
+      "file": "good/index-partition-copy.xml",
+      "previous": null,
+      "status": "VALID"
+    },
+    {
+      "codes": [],
+      "file": "good/percent-encoded-names.xml",
+      "previous": null,
+      "status": "VALID"
+    },
+    {
+      "codes": [],
+      "file": "good/chain-next.xml",
+      "previous": "good/sample.xml",
+      "status": "VALID"
+    },
+    {
+      "codes": [
+        "BACKPTR_IN_LABEL_AREA"
+      ],
+      "file": "bad/backptr-in-label-area.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "BACKPTR_MISSING"
+      ],
+      "file": "bad/backptr-missing.xml",
+      "previous": null,
+      "severity": "warning",
+      "status": "VALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "BACKPTR_NOT_BEFORE_SELF"
+      ],
+      "file": "bad/backptr-not-before-self.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "COMMENT_TOO_LONG"
+      ],
+      "file": "bad/comment-too-long.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "DATETIME_INVALID"
+      ],
+      "file": "bad/datetime-invalid.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "EXTENT_AFTER_INDEX"
+      ],
+      "file": "bad/extent-after-index.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "EXTENT_BEYOND_LENGTH"
+      ],
+      "file": "bad/extent-beyond-length.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "EXTENT_IN_LABEL_AREA"
+      ],
+      "file": "bad/extent-in-label-area.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "EXTENT_OVERLAP"
+      ],
+      "file": "bad/extent-overlap.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "HIGHESTFILEUID_TOO_LOW"
+      ],
+      "file": "bad/highestfileuid-too-low.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "LOCATION_IN_LABEL_AREA"
+      ],
+      "file": "bad/location-in-label-area.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_DUPLICATE"
+      ],
+      "file": "bad/name-duplicate.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_EMPTY"
+      ],
+      "file": "bad/name-empty.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_FORBIDDEN_CHAR"
+      ],
+      "file": "bad/name-forbidden-char.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_NOT_NFC"
+      ],
+      "file": "bad/name-not-nfc.xml",
+      "previous": null,
+      "severity": "warning",
+      "status": "VALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_NOT_UTF8"
+      ],
+      "file": "bad/name-not-utf8.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_PERCENT_ENCODING_MALFORMED"
+      ],
+      "file": "bad/name-percent-encoding-malformed.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "NAME_TOO_LONG"
+      ],
+      "file": "bad/name-too-long.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "PARTITION_COUNT_EXCEEDED"
+      ],
+      "file": "bad/partition-count-exceeded.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "ROOT_UID_NOT_ONE"
+      ],
+      "file": "bad/root-uid-not-one.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "UID_DUPLICATE"
+      ],
+      "file": "bad/uid-duplicate.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "UID_ZERO"
+      ],
+      "file": "bad/uid-zero.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "XATTR_BASE64_INVALID"
+      ],
+      "file": "bad/xattr-base64-invalid.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "XATTR_KEY_DUPLICATE"
+      ],
+      "file": "bad/xattr-key-duplicate.xml",
+      "previous": null,
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "XATTR_VALUE_LARGE"
+      ],
+      "file": "bad/xattr-value-large.xml",
+      "previous": null,
+      "severity": "warning",
+      "status": "VALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "GENERATION_NOT_INCREASING"
+      ],
+      "file": "bad/chain-generation-not-increasing.xml",
+      "previous": "good/sample.xml",
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "GENERATION_REGRESSION"
+      ],
+      "file": "bad/chain-generation-regression.xml",
+      "previous": "good/sample.xml",
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "HIGHESTFILEUID_REGRESSION"
+      ],
+      "file": "bad/chain-highestfileuid-regression.xml",
+      "previous": "good/sample.xml",
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "PREVIOUS_NOT_REFERENCED"
+      ],
+      "file": "bad/chain-previous-not-referenced.xml",
+      "previous": "good/sample.xml",
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "PREVIOUS_VOLUME_MISMATCH"
+      ],
+      "file": "bad/chain-previous-volume-mismatch.xml",
+      "previous": "good/sample.xml",
+      "severity": "error",
+      "status": "INVALID",
+      "strict_status": "INVALID"
+    },
+    {
+      "codes": [
+        "UPDATETIME_REGRESSION"
+      ],
+      "file": "bad/chain-updatetime-regression.xml",
+      "previous": "good/sample.xml",
+      "severity": "warning",
+      "status": "VALID",
+      "strict_status": "INVALID"
+    }
+  ],
+  "generator": "tests/make_corpus.py"
+}
