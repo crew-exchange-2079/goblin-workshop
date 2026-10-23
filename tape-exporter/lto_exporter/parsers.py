@@ -115,16 +115,27 @@ class SequentialAccessPage:
     values: dict = field(default_factory=dict)   # known exact bytes / cleaning flag
 
 
-_SA_HEADER = "Sequential access device log page (ssc-3)"
+# sg3_utils 1.47+ wording and sg3_utils 1.46 (Ubuntu 24.04) wording, which
+# says "page" for "log page", "commands" for "operations" and omits
+# "(or in progress)". Both appear in tape-regression-lab/fixtures/.
+_SA_HEADERS = frozenset({
+    "Sequential access device log page (ssc-3)",
+    "Sequential access device page (ssc-3)",
+})
 _SA_BYTE_LABELS = {
-    "Data bytes received with WRITE operations": "bytes_received_write",
-    "Data bytes written to media by WRITE operations": "bytes_written_media",
-    "Data bytes read from media by READ operations": "bytes_read_media",
-    "Data bytes transferred by READ operations": "bytes_transferred_read",
+    f"Data bytes {what} {verb}": label
+    for verb in ("operations", "commands")
+    for what, label in (
+        ("received with WRITE", "bytes_received_write"),
+        ("written to media by WRITE", "bytes_written_media"),
+        ("read from media by READ", "bytes_read_media"),
+        ("transferred by READ", "bytes_transferred_read"),
+    )
 }
 _SA_EXACT_RE = re.compile(r"([0-9]{1,20}) GB \[([0-9]{1,20}) bytes\]")
 _SA_CLEANING = {
     "  Cleaning action required (or in progress)": 1,
+    "  Cleaning action required": 1,
     "  Cleaning action not required (or completed)": 0,
 }
 
@@ -136,7 +147,8 @@ def parse_sg_logs_sequential_access(text):
     https://github.com/doug-gilbert/sg3_utils/blob/
     1929463554c5dc749c5a89bcefb2c88a08d45575/src/sg_logs.c#L7412-L7620
 
-    Only the literal SSC heading establishes identity, never a bare page code.
+    Only a literal SSC heading (sg3_utils 1.46 or newer wording) establishes
+    identity, never a bare page code.
     An identified partial or empty page is ok; missing identity is parse_error.
     Other unindented page headings (including comment-prefixed hex headings)
     end the body. Repeated SSC sections share duplicate/conflict tracking.
@@ -154,7 +166,7 @@ def parse_sg_logs_sequential_access(text):
     header_seen = False
     in_expected = False
     for line in text.splitlines():
-        if line == _SA_HEADER:
+        if line in _SA_HEADERS:
             header_seen = True
             in_expected = True
             continue

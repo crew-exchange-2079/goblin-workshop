@@ -1,0 +1,5 @@
+# p02-partial-vendor: Write error counters: only codes 0, 5, 6 plus a vendor parameter 0x8000
+# Synthetic SPC log page; not captured from any device.
+02 00 00 20 00 00 60 04 00 00 00 05 00 05 60 04
+40 00 00 01 00 06 60 04 00 00 00 02 80 00 60 04
+00 00 00 63
