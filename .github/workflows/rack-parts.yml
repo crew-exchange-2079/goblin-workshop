@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "rack-parts/**"
+      - "docs/**"
       - ".github/workflows/rack-parts.yml"
   pull_request:
     paths:
       - "rack-parts/**"
+      - "docs/**"
       - ".github/workflows/rack-parts.yml"
   workflow_dispatch:
 
@@ -65,23 +67,29 @@ jobs:
           timeout 900 python3 -m unittest discover -s tests -t . -v 2>&1 | tee /tmp/rack-tests.log
           if grep -nE "skipped|SKIP" /tmp/rack-tests.log; then echo "a test was skipped; skips do not count as passes"; exit 1; fi
 
-      - name: Render representative matrix
+      # Every example: STL + 3MF + PNG preview, mesh check, and the part's spec check re-run from the output.
+      - name: Render every example (STL, 3MF, PNG) and spec-check it
         run: |
           mkdir -p build
-          for f in bracket-10in-1u bracket-19in-1u sff-cradle switch-cradle \
-                   blank-10in-1u blank-19in-1u cable-10in-1u cable-19in-2u \
-                   shelf-10in-1u shelf-10in-2u pdu-strip pdu-compact; do
-            timeout 300 python3 -m rackparts generate "examples/$f-synthetic.json" --out "build/$f"
+          n=0
+          for src in examples/*-synthetic.json; do
+            f=$(basename "$src" -synthetic.json)
+            timeout 300 python3 -m rackparts generate "$src" --out "build/$f" --png
             timeout 120 python3 -m rackparts check-stl build/$f/*.stl > "build/$f/check-stl.json"
+            timeout 120 python3 -m rackparts spec-check "build/$f" > "build/$f/spec-check.json"
+            for ext in stl 3mf png; do test -s build/$f/*.$ext; done
+            n=$((n + 1))
           done
+          echo "rendered $n examples"
+          test "$n" -ge 22
 
       - name: Render small/large/boundary cases
         run: |
           mkdir -p build/boundary-inputs
           python3 -c "
           import json
-          from tests import test_families, test_shelf_pdu
-          for c in test_families.boundary_cases() + test_shelf_pdu.boundary_cases():
+          from tests import test_families, test_product_line, test_shelf_pdu
+          for c in test_families.boundary_cases() + test_shelf_pdu.boundary_cases() + test_product_line.boundary_cases():
               with open('build/boundary-inputs/%s.json' % c['name'], 'x') as f:
                   json.dump(c, f, indent=2)
           "
@@ -89,6 +97,7 @@ jobs:
             n=$(basename "$f" .json)
             timeout 300 python3 -m rackparts generate "$f" --out "build/boundary-$n"
             timeout 120 python3 -m rackparts check-stl build/boundary-$n/*.stl > "build/boundary-$n/check-stl.json"
+            timeout 120 python3 -m rackparts spec-check "build/boundary-$n" > "build/boundary-$n/spec-check.json"
           done
 
       - name: Expect refusals for invalid and unsafe inputs
@@ -103,22 +112,40 @@ jobs:
             test ! -e "build/refused-$(basename "$f" .json)"
           done
 
+      # The committed docs catalog must match what the current code renders: page text exactly, previews pixel for pixel.
+      - name: Catalog page is current
+        run: |
+          timeout 900 python3 -m rackparts catalog --check ../docs/rack-parts
+          timeout 900 python3 -m rackparts catalog --out build/catalog > /dev/null
+
       - name: Summarise geometry
         run: |
           python3 -c "
           import glob, json
-          print('| part | shells | volume mm3 | bbox size mm | admesh ok |')
-          print('|---|---|---|---|---|')
+          print('| part | shells | volume mm3 | bbox size mm | admesh ok | spec probes | outputs |')
+          print('|---|---|---|---|---|---|---|')
           for m in sorted(glob.glob('build/*/manifest.json')):
-              r = json.load(open(m))['mesh']
-              print('| %s | %d | %.3f | %s | %s |' % (m.split('/')[1], r['shells'], r['volume_mm3'],
-                    ' x '.join('%g' % v for v in r['bbox_size']), r['admesh']['ok']))
+              man = json.load(open(m))
+              r, sc = man['mesh'], man['spec_check']
+              print('| %s | %d | %.3f | %s | %s | %d/%d | %s |' % (m.split('/')[1], r['shells'], r['volume_mm3'],
+                    ' x '.join('%g' % v for v in r['bbox_size']), r['admesh']['ok'], sc['probes'] - sc['failed'],
+                    sc['probes'], ', '.join(sorted(man['files']))))
           " | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload synthetic SCAD/STL/manifests
+      - name: Upload synthetic SCAD/STL/3MF/PNG/manifests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: rack-parts-synthetic-${{ github.sha }}
-          path: rack-parts/build/
+          path: |
+            rack-parts/build/
+            !rack-parts/build/catalog/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload catalog page and PNG previews
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rack-parts-catalog-${{ github.sha }}
+          path: rack-parts/build/catalog/
           if-no-files-found: error
           retention-days: 14

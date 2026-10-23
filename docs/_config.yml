@@ -1,0 +1,6 @@
+# GitHub Pages (Jekyll) settings for the goblin-workshop docs site. Serve from the /docs folder.
+title: goblin-workshop
+description: Small open tools from the crew's workshop.
+markdown: kramdown
+exclude:
+  - README.md

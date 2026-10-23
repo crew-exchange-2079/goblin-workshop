@@ -1761,6 +1761,1093 @@
           "x-kind": "measured"
         }
       }
+    },
+    {
+      "title": "keystone_panel",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "rack_width_class",
+        "rail_hole_center_spacing_mm",
+        "rail_opening_width_mm",
+        "panel_width_mm",
+        "panel_height_mm",
+        "panel_thickness_mm",
+        "rail_hole_z_offsets_mm",
+        "rail_screw_clearance_diameter_mm",
+        "rail_screw_head_diameter_mm",
+        "rail_slot_extra_length_mm",
+        "rail_side_clearance_mm",
+        "stiffener_depth_mm",
+        "stiffener_thickness_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm",
+        "allow_oversize_print",
+        "keystone_count",
+        "keystone_pitch_mm",
+        "keystone_row_z_mm",
+        "keystone_cutout_width_mm",
+        "keystone_cutout_height_mm",
+        "jack_latch_panel_thickness_mm",
+        "jack_body_width_mm",
+        "jack_body_height_mm",
+        "jack_clearance_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "keystone_panel",
+          "description": "Selects a rack patch panel with rows of snap-in keystone jack cutouts, thinned from the back to the thickness the jack latch grips.",
+          "x-kind": "label"
+        },
+        "rack_width_class": {
+          "type": "string",
+          "enum": [
+            "10in",
+            "19in"
+          ],
+          "description": "Only selects a sanity window for rail_hole_center_spacing_mm (catches inch/mm mix-ups). It does not supply any dimension; there is no universal 10-inch hole pattern.",
+          "x-kind": "label"
+        },
+        "rail_hole_center_spacing_mm": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 520,
+          "description": "Horizontal centre-to-centre distance between the left and right rail mounting holes.",
+          "x-kind": "measured"
+        },
+        "rail_opening_width_mm": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 500,
+          "description": "Clear horizontal opening between the inner edges of the rails over the depth the panel's stiffeners occupy.",
+          "x-kind": "measured"
+        },
+        "panel_width_mm": {
+          "type": "number",
+          "minimum": 120,
+          "maximum": 520,
+          "description": "Overall panel width: the space available in front of the rails (19-inch nominal 482.6; 10-inch: measure).",
+          "x-kind": "measured"
+        },
+        "panel_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 400,
+          "description": "Panel height. Usually a little under n x 44.45 mm so neighbouring panels do not touch.",
+          "x-kind": "chosen"
+        },
+        "panel_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Front plate thickness.",
+          "x-kind": "chosen"
+        },
+        "rail_hole_z_offsets_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Rail hole centres used, measured upward from the panel bottom edge as it will sit in the rack. The same heights are used on the left and right rail. 1-8 values.",
+          "x-kind": "measured"
+        },
+        "rail_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Through-hole diameter for the rack screw (screw major diameter + your clearance).",
+          "x-kind": "tolerance"
+        },
+        "rail_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 25,
+          "description": "Rack screw (or washer) head diameter; the head must bear fully on the panel.",
+          "x-kind": "measured"
+        },
+        "rail_slot_extra_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole).",
+          "x-kind": "tolerance"
+        },
+        "rail_side_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge.",
+          "x-kind": "tolerance"
+        },
+        "stiffener_depth_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Depth of the two horizontal stiffening ribs along the top and bottom edges of the back face (0 = flat plate). Ribs stop inside the rail opening.",
+          "x-kind": "chosen"
+        },
+        "stiffener_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Vertical thickness of each stiffening rib (ignored when stiffener_depth_mm is 0, but still required).",
+          "x-kind": "chosen"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        },
+        "allow_oversize_print": {
+          "type": "boolean",
+          "description": "false: refuse a panel whose face does not fit the build plate in either rotation. true: generate it anyway and flag it in the manifest; no split/joint is produced, so you need a larger printer or another process.",
+          "x-kind": "chosen"
+        },
+        "keystone_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Jacks per row, centred across the rack.",
+          "x-kind": "chosen"
+        },
+        "keystone_pitch_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 60,
+          "description": "Centre-to-centre spacing of jacks in a row.",
+          "x-kind": "chosen"
+        },
+        "keystone_row_z_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Centre height of each row of jacks above the panel bottom edge. 1-8 values.",
+          "x-kind": "chosen"
+        },
+        "keystone_cutout_width_mm": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 30,
+          "description": "Width of the opening the jack snaps into (from your jack's datasheet or a test print); across the rack.",
+          "x-kind": "measured"
+        },
+        "keystone_cutout_height_mm": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 30,
+          "description": "Height of that opening, in the direction the latch flexes.",
+          "x-kind": "measured"
+        },
+        "jack_latch_panel_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 6,
+          "description": "Panel thickness the jack's latch is made to grip. Where it is less than panel_thickness_mm the panel is pocketed from the back around each cutout to this thickness.",
+          "x-kind": "measured"
+        },
+        "jack_body_width_mm": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 40,
+          "description": "Width of the jack body behind the panel (including the latch), at least the cutout width.",
+          "x-kind": "measured"
+        },
+        "jack_body_height_mm": {
+          "type": "number",
+          "minimum": 8,
+          "maximum": 50,
+          "description": "Height of the jack body behind the panel (including the latch), at least the cutout height.",
+          "x-kind": "measured"
+        },
+        "jack_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Gap added on every side of the jack body to size the back pocket.",
+          "x-kind": "tolerance"
+        }
+      }
+    },
+    {
+      "title": "rack_drawer",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "component",
+        "rack_width_class",
+        "rail_hole_center_spacing_mm",
+        "rail_opening_width_mm",
+        "panel_width_mm",
+        "panel_height_mm",
+        "panel_thickness_mm",
+        "rail_hole_z_offsets_mm",
+        "rail_screw_clearance_diameter_mm",
+        "rail_screw_head_diameter_mm",
+        "rail_slot_extra_length_mm",
+        "rail_side_clearance_mm",
+        "rack_clear_depth_mm",
+        "sleeve_depth_mm",
+        "sleeve_height_mm",
+        "housing_wall_thickness_mm",
+        "drawer_wall_thickness_mm",
+        "drawer_front_thickness_mm",
+        "slide_clearance_mm",
+        "front_overlap_mm",
+        "pull_width_mm",
+        "pull_height_mm",
+        "divider_count",
+        "build_plate_x_mm",
+        "build_plate_y_mm",
+        "build_plate_z_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "rack_drawer",
+          "description": "Selects a rack drawer: a housing (front plate on measured rail holes with a closed sleeve behind it) and a drawer box that slides in. Only 10-inch is generated; 19-inch is refused (deferred).",
+          "x-kind": "label"
+        },
+        "component": {
+          "type": "string",
+          "enum": [
+            "housing",
+            "drawer"
+          ],
+          "description": "Which of the two parts this run writes. Both are validated against each other on every run: keep the rest of the file identical for the housing and the drawer.",
+          "x-kind": "chosen"
+        },
+        "rack_width_class": {
+          "type": "string",
+          "enum": [
+            "10in",
+            "19in"
+          ],
+          "description": "Only selects a sanity window for rail_hole_center_spacing_mm (catches inch/mm mix-ups). It does not supply any dimension; there is no universal 10-inch hole pattern.",
+          "x-kind": "label"
+        },
+        "rail_hole_center_spacing_mm": {
+          "type": "number",
+          "minimum": 150,
+          "maximum": 520,
+          "description": "Horizontal centre-to-centre distance between the left and right rail mounting holes.",
+          "x-kind": "measured"
+        },
+        "rail_opening_width_mm": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 500,
+          "description": "Clear horizontal opening between the inner edges of the rails over the depth the panel's stiffeners occupy.",
+          "x-kind": "measured"
+        },
+        "panel_width_mm": {
+          "type": "number",
+          "minimum": 120,
+          "maximum": 520,
+          "description": "Overall panel width: the space available in front of the rails (19-inch nominal 482.6; 10-inch: measure).",
+          "x-kind": "measured"
+        },
+        "panel_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 400,
+          "description": "Panel height. Usually a little under n x 44.45 mm so neighbouring panels do not touch.",
+          "x-kind": "chosen"
+        },
+        "panel_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Front plate thickness.",
+          "x-kind": "chosen"
+        },
+        "rail_hole_z_offsets_mm": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": "Rail hole centres used, measured upward from the panel bottom edge as it will sit in the rack. The same heights are used on the left and right rail. 1-8 values.",
+          "x-kind": "measured"
+        },
+        "rail_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 12,
+          "description": "Through-hole diameter for the rack screw (screw major diameter + your clearance).",
+          "x-kind": "tolerance"
+        },
+        "rail_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 25,
+          "description": "Rack screw (or washer) head diameter; the head must bear fully on the panel.",
+          "x-kind": "measured"
+        },
+        "rail_slot_extra_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Horizontal slot elongation of each rail hole for side-to-side adjustment (0 = round hole).",
+          "x-kind": "tolerance"
+        },
+        "rail_side_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Gap kept between anything behind the panel (stiffening ribs, shelf floor and walls) and the inner rail edge.",
+          "x-kind": "tolerance"
+        },
+        "rack_clear_depth_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Free depth behind the panel front face (to rear rails, door, wall or cables) at the drawer's height.",
+          "x-kind": "measured"
+        },
+        "sleeve_depth_mm": {
+          "type": "number",
+          "minimum": 40,
+          "maximum": 250,
+          "description": "Depth of the housing sleeve behind the front plate, including its back wall. The housing hangs only from the front rail screws; keep it shallow.",
+          "x-kind": "chosen"
+        },
+        "sleeve_height_mm": {
+          "type": "number",
+          "minimum": 15,
+          "maximum": 400,
+          "description": "Outer height of the sleeve, from the front plate's bottom edge. At most panel_height_mm.",
+          "x-kind": "chosen"
+        },
+        "housing_wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Thickness of the sleeve floor, side walls, roof and back wall.",
+          "x-kind": "chosen"
+        },
+        "drawer_wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Thickness of the drawer floor, side and back walls and dividers.",
+          "x-kind": "chosen"
+        },
+        "drawer_front_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Thickness of the drawer front.",
+          "x-kind": "chosen"
+        },
+        "slide_clearance_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.1,
+          "maximum": 3,
+          "description": "Gap between drawer and sleeve on each side, above the drawer, and between the drawer back and the sleeve back wall.",
+          "x-kind": "tolerance"
+        },
+        "front_overlap_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30,
+          "description": "How far the drawer front reaches past the opening to the sides and above it; it stops against the housing front plate (0 = flush front, the sleeve back wall is the only stop).",
+          "x-kind": "chosen"
+        },
+        "pull_width_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 150,
+          "description": "Width of the finger-pull slot through the drawer front (0 = none).",
+          "x-kind": "chosen"
+        },
+        "pull_height_mm": {
+          "type": "number",
+          "minimum": 4,
+          "maximum": 40,
+          "description": "Height of the finger-pull slot (its round ends' diameter); ignored when pull_width_mm is 0, but still required.",
+          "x-kind": "chosen"
+        },
+        "divider_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8,
+          "description": "Dividers splitting the drawer into equal compartments across its width.",
+          "x-kind": "chosen"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        },
+        "build_plate_z_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Usable build height.",
+          "x-kind": "measured"
+        }
+      }
+    },
+    {
+      "title": "label_holder",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "card_width_mm",
+        "card_height_mm",
+        "card_thickness_mm",
+        "card_clearance_mm",
+        "lip_overlap_mm",
+        "frame_border_mm",
+        "back_thickness_mm",
+        "front_thickness_mm",
+        "ear_width_mm",
+        "mount_screw_clearance_diameter_mm",
+        "mount_screw_head_diameter_mm",
+        "max_overall_width_mm",
+        "max_overall_height_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "label_holder",
+          "description": "Selects a slide-in label holder: a back plate, a card pocket open at the top and a front frame whose lips hold the card's sides and bottom edge, with optional screw ears.",
+          "x-kind": "label"
+        },
+        "card_width_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Width of the label card or strip you will insert.",
+          "x-kind": "measured"
+        },
+        "card_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 150,
+          "description": "Height of the card.",
+          "x-kind": "measured"
+        },
+        "card_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.05,
+          "maximum": 5,
+          "description": "Thickness of the card (several sheets if laminated).",
+          "x-kind": "measured"
+        },
+        "card_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Gap added on each side of the card, above its thickness and below its bottom edge.",
+          "x-kind": "tolerance"
+        },
+        "lip_overlap_mm": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 20,
+          "description": "How far the front frame covers the card's side and bottom edges. Must exceed card_clearance_mm by at least min_wall_mm so the card cannot fall out of the window.",
+          "x-kind": "chosen"
+        },
+        "frame_border_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Frame material outside the card pocket on the left, right and bottom (at least min_wall_mm).",
+          "x-kind": "chosen"
+        },
+        "back_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 10,
+          "description": "Back plate (and ear) thickness.",
+          "x-kind": "chosen"
+        },
+        "front_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 5,
+          "description": "Front frame (lip) thickness.",
+          "x-kind": "chosen"
+        },
+        "ear_width_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Width of a screw ear on each side (0 = no ears, e.g. for adhesive).",
+          "x-kind": "chosen"
+        },
+        "mount_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Through-hole diameter for the mounting screw, one per ear (ignored without ears, but still required).",
+          "x-kind": "tolerance"
+        },
+        "mount_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Mounting screw head diameter; it must bear on the ear.",
+          "x-kind": "measured"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Available width where the holder goes.",
+          "x-kind": "measured"
+        },
+        "max_overall_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 300,
+          "description": "Available height where the holder goes.",
+          "x-kind": "measured"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        }
+      }
+    },
+    {
+      "title": "cable_comb",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "cable_diameter_mm",
+        "cable_clearance_mm",
+        "slot_count",
+        "slot_pitch_mm",
+        "entry_throat_mm",
+        "finger_length_mm",
+        "base_height_mm",
+        "comb_thickness_mm",
+        "end_margin_mm",
+        "mount_hole_spacing_mm",
+        "mount_screw_clearance_diameter_mm",
+        "mount_screw_head_diameter_mm",
+        "max_overall_width_mm",
+        "max_overall_height_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "cable_comb",
+          "description": "Selects a cable comb: a base bar with a row of round cable seats, each reached through an entry throat between two fingers, and optional screw holes through the bar.",
+          "x-kind": "label"
+        },
+        "cable_diameter_mm": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 30,
+          "description": "Outer diameter of the cables (largest one, over the jacket).",
+          "x-kind": "measured"
+        },
+        "cable_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Added to cable_diameter_mm to size each round seat.",
+          "x-kind": "tolerance"
+        },
+        "slot_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 48,
+          "description": "Number of cable seats.",
+          "x-kind": "chosen"
+        },
+        "slot_pitch_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 60,
+          "description": "Centre-to-centre spacing of the seats.",
+          "x-kind": "chosen"
+        },
+        "entry_throat_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 30,
+          "description": "Width of the entry above each seat. At least cable_diameter_mm: cables drop in freely. Narrower: cables are pressed in and the jacket deforms (avoid for fibre and thin coax).",
+          "x-kind": "chosen"
+        },
+        "finger_length_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 40,
+          "description": "Height of the fingers above the top of the seats.",
+          "x-kind": "chosen"
+        },
+        "base_height_mm": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 60,
+          "description": "Height of the solid bar below the seats.",
+          "x-kind": "chosen"
+        },
+        "comb_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 30,
+          "description": "Thickness of the comb (along the cables).",
+          "x-kind": "chosen"
+        },
+        "end_margin_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Material beyond the outermost seats at each end (at least min_wall_mm).",
+          "x-kind": "chosen"
+        },
+        "mount_hole_spacing_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 600,
+          "description": "Centre distance of the two screw holes through the base bar, matching holes you measured (0 = no holes).",
+          "x-kind": "measured"
+        },
+        "mount_screw_clearance_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 10,
+          "description": "Through-hole diameter for the mounting screws (ignored without holes, but still required).",
+          "x-kind": "tolerance"
+        },
+        "mount_screw_head_diameter_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 20,
+          "description": "Mounting screw head diameter; it must bear on the base bar.",
+          "x-kind": "measured"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 600,
+          "description": "Available length for the comb.",
+          "x-kind": "measured"
+        },
+        "max_overall_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 300,
+          "description": "Available height for the comb.",
+          "x-kind": "measured"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        }
+      }
+    },
+    {
+      "title": "cartridge_holder",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "name",
+        "units",
+        "facets",
+        "min_wall_mm",
+        "part",
+        "item_width_mm",
+        "item_thickness_mm",
+        "item_height_mm",
+        "item_clearance_mm",
+        "columns",
+        "rows",
+        "pocket_depth_mm",
+        "floor_thickness_mm",
+        "wall_thickness_mm",
+        "divider_thickness_mm",
+        "floor_hole_diameter_mm",
+        "finger_notch_width_mm",
+        "finger_notch_depth_mm",
+        "max_overall_width_mm",
+        "max_overall_depth_mm",
+        "max_overall_height_mm",
+        "build_plate_x_mm",
+        "build_plate_y_mm",
+        "build_plate_z_mm"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Must be 1.",
+          "x-kind": "label"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?![\\s\\S])",
+          "description": "Output basename: 1-48 chars of a-z, 0-9 and '-', starting with a letter or digit.",
+          "x-kind": "label"
+        },
+        "units": {
+          "const": "mm",
+          "description": "All lengths are millimetres. Must be \"mm\".",
+          "x-kind": "label"
+        },
+        "facets": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 128,
+          "description": "Polygon segments per circle ($fn). Holes are enlarged so the polygon still clears the stated diameter.",
+          "x-kind": "chosen"
+        },
+        "min_wall_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 20,
+          "description": "Minimum material left between any hole/counterbore and a part edge or another hole.",
+          "x-kind": "chosen"
+        },
+        "part": {
+          "const": "cartridge_holder",
+          "description": "Selects a holder with a grid of upright pockets for small modules or media (SFP transceivers, tape cartridges, ...), sized from your measurements, with optional push-out holes and finger notches.",
+          "x-kind": "label"
+        },
+        "item_width_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 200,
+          "description": "Item width across the holder (x).",
+          "x-kind": "measured"
+        },
+        "item_thickness_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 200,
+          "description": "Item thickness front to back (y).",
+          "x-kind": "measured"
+        },
+        "item_height_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Item height as it stands in the pocket.",
+          "x-kind": "measured"
+        },
+        "item_clearance_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Gap added on each side of the item in its pocket.",
+          "x-kind": "tolerance"
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Pockets across (x).",
+          "x-kind": "chosen"
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Pockets front to back (y).",
+          "x-kind": "chosen"
+        },
+        "pocket_depth_mm": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 300,
+          "description": "How deep each item sits. Must be less than item_height_mm so part of each item stands proud to grip.",
+          "x-kind": "chosen"
+        },
+        "floor_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 15,
+          "description": "Floor thickness under the pockets.",
+          "x-kind": "chosen"
+        },
+        "wall_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "maximum": 15,
+          "description": "Outer wall thickness.",
+          "x-kind": "chosen"
+        },
+        "divider_thickness_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0.4,
+          "maximum": 15,
+          "description": "Thickness of the walls between pockets.",
+          "x-kind": "chosen"
+        },
+        "floor_hole_diameter_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Push-out hole through the floor under each pocket (0 = none).",
+          "x-kind": "chosen"
+        },
+        "finger_notch_width_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Width of a notch cut down into the wall in front of each pocket (0 = none).",
+          "x-kind": "chosen"
+        },
+        "finger_notch_depth_mm": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 300,
+          "description": "Depth of that notch from the top; at most pocket_depth_mm (ignored when the width is 0, but still required).",
+          "x-kind": "chosen"
+        },
+        "max_overall_width_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 700,
+          "description": "Available width.",
+          "x-kind": "measured"
+        },
+        "max_overall_depth_mm": {
+          "type": "number",
+          "minimum": 10,
+          "maximum": 700,
+          "description": "Available depth.",
+          "x-kind": "measured"
+        },
+        "max_overall_height_mm": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 600,
+          "description": "Available height, including the items standing in it.",
+          "x-kind": "measured"
+        },
+        "build_plate_x_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, first axis (measure your printer).",
+          "x-kind": "measured"
+        },
+        "build_plate_y_mm": {
+          "type": "number",
+          "minimum": 50,
+          "maximum": 1000,
+          "description": "Usable build plate size, second axis.",
+          "x-kind": "measured"
+        },
+        "build_plate_z_mm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Usable build height.",
+          "x-kind": "measured"
+        }
+      }
     }
   ]
 }

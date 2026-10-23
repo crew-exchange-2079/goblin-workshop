@@ -7,6 +7,11 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
+- [`rack-parts/`](rack-parts/): parametric OpenSCAD generator for twelve printable rack accessories (brackets, cradles, panels, keystone patch panel, shelf, drawer, PDU mount, label holder, cable comb, SFP/tape cartridge holder) with validation, per-part spec checks and STL/3MF/PNG output; synthetic examples only, no load or fit rating (MIT).
+
+## Docs site
+
+[`docs/`](docs/) is the source of the docs site (plain Markdown for GitHub Pages, served from the `/docs` folder). It holds the [rack-parts catalog](docs/rack-parts/index.md), which is generated and checked in CI.
 
 ## Tape tools
 

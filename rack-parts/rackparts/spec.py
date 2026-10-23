@@ -295,11 +295,166 @@ PDU = [
     ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
 ]
 
+# Keystone patch panel: the panel frame. Jacks sit in rows at the heights in keystone_row_z_mm, centred
+# across the rack at keystone_pitch_mm. Around each cutout the panel is thinned from the back to the
+# thickness the jack's latch grips.
+KEYSTONE = [
+    ("part", "const:keystone_panel", None, None, "label",
+     "Selects a rack patch panel with rows of snap-in keystone jack cutouts, thinned from the back to the "
+     "thickness the jack latch grips."),
+] + PANEL_COMMON + [
+    ("keystone_count", "integer", 1, 24, "chosen", "Jacks per row, centred across the rack."),
+    ("keystone_pitch_mm", "number", 10, 60, "chosen", "Centre-to-centre spacing of jacks in a row."),
+    ("keystone_row_z_mm", "z_list", 0, 400, "chosen",
+     "Centre height of each row of jacks above the panel bottom edge. 1-8 values."),
+    ("keystone_cutout_width_mm", "number", 8, 30, "measured",
+     "Width of the opening the jack snaps into (from your jack's datasheet or a test print); across the rack."),
+    ("keystone_cutout_height_mm", "number", 8, 30, "measured",
+     "Height of that opening, in the direction the latch flexes."),
+    ("jack_latch_panel_thickness_mm", "number", ("gt", 0.4), 6, "measured",
+     "Panel thickness the jack's latch is made to grip. Where it is less than panel_thickness_mm the panel is "
+     "pocketed from the back around each cutout to this thickness."),
+    ("jack_body_width_mm", "number", 8, 40, "measured",
+     "Width of the jack body behind the panel (including the latch), at least the cutout width."),
+    ("jack_body_height_mm", "number", 8, 50, "measured",
+     "Height of the jack body behind the panel (including the latch), at least the cutout height."),
+    ("jack_clearance_mm", "number", 0, 3, "tolerance",
+     "Gap added on every side of the jack body to size the back pocket."),
+]
+
+# Drawer: housing frame = rack shelf frame (x centred, y = 0 at the front face, z = 0 at the bottom edge of
+# the front plate). Drawer frame: x centred, y = 0 at the drawer front face, z = 0 at the drawer bottom.
+DRAWER = [
+    ("part", "const:rack_drawer", None, None, "label",
+     "Selects a rack drawer: a housing (front plate on measured rail holes with a closed sleeve behind it) and "
+     "a drawer box that slides in. Only 10-inch is generated; 19-inch is refused (deferred)."),
+    ("component", "enum:housing|drawer", None, None, "chosen",
+     "Which of the two parts this run writes. Both are validated against each other on every run: keep the "
+     "rest of the file identical for the housing and the drawer."),
+] + PANEL_COMMON[:11] + [
+    ("rack_clear_depth_mm", "number", 20, 1000, "measured",
+     "Free depth behind the panel front face (to rear rails, door, wall or cables) at the drawer's height."),
+    ("sleeve_depth_mm", "number", 40, 250, "chosen",
+     "Depth of the housing sleeve behind the front plate, including its back wall. The housing hangs only "
+     "from the front rail screws; keep it shallow."),
+    ("sleeve_height_mm", "number", 15, 400, "chosen",
+     "Outer height of the sleeve, from the front plate's bottom edge. At most panel_height_mm."),
+    ("housing_wall_thickness_mm", "number", ("gt", 1.0), 10, "chosen",
+     "Thickness of the sleeve floor, side walls, roof and back wall."),
+    ("drawer_wall_thickness_mm", "number", ("gt", 1.0), 10, "chosen",
+     "Thickness of the drawer floor, side and back walls and dividers."),
+    ("drawer_front_thickness_mm", "number", ("gt", 1.0), 10, "chosen", "Thickness of the drawer front."),
+    ("slide_clearance_mm", "number", ("gt", 0.1), 3, "tolerance",
+     "Gap between drawer and sleeve on each side, above the drawer, and between the drawer back and the "
+     "sleeve back wall."),
+    ("front_overlap_mm", "number", 0, 30, "chosen",
+     "How far the drawer front reaches past the opening to the sides and above it; it stops against the "
+     "housing front plate (0 = flush front, the sleeve back wall is the only stop)."),
+    ("pull_width_mm", "number", 0, 150, "chosen", "Width of the finger-pull slot through the drawer front (0 = none)."),
+    ("pull_height_mm", "number", 4, 40, "chosen",
+     "Height of the finger-pull slot (its round ends' diameter); ignored when pull_width_mm is 0, but still required."),
+    ("divider_count", "integer", 0, 8, "chosen", "Dividers splitting the drawer into equal compartments across its width."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+    ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
+]
+
+# Label holder frame: x centred, y = 0 at the back (mounting) face, +y toward the reader, z = 0 at the
+# bottom edge. The card slides in from the open top.
+LABEL = [
+    ("part", "const:label_holder", None, None, "label",
+     "Selects a slide-in label holder: a back plate, a card pocket open at the top and a front frame whose lips "
+     "hold the card's sides and bottom edge, with optional screw ears."),
+    ("card_width_mm", "number", 10, 300, "measured", "Width of the label card or strip you will insert."),
+    ("card_height_mm", "number", 5, 150, "measured", "Height of the card."),
+    ("card_thickness_mm", "number", ("gt", 0.05), 5, "measured", "Thickness of the card (several sheets if laminated)."),
+    ("card_clearance_mm", "number", 0, 2, "tolerance",
+     "Gap added on each side of the card, above its thickness and below its bottom edge."),
+    ("lip_overlap_mm", "number", 0.5, 20, "chosen",
+     "How far the front frame covers the card's side and bottom edges. Must exceed card_clearance_mm by at least "
+     "min_wall_mm so the card cannot fall out of the window."),
+    ("frame_border_mm", "number", ("gt", 0.4), 20, "chosen",
+     "Frame material outside the card pocket on the left, right and bottom (at least min_wall_mm)."),
+    ("back_thickness_mm", "number", ("gt", 0.4), 10, "chosen", "Back plate (and ear) thickness."),
+    ("front_thickness_mm", "number", ("gt", 0.4), 5, "chosen", "Front frame (lip) thickness."),
+    ("ear_width_mm", "number", 0, 40, "chosen", "Width of a screw ear on each side (0 = no ears, e.g. for adhesive)."),
+    ("mount_screw_clearance_diameter_mm", "number", ("gt", 1.0), 10, "tolerance",
+     "Through-hole diameter for the mounting screw, one per ear (ignored without ears, but still required)."),
+    ("mount_screw_head_diameter_mm", "number", ("gt", 1.0), 20, "measured",
+     "Mounting screw head diameter; it must bear on the ear."),
+    ("max_overall_width_mm", "number", 10, 600, "measured", "Available width where the holder goes."),
+    ("max_overall_height_mm", "number", 5, 300, "measured", "Available height where the holder goes."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+]
+
+# Cable comb frame: x along the comb (centred), y = 0 at the back (mounting) face, z = 0 at the base bar's
+# bottom edge; cable seats open upward.
+COMB = [
+    ("part", "const:cable_comb", None, None, "label",
+     "Selects a cable comb: a base bar with a row of round cable seats, each reached through an entry throat "
+     "between two fingers, and optional screw holes through the bar."),
+    ("cable_diameter_mm", "number", 1, 30, "measured", "Outer diameter of the cables (largest one, over the jacket)."),
+    ("cable_clearance_mm", "number", 0, 3, "tolerance", "Added to cable_diameter_mm to size each round seat."),
+    ("slot_count", "integer", 1, 48, "chosen", "Number of cable seats."),
+    ("slot_pitch_mm", "number", 3, 60, "chosen", "Centre-to-centre spacing of the seats."),
+    ("entry_throat_mm", "number", ("gt", 0.4), 30, "chosen",
+     "Width of the entry above each seat. At least cable_diameter_mm: cables drop in freely. Narrower: cables "
+     "are pressed in and the jacket deforms (avoid for fibre and thin coax)."),
+    ("finger_length_mm", "number", 0, 40, "chosen", "Height of the fingers above the top of the seats."),
+    ("base_height_mm", "number", 2, 60, "chosen", "Height of the solid bar below the seats."),
+    ("comb_thickness_mm", "number", ("gt", 1.0), 30, "chosen", "Thickness of the comb (along the cables)."),
+    ("end_margin_mm", "number", 0, 100, "chosen", "Material beyond the outermost seats at each end (at least min_wall_mm)."),
+    ("mount_hole_spacing_mm", "number", 0, 600, "measured",
+     "Centre distance of the two screw holes through the base bar, matching holes you measured (0 = no holes)."),
+    ("mount_screw_clearance_diameter_mm", "number", ("gt", 1.0), 10, "tolerance",
+     "Through-hole diameter for the mounting screws (ignored without holes, but still required)."),
+    ("mount_screw_head_diameter_mm", "number", ("gt", 1.0), 20, "measured",
+     "Mounting screw head diameter; it must bear on the base bar."),
+    ("max_overall_width_mm", "number", 10, 600, "measured", "Available length for the comb."),
+    ("max_overall_height_mm", "number", 5, 300, "measured", "Available height for the comb."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+]
+
+# Cartridge holder frame: x centred, y = 0 at the front edge, z = 0 at the bottom. Items stand upright in a
+# grid of pockets, item_width_mm across x and item_thickness_mm along y.
+CARTRIDGE = [
+    ("part", "const:cartridge_holder", None, None, "label",
+     "Selects a holder with a grid of upright pockets for small modules or media (SFP transceivers, tape "
+     "cartridges, ...), sized from your measurements, with optional push-out holes and finger notches."),
+    ("item_width_mm", "number", 3, 200, "measured", "Item width across the holder (x)."),
+    ("item_thickness_mm", "number", 3, 200, "measured", "Item thickness front to back (y)."),
+    ("item_height_mm", "number", 10, 300, "measured", "Item height as it stands in the pocket."),
+    ("item_clearance_mm", "number", 0, 3, "tolerance", "Gap added on each side of the item in its pocket."),
+    ("columns", "integer", 1, 20, "chosen", "Pockets across (x)."),
+    ("rows", "integer", 1, 10, "chosen", "Pockets front to back (y)."),
+    ("pocket_depth_mm", "number", 3, 300, "chosen",
+     "How deep each item sits. Must be less than item_height_mm so part of each item stands proud to grip."),
+    ("floor_thickness_mm", "number", ("gt", 1.0), 15, "chosen", "Floor thickness under the pockets."),
+    ("wall_thickness_mm", "number", ("gt", 1.0), 15, "chosen", "Outer wall thickness."),
+    ("divider_thickness_mm", "number", ("gt", 0.4), 15, "chosen", "Thickness of the walls between pockets."),
+    ("floor_hole_diameter_mm", "number", 0, 100, "chosen",
+     "Push-out hole through the floor under each pocket (0 = none)."),
+    ("finger_notch_width_mm", "number", 0, 100, "chosen",
+     "Width of a notch cut down into the wall in front of each pocket (0 = none)."),
+    ("finger_notch_depth_mm", "number", 0, 300, "chosen",
+     "Depth of that notch from the top; at most pocket_depth_mm (ignored when the width is 0, but still required)."),
+    ("max_overall_width_mm", "number", 10, 700, "measured", "Available width."),
+    ("max_overall_depth_mm", "number", 10, 700, "measured", "Available depth."),
+    ("max_overall_height_mm", "number", 5, 600, "measured", "Available height, including the items standing in it."),
+    ("build_plate_x_mm", "number", 50, 1000, "measured", "Usable build plate size, first axis (measure your printer)."),
+    ("build_plate_y_mm", "number", 50, 1000, "measured", "Usable build plate size, second axis."),
+    ("build_plate_z_mm", "number", 20, 1000, "measured", "Usable build height."),
+]
+
 NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,47}(?![\s\S])"
 
 PARTS = {"rack_bracket": COMMON + BRACKET, "sff_cradle": COMMON + CRADLE,
          "switch_cradle": COMMON + SWITCH, "blanking_panel": COMMON + BLANKING, "cable_panel": COMMON + CABLE,
-         "rack_shelf": COMMON + SHELF, "pdu_mount": COMMON + PDU}
+         "rack_shelf": COMMON + SHELF, "pdu_mount": COMMON + PDU,
+         "keystone_panel": COMMON + KEYSTONE, "rack_drawer": COMMON + DRAWER, "label_holder": COMMON + LABEL,
+         "cable_comb": COMMON + COMB, "cartridge_holder": COMMON + CARTRIDGE}
 
 # Sanity windows that only catch unit mistakes; NOT standards for 10-inch racks.
 RAIL_SPACING_WINDOW = {"10in": (180.0, 270.0), "19in": (430.0, 500.0)}
