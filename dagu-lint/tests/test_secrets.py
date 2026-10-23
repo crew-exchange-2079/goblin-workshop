@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -103,3 +104,42 @@ def test_secret_values_are_never_printed(path, fmt, run_cli):
     for v in values:
         for chunk in (v, v.strip()[:12]):
             assert chunk not in out and chunk not in err
+
+
+LEAKY = os.path.join(os.path.dirname(SECRET_FIXTURES[0]), "secret-in-malformed-schedule.yaml")
+
+
+@pytest.mark.parametrize("fmt", ["text", "json", "github"])
+@pytest.mark.parametrize("extra", [[], ["--disable", "DL402"], ["--disable", "DL402", "--disable", "DL201"]])
+def test_echoing_diagnostics_are_redacted(fmt, extra, run_cli):
+    # DL201 quotes the schedule it failed to parse; the password must not
+    # survive into any output, even with the secret rule turned off.
+    _, out, err = run_cli("-c", POLICY, "--format", fmt, "--now", NOW, *extra, LEAKY)
+    assert "Sup3rS3cretPw" not in out + err
+    if "DL201" not in extra:
+        assert "DL201" in out and secrets.REDACTED in out
+
+
+def test_queue_name_echo_is_redacted(tmp_path, run_cli):
+    p = tmp_path / "q.yaml"
+    p.write_text('name: x\nqueue: "postgres://u:Pa55w0rdHere@h/db"\nsteps:\n  - run: echo\n')
+    _, out, _ = run_cli("-q", "default", "--format", "json", str(p))
+    assert "Pa55w0rdHere" not in out and "DL101" in out
+
+
+def test_redact():
+    token = "Zx9Qk2LmP4rT7vW1yB3nD6fH8jK0sAa"
+    assert secrets.redact(f"bad value {token!r}") == "bad value '<redacted>'"
+    assert secrets.redact("db: postgres://u:hunter22@h/x") == "db: <redacted>h/x"
+    assert secrets.redact("flagged hunter2 here", {"hunter2"}) == "flagged <redacted> here"
+    assert secrets.redact("short abc", {"abc"}) == "short abc"  # too short to scrub safely
+    assert secrets.redact("minute: 'postgres:' is not a number") == "minute: 'postgres:' is not a number"
+
+
+@pytest.mark.parametrize("value", ["1234567890", "3.14159", "2026-01-01"])
+def test_non_string_scalars_are_checked(tmp_path, value, run_cli):
+    p = tmp_path / "n.yaml"
+    p.write_text(f"name: x\nqueue: default\nenv:\n  DB_PASSWORD: {value}\nsteps:\n  - run: echo\n")
+    code, out, _ = run_cli("-q", "default", "--disable", "DL301", "--disable", "DL501", "--format", "json", str(p))
+    codes = [f["code"] for f in json.loads(out)["files"][0]["findings"]]
+    assert codes == ["DL401"] and value not in out

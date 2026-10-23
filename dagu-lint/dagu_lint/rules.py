@@ -132,6 +132,12 @@ class Linter:
     def __init__(self, cfg: Config, now: dt.datetime):
         self.cfg = cfg
         self.now = now
+        # Every value a secret rule matched in this file, whether or not the
+        # rule is disabled or suppressed; output is scrubbed with redact().
+        self.sensitive: set[str] = set()
+
+    def redact(self, text: str) -> str:
+        return secrets.redact(text, self.sensitive, self.cfg.entropy_min_length, self.cfg.entropy_threshold)
 
     def lint_dag(self, dag, doc_index: int, is_main: bool):
         self.findings: list[Finding] = []
@@ -400,41 +406,48 @@ class Linter:
     # --- secrets -------------------------------------------------------
     def check_secrets(self, dag):
         for key, value, line, col, path in _scalars(dag, ""):
-            if not isinstance(value, str) or not value.strip():
+            if not value.strip():
                 continue
             if path.startswith("secrets["):
                 continue  # references to an external provider, by design
-            label = secrets.known_pattern(value)
-            if label:
-                self.add("DL402", f"{path}: looks like a {label} (value redacted, {len(value)} chars)", line, col)
+            hit = secrets.known_pattern_match(value)
+            if hit:
+                self.sensitive.update((hit[1], value.strip()))
+                self.add("DL402", f"{path}: looks like a {hit[0]} (value redacted, {len(value)} chars)", line, col)
                 continue
             if key is not None and secrets.secret_key(str(key)) and not secrets.is_reference(value):
                 if not _is_benign(str(key), value):
+                    self.sensitive.add(value.strip())
                     self.add("DL401", f"{path}: literal value for a secret-looking key (value redacted); "
                                       "use `secrets:` or an env reference", line, col)
                     continue
             hits = secrets.high_entropy_tokens(value, self.cfg.entropy_min_length, self.cfg.entropy_threshold,
                                                self.cfg.secret_allow)
             if hits:
-                n, e = hits[0]
+                self.sensitive.update(tok for _, _, tok in hits)
+                n, e, _ = hits[0]
                 self.add("DL403", f"{path}: contains a {n}-char token with entropy {e} bits/char "
                                   "(value redacted)", line, col)
 
 
 def _is_benign(key: str, value: str) -> bool:
-    # Boolean-ish/feature flags and file paths under secret-ish names
-    # (`auth: none`, `password_file: /run/secrets/db`) are not secrets.
+    # Boolean-ish/feature flags, file paths and numeric settings under
+    # secret-ish names (`auth: none`, `password_file: /run/secrets/db`,
+    # `token_ttl: 3600`) are not secrets.
     v = value.strip().lower()
     if v in ("true", "false", "none", "null", "", "required", "optional", "disabled", "enabled"):
         return True
-    if re.search(r"(?:_file|_path|_env|_var|_ref|_name|_type|_url)$", key, re.IGNORECASE):
+    if re.search(r"(?:_file|_path|_env|_var|_ref|_name|_type|_url|_ttl|_len|_length|_min|_max|_size|_count|"
+                 r"_timeout|_expiry|_expires|_sec|_seconds|_minutes|_hours|_days|_retries|_attempts|_port)$",
+                 key, re.IGNORECASE):
         return not secrets.known_pattern(value)
     return False
 
 
 def _scalars(obj, path, key=None, line=0, col=0):
-    """Yield (key, value, line, col, path) for every scalar, including
-    env list entries of the KEY=value form (split so the key is checked)."""
+    """Yield (key, value-as-str, line, col, path) for every non-boolean, non-null
+    scalar, including env list entries of the KEY=value form (split so the key
+    is checked)."""
     if isinstance(obj, LDict):
         for k, v in obj.items():
             kl, kc = obj.pos(k)
@@ -449,3 +462,6 @@ def _scalars(obj, path, key=None, line=0, col=0):
                 yield from _scalars(v, sub, key, getattr(v, "line", line), getattr(v, "col", col))
     elif isinstance(obj, str):
         yield key, obj, getattr(obj, "line", line) or line, getattr(obj, "col", col) or col, path
+    elif obj is not None and not isinstance(obj, bool):
+        # Numbers, dates, ...: `DB_PASSWORD: 1234567890` is still a literal secret.
+        yield key, str(obj), line, col, path

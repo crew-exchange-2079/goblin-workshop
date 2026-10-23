@@ -59,7 +59,11 @@ dags/etl.yaml:3: info schedule 'CRON_TZ=Europe/Berlin 30 2 * * *': at 02:30, eve
 | 2 | usage or config problem (bad flag, unknown rule code, invalid TOML, unknown `--tz`, no files found) |
 
 Values that trip a secret rule are never printed in any format: findings carry the location, the signal
-(key name, credential type, or token length and entropy) and nothing of the value.
+(key name, credential type, or token length and entropy) and nothing of the value. Every diagnostic and
+schedule summary is also scrubbed before output, so a message that quotes input (a cron parse error, a
+rejected queue name) cannot leak a value either: values any secret rule matched in the file, known
+credential formats and high-entropy tokens become `<redacted>`, even when the secret rules are disabled
+or suppressed.
 
 ## Rules
 
@@ -118,10 +122,13 @@ robfig's exact behaviour there is not reproduced.
 
 ### Secrets
 
-Scans every string value in the file (including `KEY=value` list entries, multi-line `run:` scripts and
-`with:` parameters). References are fine: `${VAR}`, `$VAR`, `` `cmd` ``, `$(cmd)`, and anything under
-`secrets:`. Keys ending in `_file`, `_path`, `_env`, `_var`, `_ref`, `_name`, `_type` or `_url`, and
-flag-like values (`none`, `true`, `disabled`, ...) are not treated as secrets by `DL401`.
+Scans every scalar value in the file: strings (including `KEY=value` list entries, multi-line `run:`
+scripts and `with:` parameters) and numbers or dates, so `DB_PASSWORD: 1234567890` is caught; booleans
+and nulls are skipped. References are fine: `${VAR}`, `$VAR`, `` `cmd` ``, `$(cmd)`, and anything under
+`secrets:`. Keys ending in `_file`, `_path`, `_env`, `_var`, `_ref`, `_name`, `_type` or `_url`, keys for numeric
+settings (`_ttl`, `_len`/`_length`, `_min`/`_max`, `_size`, `_count`, `_timeout`, `_expiry`/`_expires`,
+`_sec`/`_seconds`/`_minutes`/`_hours`/`_days`, `_retries`, `_attempts`, `_port`), and flag-like values
+(`none`, `true`, `disabled`, ...) are not treated as secrets by `DL401`.
 
 This is a heuristic. Hex digests and UUIDs are deliberately not flagged by `DL403`, so a hex-encoded key
 under an innocuous name is missed; a long random-looking identifier that is not a secret will be flagged.

@@ -63,15 +63,19 @@ def secret_key(key: str) -> bool:
     return bool(SECRET_KEY_RE.search(key))
 
 
-def known_pattern(value: str) -> str | None:
+def known_pattern_match(value: str) -> tuple[str, str] | None:
+    """(label, matched text) of the first known credential format in value."""
     for label, rx in KNOWN_PATTERNS:
-        m = rx.search(value)
-        if not m:
-            continue
-        if label == "password in URL" and is_reference(m.group(1)):
-            continue
-        return label
+        for m in rx.finditer(value):
+            if label == "password in URL" and is_reference(m.group(1)):
+                continue
+            return label, m.group(0)
     return None
+
+
+def known_pattern(value: str) -> str | None:
+    hit = known_pattern_match(value)
+    return hit[0] if hit else None
 
 
 def _looks_random(tok: str) -> bool:
@@ -85,8 +89,8 @@ def _looks_random(tok: str) -> bool:
     return True
 
 
-def high_entropy_tokens(value: str, min_len: int, threshold: float, allow: list) -> list[tuple[int, float]]:
-    """(length, entropy) of each suspicious token; the token itself is not returned."""
+def high_entropy_tokens(value: str, min_len: int, threshold: float, allow: list) -> list[tuple[int, float, str]]:
+    """(length, entropy, token) of each suspicious token. Callers must not print the token."""
     out = []
     for m in TOKEN_RE.finditer(value):
         tok = m.group(0).strip("=")
@@ -96,5 +100,26 @@ def high_entropy_tokens(value: str, min_len: int, threshold: float, allow: list)
             continue
         e = entropy(tok)
         if e >= threshold:
-            out.append((len(tok), round(e, 2)))
+            out.append((len(tok), round(e, 2), tok))
     return out
+
+
+REDACTED = "<redacted>"
+
+
+def redact(text: str, sensitive=(), min_len: int = 20, threshold: float = 4.0) -> str:
+    """Remove secrets from a diagnostic string before it is printed.
+
+    `sensitive` holds values the secret rules flagged anywhere in the file;
+    known credential formats and high-entropy tokens are removed regardless,
+    so a message echoing input (a cron parse error, a bad queue name) cannot
+    leak a value even when the secret rules are disabled.
+    """
+    for value in sorted(sensitive, key=len, reverse=True):
+        if len(value) >= 4:
+            text = text.replace(value, REDACTED)
+    for _, rx in KNOWN_PATTERNS:
+        text = rx.sub(REDACTED, text)
+    for _, _, tok in high_entropy_tokens(text, min_len, threshold, []):
+        text = text.replace(tok, REDACTED)
+    return text

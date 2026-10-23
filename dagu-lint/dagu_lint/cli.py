@@ -14,6 +14,7 @@ import yaml
 
 from . import __version__, cron
 from .config import ConfigError, load
+from . import secrets
 from .loader import DuplicateKey, load_documents
 from .rules import RULES, Finding, Linter
 
@@ -70,10 +71,10 @@ def lint_file(path, cfg, now):
     try:
         docs = load_documents(text)
     except DuplicateKey as e:
-        return [Finding("DL002", str(e), e.line, e.col)], []
+        return [Finding("DL002", secrets.redact(str(e)), e.line, e.col)], []
     except yaml.YAMLError as e:
         mark = getattr(e, "problem_mark", None)
-        problem = getattr(e, "problem", None) or "invalid YAML"
+        problem = secrets.redact(getattr(e, "problem", None) or "invalid YAML")
         return [Finding("DL001", problem, mark.line + 1 if mark else 0, mark.column + 1 if mark else 0)], []
     docs = [d for d in docs if d is not None] or [None]
     findings, infos = [], []
@@ -86,6 +87,12 @@ def lint_file(path, cfg, now):
     kept = [f for f in findings
             if f.code not in cfg.disable and f.code not in whole and f.code not in per_line.get(f.line, ())]
     kept.sort(key=lambda f: (f.line, f.col, f.code))
+    # Messages and schedule summaries can echo input (a cron parse error, a
+    # bad queue name); scrub every value a secret rule matched, file-wide.
+    for f in kept:
+        f.message = linter.redact(f.message)
+    for i in infos:
+        i.where, i.expression, i.description = map(linter.redact, (i.where, i.expression, i.description))
     return kept, infos
 
 
