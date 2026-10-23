@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:5 ExecStopPost=: ExecStopPost= became handler_on.exit; $SERVICE_RESULT, $EXIT_CODE and $EXIT_STATUS are not set, and TimeoutStopSec does not bound it
+
+ignored (1):
+  job.service: Dagu also loads a .env file from the working directory if one exists; systemd would not

@@ -20,6 +20,7 @@ import math
 import os
 import re
 import sys
+import tempfile
 
 __version__ = "0.1.0"
 
@@ -226,13 +227,14 @@ _C_ESCAPES = {"a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t",
 _VARNAME = r"[A-Za-z_][A-Za-z0-9_]*"
 
 
-def split_words(value, ctx, where, expand_env):
+def split_words(value, ctx, where, expand_env, separators=False):
     """Split a systemd value into words.
 
     Each word is a list of segments:
       ("lit", text)    literal text
       ("var", NAME)    one-word variable reference (${NAME}, or a specifier)
       ("split", NAME)  $NAME as a whole word: split at whitespace by systemd
+      ("sep", ";")     with `separators`, a bare unquoted, unescaped ';' token
     """
     words = []
     i, n = 0, len(value)
@@ -244,6 +246,7 @@ def split_words(value, ctx, where, expand_env):
         word = []
         lit = []
         quote = None
+        start = i
 
         def flush():
             if lit:
@@ -319,6 +322,8 @@ def split_words(value, ctx, where, expand_env):
         if quote is not None:
             raise ConvertError("%s unterminated %s quote" % (where, quote))
         flush()
+        if separators and value[start:i] == ";":
+            word = [("sep", ";")]
         words.append(word or [("lit", "")])
     return words
 
@@ -352,10 +357,6 @@ def spec_word(value, ctx, where):
     return word
 
 
-def word_is_literal(word, text):
-    return len(word) == 1 and word[0] == ("lit", text)
-
-
 _SH_SAFE = re.compile(r"[A-Za-z0-9_@%+=:,./-]+")
 
 
@@ -370,8 +371,60 @@ def sh_word(word):
         elif kind == "var":
             parts.append('"${%s}"' % val)
         else:
-            parts.append("$" + val)
+            raise ValueError("split words are rendered by render_argv")
     return "".join(parts) if parts else "''"
+
+
+# systemd splits a whole-word $NAME with extract_first_word(EXTRACT_RELAX |
+# EXTRACT_UNQUOTE): whitespace separates words, '...' and "..." quote, a
+# backslash takes the next character literally (also inside quotes), an
+# unbalanced quote runs to the end and a trailing backslash is dropped. No
+# globbing happens. These POSIX sh helpers do the same at run time and collect
+# the words, each single-quoted, in $_t2d_argv for `eval "set -- ..."`.
+SPLIT_HELPERS = r"""_t2d_add() {
+  _t2d_ar=$1 _t2d_ao=
+  while [ -n "$_t2d_ar" ]; do
+    _t2d_ac=${_t2d_ar%"${_t2d_ar#?}"} _t2d_ar=${_t2d_ar#?}
+    if [ "$_t2d_ac" = "'" ]; then _t2d_ao="$_t2d_ao'\''"; else _t2d_ao=$_t2d_ao$_t2d_ac; fi
+  done
+  _t2d_argv="$_t2d_argv '$_t2d_ao'"
+}
+_t2d_split() {
+  _t2d_r=$1 _t2d_w= _t2d_in= _t2d_q= _t2d_bs=
+  while [ -n "$_t2d_r" ]; do
+    _t2d_c=${_t2d_r%"${_t2d_r#?}"} _t2d_r=${_t2d_r#?}
+    if [ -n "$_t2d_bs" ]; then
+      _t2d_bs= _t2d_w=$_t2d_w$_t2d_c
+    elif [ "$_t2d_c" = '\' ]; then
+      _t2d_bs=1 _t2d_in=1
+    elif [ -n "$_t2d_q" ]; then
+      if [ "$_t2d_c" = "$_t2d_q" ]; then _t2d_q=; else _t2d_w=$_t2d_w$_t2d_c; fi
+    elif [ "$_t2d_c" = "'" ] || [ "$_t2d_c" = '"' ]; then
+      _t2d_q=$_t2d_c _t2d_in=1
+    else
+      case $_t2d_ws in
+        *"$_t2d_c"*) if [ -n "$_t2d_in" ]; then _t2d_add "$_t2d_w"; _t2d_w= _t2d_in=; fi ;;
+        *) _t2d_w=$_t2d_w$_t2d_c _t2d_in=1 ;;
+      esac
+    fi
+  done
+  if [ -n "$_t2d_in" ]; then _t2d_add "$_t2d_w"; fi
+}
+_t2d_ws=$(printf ' \t\n\rx'); _t2d_ws=${_t2d_ws%x}"""
+
+
+def render_argv(words):
+    """Shell lines that run `words` as one command; True if helpers are needed."""
+    if not any(kind == "split" for w in words for kind, _ in w):
+        return [" ".join(sh_word(w) for w in words)], False
+    lines = ["_t2d_argv="]
+    for w in words:
+        if w[0][0] == "split":
+            lines.append('_t2d_split "${%s-}"' % w[0][1])
+        else:
+            lines.append("_t2d_add " + sh_word(w))
+    lines += ['eval "set -- $_t2d_argv"', '"$@"']
+    return lines, True
 
 
 def plain_text(word):
@@ -734,8 +787,16 @@ class _Step:
         self.timeout = None
 
 
+class _Cmd:
+    """One translated Exec*= line: either a single shell line or a function body."""
+
+    def __init__(self, line=None, body=None):
+        self.line = line
+        self.body = body
+
+
 def _command(d, ctx, report):
-    """Translate one Exec*= value into (shell text, ignore_failure)."""
+    """Translate one Exec*= value into (_Cmd, ignore_failure)."""
     value = d.value
     prefixes = ""
     while value and value[0] in "@-:+!|":
@@ -753,8 +814,8 @@ def _command(d, ctx, report):
                    "privilege prefix '%s' has no Dagu meaning: the command runs as the Dagu "
                    "process user" % ("!!" if "!!" in prefixes else ("!" if "!" in prefixes else "+")))
     if "|" in prefixes:
-        return value, ignore
-    words = split_words(value, ctx, d.where, expand_env=not no_env)
+        return _Cmd(line=value), ignore
+    words = split_words(value, ctx, d.where, expand_env=not no_env, separators=True)
     if not words:
         raise ConvertError("%s empty command" % d.where)
     if "@" in prefixes:
@@ -763,12 +824,16 @@ def _command(d, ctx, report):
         report.add(APPROXIMATED, d.where,
                    "'@' argv[0] override dropped: the program sees its real name")
         words = [words[0]] + words[2:]
-    if any(word_is_literal(w, ";") for w in words):
+    groups = [[]]
+    for w in words:
+        if w == [("sep", ";")]:
+            groups.append([])
+        else:
+            groups[-1].append(w)
+    groups = [g for g in groups if g]
+    if len(groups) > 1:
         report.add(APPROXIMATED, d.where,
                    "';'-separated commands were joined with '&&' in one step")
-    parts = []
-    for w in words:
-        parts.append("&&" if word_is_literal(w, ";") else sh_word(w))
     for w in words:
         for kind, val in w:
             if kind == "lit" and "$" in val:
@@ -776,7 +841,31 @@ def _command(d, ctx, report):
                            "a literal '$' is single-quoted for the shell, but Dagu may still "
                            "interpolate it before the shell runs")
                 break
-    return " ".join(parts), ignore
+    rendered = [render_argv(g) for g in groups]
+    if not any(helpers for _, helpers in rendered):
+        return _Cmd(line=" && ".join(lines[0] for lines, _ in rendered)), ignore
+    body = []
+    for n, (lines, _) in enumerate(rendered):
+        body += lines[:-1] + [lines[-1] + (" || return" if n < len(rendered) - 1 else "")]
+    return _Cmd(body=body), ignore
+
+
+def _script(cmds):
+    """Assemble (cmd, suffix) pairs into one `run` value."""
+    funcs, calls = [], []
+    for cmd, suffix in cmds:
+        if cmd.body is None:
+            calls.append(cmd.line + suffix)
+        else:
+            name = "_t2d_run%d" % (len(funcs) + 1)
+            funcs.append("%s() {\n%s\n}" % (name, "\n".join("  " + ln for ln in cmd.body)))
+            calls.append(name + suffix)
+    if not funcs and len(calls) == 1:
+        return calls[0]
+    head = [SPLIT_HELPERS] + funcs if funcs else []
+    if len(calls) > 1:
+        head.append("set -e")
+    return "\n".join(head + calls)
 
 
 def convert(timer_text, timer_name, service_text=None, service_name=None, user=False,
@@ -1005,7 +1094,8 @@ def convert(timer_text, timer_name, service_text=None, service_name=None, user=F
     for key in ("ExecStartPre", "ExecStart", "ExecStartPost"):
         lst = execs[key]
         for idx, d in enumerate(lst, 1):
-            run, ignore = _command(d, ctx, report)
+            cmd, ignore = _command(d, ctx, report)
+            run = _script([(cmd, "")])
             name = labels[key] if len(lst) == 1 else "%s-%d" % (labels[key], idx)
             step = _Step(name, run, "%s=%s" % (key, d.value))
             step.continue_on_failure = ignore
@@ -1013,14 +1103,11 @@ def convert(timer_text, timer_name, service_text=None, service_name=None, user=F
 
     handler = None
     if execs["ExecStopPost"]:
-        lines = []
+        cmds = []
         for d in execs["ExecStopPost"]:
-            run, ignore = _command(d, ctx, report)
-            lines.append(run + (" || true" if ignore else ""))
-        if len(lines) == 1:
-            handler = lines[0]
-        else:
-            handler = "set -e\n" + "\n".join(lines)
+            cmd, ignore = _command(d, ctx, report)
+            cmds.append((cmd, " || true" if ignore else ""))
+        handler = _script(cmds)
         report.add(APPROXIMATED, execs["ExecStopPost"][0].where,
                    "ExecStopPost= became handler_on.exit; $SERVICE_RESULT, $EXIT_CODE and "
                    "$EXIT_STATUS are not set, and TimeoutStopSec does not bound it")
@@ -1045,9 +1132,12 @@ def convert(timer_text, timer_name, service_text=None, service_name=None, user=F
                 report.add(IGNORED, d.where,
                            "for Type=%s the start timeout does not bound the main process, "
                            "so there is nothing to translate" % stype)
-    if runtime_max is not None and runtime_max[0] != math.inf:
-        span, d = runtime_max
-        dag_timeout = span if dag_timeout is None else dag_timeout + span
+    if runtime_max is not None and stype == "oneshot":
+        report.add(IGNORED, runtime_max[1].where,
+                   "RuntimeMaxSec= has no effect on Type=oneshot services (systemd bounds "
+                   "them with TimeoutStartSec=)")
+    elif runtime_max is not None and runtime_max[0] != math.inf:
+        dag_timeout = runtime_max[0]
     if dag_timeout is not None and random_delay > 0:
         dag_timeout += math.ceil(random_delay)
         report.add(APPROXIMATED, "%s RandomizedDelaySec=" % timer_name,
@@ -1276,9 +1366,17 @@ def _read(path):
 
 def _write(path, text, private=False):
     if private:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
+        # A fresh 0600 file renamed over the target: an existing file's looser
+        # mode never applies, and readers never see a partial file.
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)),
+                                   prefix=".timer2dagu-", suffix=".env")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(tmp, path)
+        except BaseException:
+            os.unlink(tmp)
+            raise
     else:
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)

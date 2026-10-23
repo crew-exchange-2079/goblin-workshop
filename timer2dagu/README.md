@@ -47,7 +47,7 @@ migration can stop for review.
 | `ExecStopPost=` | `handler_on.exit` (runs after success or failure) |
 | `-` command prefix | `continue_on: {failure: true, mark_success: true}`; `\|\| true` in the exit handler |
 | `TimeoutStartSec=` / `TimeoutSec=` | `Type=oneshot`: DAG `timeout_sec`. Otherwise it only bounds start-up, so it goes on the `ExecStartPre` steps |
-| `RuntimeMaxSec=` | DAG `timeout_sec` |
+| `RuntimeMaxSec=` | DAG `timeout_sec` (not for `Type=oneshot`, where systemd ignores it) |
 | `%h %u %t %S %C %L %E %n %N %p %P %i %I %j %J %f %T %V %%` | resolved (see below) |
 | `Description=` | `description` (the service's, else the timer's) |
 
@@ -67,10 +67,19 @@ reported; other lines still translate):
 
 systemd does not run `Exec*=` lines through a shell; Dagu `run` does. So each
 word is re-quoted: literal text is single-quoted, `${VAR}` becomes `"${VAR}"`
-(one word, as in systemd) and a whole-word `$VAR` stays unquoted (split at
-whitespace, as in systemd). `$$` is a literal `$`. The `:` prefix turns off
-variable expansion. `tests/test_units.py::test_shell_round_trip` runs the
-quoted words through `sh` and checks the argv.
+(one word, as in systemd) and `$$` is a literal `$`. The `:` prefix turns off
+variable expansion. Only a bare `;` separates commands; `\;`, `";"` and
+`';'` stay arguments.
+
+A whole-word `$VAR` is split by systemd at whitespace, honouring `'`/`"`
+quotes and backslashes, and never globbed. An unquoted shell `$VAR` would
+glob (`VAR=*` would turn into file names) and ignore the quotes, so such a
+command instead gets small POSIX sh helpers (`_t2d_split`, `_t2d_add`) that
+split the value systemd's way at run time and rebuild argv with `eval "set --
+…"` over strings they quoted themselves. The step is longer, but nothing in
+the value is ever parsed as shell.
+`tests/test_units.py::test_shell_round_trip` runs the generated shell under
+`sh`, `bash` and `dash` and checks the argv and that no file was touched.
 
 A literal `$` that reaches the YAML is reported: Dagu interpolates variables
 in `run` itself before the shell sees it (*unverified* for single quotes).
@@ -135,7 +144,7 @@ was untranslated.
 python -m pytest -q tests
 ```
 
-`tests/golden/` holds 76 timer + service pairs, each with the expected DAG,
+`tests/golden/` holds 79 timer + service pairs, each with the expected DAG,
 report and (when there is `Environment=`) `.env`; an optional `options.json`
 passes keyword arguments to `convert()`. After an intended change,
 regenerate with `TIMER2DAGU_REGEN=1 python -m pytest -q tests/test_golden.py`

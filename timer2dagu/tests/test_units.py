@@ -89,28 +89,85 @@ def _ctx(user=False, home=None):
     return t.Context("job.service", user, home, None, t.Report())
 
 
-@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+SHELLS = [sh for sh in ("sh", "bash", "dash") if shutil.which(sh)]
+
+
+def _argv(value, env, shell, cwd=None):
+    """Run the translated command with printf in place of the program; return argv."""
+    words = t.split_words(value, _ctx(), "test", expand_env=True)
+    words = [[("lit", "printf")], [("lit", "%s\\0")]] + words[1:]
+    lines, helpers = t.render_argv(words)
+    script = "\n".join(([t.SPLIT_HELPERS] if helpers else []) + lines)
+    out = subprocess.run([shell, "-c", script], cwd=cwd,
+                         env=dict(env, PATH=os.environ.get("PATH", "/usr/bin:/bin")),
+                         capture_output=True, text=True, check=True).stdout
+    return out.split("\0")[:-1]
+
+
+@pytest.mark.skipif(not SHELLS, reason="needs a POSIX sh")
+@pytest.mark.parametrize("shell", SHELLS)
 @pytest.mark.parametrize("value, env, argv", [
     ('/bin/echo "a b" c', {}, ["a b", "c"]),
     ("/bin/echo 'it''s' \"x\\\"y\"", {}, ["its", 'x"y']),
     ('/bin/echo "%%p\\n" *.tmp', {}, ["%p\n", "*.tmp"]),
-    ("/bin/echo $OPTS", {"OPTS": "-a  -b"}, ["-a", "-b"]),
-    ('/bin/echo "$OPTS"', {"OPTS": "-a -b"}, ["-a", "-b"]),
     ("/bin/echo ${OPTS}", {"OPTS": "-a -b"}, ["-a -b"]),
     ("/bin/echo pre${D}/x", {"D": "my dir"}, ["premy dir/x"]),
     ("/bin/echo pre$D", {"D": "x"}, ["pre$D"]),
     ("/bin/echo $$HOME", {"HOME": "/nope"}, ["$HOME"]),
     ("/bin/echo \\x41\\101", {}, ["AA"]),
     ("/bin/echo ''", {}, [""]),
+    # whole-word $NAME: split like systemd's extract_first_word(RELAX|UNQUOTE)
+    ("/bin/echo $OPTS", {"OPTS": "-a  -b"}, ["-a", "-b"]),
+    ('/bin/echo "$OPTS"', {"OPTS": "-a -b"}, ["-a", "-b"]),
+    ("/bin/echo $OPTS end", {"OPTS": "*"}, ["*", "end"]),
+    ("/bin/echo $OPTS", {"OPTS": "'a b' \"c'd\" e\\ f"}, ["a b", "c'd", "e f"]),
+    ("/bin/echo $OPTS", {"OPTS": "x\\\"y 'q\\'r' \"\" z"}, ['x"y', "q'r", "", "z"]),
+    ("/bin/echo $OPTS", {"OPTS": " \t\n lead  trail \r\n"}, ["lead", "trail"]),
+    ("/bin/echo $OPTS", {"OPTS": "'unbalanced word"}, ["unbalanced word"]),
+    ("/bin/echo $OPTS", {"OPTS": "trailing\\"}, ["trailing"]),
+    ("/bin/echo $OPTS", {"OPTS": "$(touch pwned) `id` ${HOME}"},
+     ["$(touch", "pwned)", "`id`", "${HOME}"]),
+    ("/bin/echo $UNSET x", {}, ["x"]),
+    ("/bin/echo $OPTS ${D}/in", {"OPTS": "-v", "D": "a b"}, ["-v", "a b/in"]),
 ])
-def test_shell_round_trip(value, env, argv):
-    """The emitted shell words give the argv systemd would have built."""
-    words = t.split_words(value, _ctx(), "test", expand_env=True)
-    script = " ".join(t.sh_word(w) for w in words[1:])
-    out = subprocess.run(["sh", "-c", "printf '%s\\0' " + script],
-                         env=dict(env, PATH=os.environ.get("PATH", "/usr/bin:/bin")),
-                         capture_output=True, text=True, check=True).stdout
-    assert out.split("\0")[:-1] == argv
+def test_shell_round_trip(value, env, argv, shell, tmp_path):
+    """The emitted shell gives the argv systemd would have built, with no globbing."""
+    (tmp_path / "fileA").write_text("")
+    assert _argv(value, env, shell, cwd=str(tmp_path)) == argv
+    assert sorted(os.listdir(str(tmp_path))) == ["fileA"]
+
+
+def test_escaped_semicolon_is_an_argument():
+    # The unit line is: /usr/bin/printf "<%%s>\\n" \; /usr/bin/printf SECOND
+    rep = t.Report()
+    d = t.Directive("Service", "ExecStart",
+                    r'/usr/bin/printf "<%%s>\\n" \; /usr/bin/printf SECOND', "j.service", 1)
+    cmd, _ = t._command(d, _ctx(), rep)
+    assert cmd.line == "/usr/bin/printf '<%s>\\n' ';' /usr/bin/printf SECOND"
+    assert not rep.items
+    for quoted in ('";"', "';'"):
+        d.value = "/bin/a %s /bin/b" % quoted
+        assert t._command(d, _ctx(), rep)[0].line == "/bin/a ';' /bin/b"
+    d.value = "/bin/a ; /bin/b"
+    assert t._command(d, _ctx(), rep)[0].line == "/bin/a && /bin/b"
+
+
+@pytest.mark.skipif(not SHELLS, reason="needs a POSIX sh")
+def test_split_command_script_runs_and_propagates_failure(tmp_path):
+    """Steps and handlers built around the split helpers run under sh."""
+    rep = t.Report()
+    out = tmp_path / "out"
+    good = t.Directive("Service", "ExecStart", "/bin/sh -c $CMD", "j.service", 1)
+    bad = t.Directive("Service", "ExecStart", "/bin/sh -c $FAIL ; /bin/touch %s" % out,
+                      "j.service", 2)
+    env = dict(os.environ, CMD="'exit 0'", FAIL="'exit 3'")
+    script = t._script([(t._command(good, _ctx(), rep)[0], ""),
+                        (t._command(bad, _ctx(), rep)[0], "")])
+    r = subprocess.run(["sh", "-c", script], env=env)
+    assert r.returncode == 3 and not out.exists()
+    script = t._script([(t._command(bad, _ctx(), rep)[0], " || true")])
+    assert subprocess.run(["sh", "-c", script], env=env).returncode == 0
+    assert not out.exists()
 
 
 def test_specifiers_user_home_given():
@@ -177,6 +234,17 @@ def test_cli_environment_written_privately(tmp_path):
     env = tmp_path / "dags" / "job.env"
     assert "SECRET='hunter2'" in env.read_text()
     assert stat.S_IMODE(env.stat().st_mode) == 0o600
+
+
+def test_cli_environment_replaces_loose_existing_file(tmp_path):
+    timer = _units(tmp_path, "[Service]\nEnvironment=SECRET=hunter2\nExecStart=/bin/true\n")
+    env = tmp_path / "job.env"
+    env.write_text("OLD=1\n")
+    env.chmod(0o644)
+    assert t.main([str(timer), "--env-out", str(env), "--report", str(tmp_path / "r")]) == 0
+    assert stat.S_IMODE(env.stat().st_mode) == 0o600
+    assert env.read_text().endswith("SECRET='hunter2'\n")
+    assert sorted(p.name for p in tmp_path.iterdir() if p.name.startswith(".")) == []
 
 
 def test_cli_strict(tmp_path):
