@@ -1,0 +1,12 @@
+# Descriptor shorthand.
+# expect: clean
+name: sample
+queue: default
+schedule: "@monthly"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

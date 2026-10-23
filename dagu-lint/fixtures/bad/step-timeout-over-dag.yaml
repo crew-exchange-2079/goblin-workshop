@@ -1,0 +1,13 @@
+# Step allows longer than the whole DAG.
+# expect: DL503
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: slow
+    run: ./slow.sh
+    timeout_sec: 7200

@@ -1,0 +1,19 @@
+# Bounded retry with backoff and a cap.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: fetch
+    run: ./fetch.sh
+    timeout_sec: 300
+    retry_policy:
+      limit: 3
+      interval_sec: 30
+      backoff: 2.0
+      max_interval_sec: 300
+      exit_code: [1, 75]

@@ -1,0 +1,12 @@
+# Several violations at once.
+# expect: DL102,DL201,DL301,DL401,DL501,DL701,DL801
+name: kitchen-sink
+schedule: "61 * * * *"
+env:
+  API_KEY: plain-text-key-value
+steps:
+  - id: a
+    action: exec
+    with:
+      command: [ls, -la]
+    worker_selector: local

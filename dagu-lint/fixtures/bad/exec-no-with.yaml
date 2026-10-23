@@ -1,0 +1,12 @@
+# action exec without with.command.
+# expect: DL801
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: backup
+    action: exec

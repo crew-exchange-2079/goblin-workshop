@@ -1,0 +1,16 @@
+# Step timeout below the DAG timeout.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: quick
+    run: ./quick.sh
+    timeout_sec: 120
+  - id: inherit
+    run: ./inherit.sh
+    timeout_sec: 0

@@ -1,0 +1,15 @@
+# A suppression for a different code does not hide the finding.
+# expect: DL403
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+params:
+  # dagu-lint: disable=DL401
+  - BLOB: Qm9vS2xHq7Zp4WxT2vN8rL5yC1dF6jE3
+steps:
+  - id: hello
+    run: echo hello

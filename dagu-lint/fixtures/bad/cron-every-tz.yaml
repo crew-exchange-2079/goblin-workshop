@@ -1,0 +1,12 @@
+# @every with a timezone prefix.
+# expect: DL201
+name: sample
+queue: default
+schedule: "CRON_TZ=Europe/Paris @every 1h"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

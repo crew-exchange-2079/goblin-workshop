@@ -1,0 +1,12 @@
+# Empty queue string.
+# expect: DL103
+name: sample
+queue: ""
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

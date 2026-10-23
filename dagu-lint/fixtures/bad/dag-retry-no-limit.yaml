@@ -1,0 +1,14 @@
+# DAG-level retry needs a limit.
+# expect: DL601
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+retry_policy:
+  interval_sec: 60
+steps:
+  - id: hello
+    run: echo hello

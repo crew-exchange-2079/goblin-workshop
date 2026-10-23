@@ -1,0 +1,13 @@
+# Deprecated exec: block with arguments in command.
+# expect: DL802
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: rsync
+    exec:
+      command: rsync -a /src/ /dst/

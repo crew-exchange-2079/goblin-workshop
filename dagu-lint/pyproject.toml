@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dagu-lint"
+dynamic = ["version"]
+description = "Policy linter for Dagu DAG YAML files: checks the JSON schema cannot express"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{name = "goblin-workshop contributors"}]
+keywords = ["dagu", "dag", "workflow", "lint", "yaml", "cron"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = ["pyyaml>=6"]
+
+[project.scripts]
+dagu-lint = "dagu_lint.cli:main"
+
+[tool.setuptools]
+packages = ["dagu_lint"]
+
+[tool.setuptools.dynamic]
+version = {attr = "dagu_lint.__version__"}

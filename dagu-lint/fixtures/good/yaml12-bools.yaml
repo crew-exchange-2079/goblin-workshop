@@ -1,0 +1,15 @@
+# `on`/`yes` stay strings (YAML 1.2), as Dagu reads them.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+params:
+  - MODE: on
+  - CONFIRM: yes
+steps:
+  - id: hello
+    run: echo "$MODE $CONFIRM"

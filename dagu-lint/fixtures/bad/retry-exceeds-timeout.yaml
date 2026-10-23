@@ -1,0 +1,16 @@
+# Retry waits alone exceed the DAG timeout.
+# expect: DL606
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: flaky
+    run: ./flaky.sh
+    timeout_sec: 600
+    retry_policy:
+      limit: 5
+      interval_sec: 600

@@ -1,0 +1,11 @@
+# Manually triggered DAG: no schedule is fine.
+# expect: clean
+name: sample
+queue: default
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

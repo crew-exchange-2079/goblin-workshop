@@ -1,0 +1,19 @@
+# Nested arrays run in parallel.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: prepare
+    run: ./prepare.sh
+  -
+    - id: shard-a
+      run: ./work.sh a
+    - id: shard-b
+      run: ./work.sh b
+  - id: merge
+    run: ./merge.sh

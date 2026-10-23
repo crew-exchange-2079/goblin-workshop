@@ -1,0 +1,15 @@
+# action: exec with one executable and explicit args.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: backup
+    action: exec
+    with:
+      command: /usr/bin/pg_dump
+      args: ["--format=custom", "--file", "/backups/db.dump", "appdb"]

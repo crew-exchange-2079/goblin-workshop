@@ -1,0 +1,4 @@
+# Top level is a list.
+# expect: DL003
+- name: x
+- name: y

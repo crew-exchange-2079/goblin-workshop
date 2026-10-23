@@ -1,0 +1,16 @@
+# Retrying exit code 0 retries success.
+# expect: DL605
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: flaky
+    run: ./flaky.sh
+    retry_policy:
+      limit: 2
+      interval_sec: 10
+      exit_code: [0, 1]

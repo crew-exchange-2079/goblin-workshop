@@ -1,0 +1,16 @@
+# KEY=value env entries without secrets.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+env:
+  - LOG_LEVEL=info
+  - AUTH_MODE=none
+  - SESSION_KEY=${SESSION_KEY}
+steps:
+  - id: hello
+    run: echo "$LOG_LEVEL"

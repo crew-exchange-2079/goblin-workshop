@@ -7,6 +7,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
+- [`dagu-lint/`](dagu-lint/): policy linter and GitHub Action for [Dagu](https://github.com/dagu-org/dagu) DAG YAML — queue allowlist, schedules with next runs, required handlers, inline secrets, bounded timeouts and retries, exec steps (MIT).
 
 ## Tape tools
 
@@ -25,6 +26,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
+(cd dagu-lint && pip install --require-hashes --only-binary=:all: -r requirements.txt && python -m pytest -q tests)   # needs PyYAML; schema tests skip without DAGU_SCHEMA
 (cd tape-library-playground && node --test)      # Node 22, no Python
 ```
 

@@ -135,6 +135,70 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
       - run: python -m pytest -q tests/sweep
 
+  dagu-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dagu-lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .github/ci-requirements.txt
+            dagu-lint/requirements-schema.txt
+      # requirements-schema.txt is requirements.txt plus jsonschema, for test_schema.py.
+      - run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements-schema.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      # Dagu's own schema (GPL-3.0, not vendored) at the commit the rules were written against.
+      - name: Fetch Dagu DAG schema
+        env:
+          DAGU_COMMIT: f609cae2b21fdd3cb4f72376e2edb9a8c9e35c45
+          DAGU_SCHEMA_SHA256: ec94f3c0e9216daa0a51b6dc3897ec7c856827f8d96578d0cdbc823e69a03abd
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/dag.schema.json" \
+            "https://raw.githubusercontent.com/dagu-org/dagu/$DAGU_COMMIT/internal/cmn/schema/dag.schema.json"
+          echo "$DAGU_SCHEMA_SHA256  $RUNNER_TEMP/dag.schema.json" | sha256sum -c -
+      - run: python -m pytest -q tests
+        env:
+          DAGU_SCHEMA: ${{ runner.temp }}/dag.schema.json
+          # Schema tests fail instead of skipping when the schema or jsonschema is missing.
+          DAGU_LINT_REQUIRE_SCHEMA: "1"
+
+  dagu-lint-action:
+    # Runs dagu-lint/action.yml the way a consumer would.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Good fixtures pass
+        uses: ./dagu-lint
+        with:
+          paths: dagu-lint/fixtures/good
+          config: dagu-lint/fixtures/dagu-lint.toml
+      - name: Bad fixtures fail
+        id: bad
+        continue-on-error: true
+        uses: ./dagu-lint
+        with:
+          paths: |
+            dagu-lint/fixtures/bad/queue-typo.yaml
+            dagu-lint/fixtures/bad/exec-command-args.yaml
+          config: dagu-lint/fixtures/dagu-lint.toml
+          format: text
+      - name: Expect the bad run to have failed
+        env:
+          OUTCOME: ${{ steps.bad.outcome }}
+        run: test "$OUTCOME" = failure
+
   tape-library-playground:
     # JavaScript project: no Python, no pip.
     runs-on: ubuntu-24.04

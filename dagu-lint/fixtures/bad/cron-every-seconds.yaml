@@ -1,0 +1,12 @@
+# @every below one minute.
+# expect: DL201
+name: sample
+queue: default
+schedule: "@every 30s"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

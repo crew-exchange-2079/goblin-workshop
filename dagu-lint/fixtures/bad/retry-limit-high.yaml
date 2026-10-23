@@ -1,0 +1,15 @@
+# Ten retries.
+# expect: DL601
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: flaky
+    run: ./flaky.sh
+    retry_policy:
+      limit: 10
+      interval_sec: 5

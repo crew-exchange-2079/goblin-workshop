@@ -1,0 +1,9 @@
+# No handler_on at all.
+# expect: DL301
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+steps:
+  - id: hello
+    run: echo hello

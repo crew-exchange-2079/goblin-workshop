@@ -1,0 +1,19 @@
+# Second document is a sub-DAG; DAG-level policy applies to the first.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: child
+    action: dag.run
+    with:
+      dag: child
+---
+name: child
+steps:
+  - id: work
+    run: ./work.sh

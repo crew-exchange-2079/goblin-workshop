@@ -1,0 +1,20 @@
+# Every lifecycle handler set.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  init:
+    run: ./init.sh
+  success:
+    run: ./notify.sh ok
+  failure:
+    run: ./notify.sh failed
+  abort:
+    run: ./notify.sh aborted
+  exit:
+    run: ./cleanup.sh
+steps:
+  - id: hello
+    run: echo hello
