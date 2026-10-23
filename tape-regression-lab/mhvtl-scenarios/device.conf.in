@@ -1,0 +1,26 @@
+# mhvtl device.conf for the tape-regression-lab scenarios. Every identifier
+# is synthetic. The library entry only supplies the media home directory; no
+# vtllibrary daemon is started. ONE standalone tape drive; media are loaded
+# and unloaded by the harness with `vtlcmd 11 load|unload`.
+
+VERSION: 5
+
+Library: 10 CHANNEL: 00 TARGET: 00 LUN: 00
+ Vendor identification: STK
+ Product identification: L700
+ Unit serial number: GWCISCLB01
+ NAA: 10:22:33:44:ab:00:10:00
+ Home directory: @HOME@
+ PERSIST: False
+ Backoff: 400
+
+Drive: 11 CHANNEL: 00 TARGET: 01 LUN: 00
+ Library ID: 10 Slot: 01
+ Vendor identification: IBM
+ Product identification: ULT3580-TD8
+ Product revision level: 0105
+ Unit serial number: @SERIAL@
+ NAA: 10:22:33:44:ab:00:11:00
+ Compression: factor 1 enabled 1
+ Compression type: lzo
+ Backoff: 400
