@@ -98,14 +98,15 @@ function num(v, fallback, bounds) {
 }
 
 /*
- * Ceiling that forgives floating-point noise: 12.000000000001 tapes is 12
- * tapes, not 13. Anything more than a part in 10^9 over a whole number still
- * rounds up.
+ * Ceiling that forgives floating-point noise: 12.000000000000002 tapes is 12
+ * tapes, not 13. The tolerance is relative (a part in 10^12, still ~1000×
+ * the error of the few multiplications behind x), so a real remainder rounds
+ * up at any scale, and any positive amount of data needs at least one tape.
  */
 export function ceilTapes(x) {
   if (!(x > 0)) return 0;
   const r = Math.round(x);
-  return Math.abs(x - r) <= 1e-9 * Math.max(1, r) ? r : Math.ceil(x);
+  return r >= 1 && Math.abs(x - r) <= 1e-12 * r ? r : Math.ceil(x);
 }
 
 /* Turn loose input (form values, URL params, partial objects) into a valid plan input. */

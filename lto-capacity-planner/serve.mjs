@@ -13,7 +13,13 @@ const port = Number(process.argv[2] || process.env.PORT || 8944);
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 
 createServer(async (req, res) => {
-  const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  let path;
+  try {
+    path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  } catch {
+    res.writeHead(400).end('bad request'); // e.g. "/%": malformed percent-encoding
+    return;
+  }
   const file = normalize(join(root, path === '/' ? 'index.html' : path));
   // only the three kinds of file the page needs, and only from this folder
   if (!file.startsWith(root.endsWith(sep) ? root : root + sep) || !TYPES[extname(file)] || file.includes(`${sep}node_modules${sep}`)) {

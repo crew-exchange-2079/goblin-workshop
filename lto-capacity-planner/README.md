@@ -94,6 +94,7 @@ anything unparseable falls back to the default.
 |---|---|
 | `planner.js` | all the math as a pure ES module (no DOM, no Node globals); the browser and the tests load the same file |
 | `planner.test.js` | unit tests on Node's built-in runner |
+| `serve.test.js` | checks the local server rejects malformed and out-of-folder paths without crashing |
 | `index.html`, `app.js`, `style.css` | the page; no libraries |
 | `serve.mjs` | tiny localhost-only static server for local use and the smoke test |
 | `e2e/smoke.spec.mjs`, `playwright.config.mjs` | one Playwright smoke test |
@@ -102,7 +103,7 @@ anything unparseable falls back to the default.
 ## Tests
 
 ```sh
-node --test                       # unit tests, Node 22+, no install
+node --test                       # unit + server tests, Node 22+, no install
 npm ci && npx playwright install chromium && npx playwright test   # smoke test
 ```
 

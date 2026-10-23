@@ -51,6 +51,29 @@ test('a partial cartridge rounds up', () => {
   assert.equal(row(p, 'lto10x').tapesPerCopy, 4);
 });
 
+test('ceilTapes boundaries: tiny positive data, large quotients, float noise', () => {
+  assert.equal(ceilTapes(1e-15), 1, 'any positive amount needs a cartridge');
+  assert.equal(ceilTapes(1e-9), 1);
+  assert.equal(ceilTapes(0.4), 1);
+  assert.equal(ceilTapes(1000000000.2), 1000000001, 'a real remainder rounds up at large scale');
+  assert.equal(ceilTapes(1e9 + 0.01), 1e9 + 1);
+  assert.equal(ceilTapes(18 + 4 * Number.EPSILON * 18), 18, 'a few ulps over is noise');
+  assert.equal(ceilTapes(1e9 * (1 + 4 * Number.EPSILON)), 1e9);
+  assert.equal(ceilTapes(0), 0);
+  assert.equal(ceilTapes(-1), 0);
+  assert.equal(ceilTapes(NaN), 0);
+});
+
+test('a positive dataset needs at least one cartridge per copy', () => {
+  const p = plan({ ...base, size: 0.000001, unit: 'GB', copies: 2, inLibrary: 1 });
+  for (const r of p.rows) {
+    assert.equal(r.tapesPerCopy, 1);
+    assert.equal(r.tapes, 2);
+    assert.equal(r.slots, 1);
+    assert.ok(r.cost[0] > 0);
+  }
+});
+
 test('zero data needs zero cartridges and costs nothing', () => {
   const p = plan({ ...base, size: 0, copies: 3, spare: 50 });
   for (const r of p.rows) {
