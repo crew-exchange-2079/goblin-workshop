@@ -58,7 +58,9 @@ walkthrough always shows the dashboard and rules as they are in the tree.
   written, not a bug. The failing target's drives show up as
   `LTOCollectorFailing`, `LTOLogPageUnsupported` and `LTODeviceChanged`.
   Whether `LTOUncorrectedErrorsIncreased` is already firing depends on how
-  many scrapes have landed, so the check doesn't rely on it.
+  many scrapes have landed, so the check doesn't rely on it. The check accepts
+  `pending` or `firing` for every alert it looks at, since that depends only on
+  how long the stack has been up.
 * **Missing is not zero.** `drive1`'s read page leaves out
   `total_uncorrected`. The exporter reports it as absent
   (`LTOErrorParameterMissing`), never as 0.

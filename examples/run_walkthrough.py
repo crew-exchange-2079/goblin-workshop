@@ -33,6 +33,8 @@ TIMEOUT = 600
 
 # Lines (regular expressions) each walkthrough's output must contain. These are
 # the claims its README makes; the synthetic targets are deterministic in shape.
+# Alert state is matched as pending OR firing: which one depends on how long the
+# run has been up relative to each rule's `for:`, not on whether it is correct.
 EXPECT = {
     "exporter-to-grafana": [
         r"stack ready: Prometheus scrapes 2 exporters, Grafana is up",
@@ -40,8 +42,8 @@ EXPECT = {
         r"lto-exporter\s+exporter:9101\s+up",
         r"lto-exporter\s+exporter:9102\s+up",
         r"device=drive0,direction=write,instance=exporter:9101,side=host\s+[1-9]",
-        r"LTOCleaningRequired\s+pending\s+device=drive1",
-        r"LTODeviceChanged\s+pending\s+device=drive3.*status=device_missing",
+        r"LTOCleaningRequired\s+(pending|firing)\s+device=drive1",
+        r"LTODeviceChanged\s+(pending|firing)\s+device=drive3.*status=device_missing",
         r"dashboard: LTO tape drives \(lto-exporter\) \(\d+ panels\)",
         r"device=drive1\s+cleaning_required=1",
     ],
