@@ -37,7 +37,7 @@ jobs:
       - name: Unit tests
         run: python -m unittest -v test_tapefec
       - name: Install test dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+        run: python -m pip install --disable-pip-version-check --require-hashes -r requirements-dev.txt
       - name: Property-based tests
         run: python -m unittest -v test_properties
       - name: Fuzz (fixed seeds; replay a failure with fuzz.py --replay SEED)

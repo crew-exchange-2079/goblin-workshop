@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Property-based tests for tapefec's framer and decoder (needs hypothesis).
 
-    python3 -m pip install -r requirements-dev.txt
+    python3 -m pip install --require-hashes -r requirements-dev.txt
     python3 -m unittest -v test_properties
 
 The contract under test, per parity group of k' data + m parity frames:

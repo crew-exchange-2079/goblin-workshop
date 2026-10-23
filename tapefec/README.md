@@ -312,7 +312,7 @@ audit is worth a lot when the data is archival.
 ## Property tests and fuzzing
 
 ```console
-$ python3 -m pip install -r requirements-dev.txt     # hypothesis, tests only
+$ python3 -m pip install --require-hashes -r requirements-dev.txt   # tests only
 $ python3 -m unittest -v test_properties
 $ python3 fuzz.py --cases 50000 --seed 1             # stdlib only
 $ python3 fuzz.py --cases 5000 --seed 2 --forge
