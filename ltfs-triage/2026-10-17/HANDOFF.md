@@ -1,21 +1,27 @@
-# HANDOFF - LTFS triage 2026-10-17 (current)
+# HANDOFF - LTFS triage (updated 2026-10-23)
 
-Earlier access-blocker history: `HANDOFF-2026-10-17-initial-403-blocker.md` and `raw/` (403 receipts, kept as-is; `collect.sh` is NOT a successful collection and was not rerun).
+History: `HANDOFF-2026-10-17-initial-403-blocker.md` (API 403 receipts in `raw/`, `collect.sh` never rerun).
 
-## DONE
-- Parent-supplied public snapshot (collected 2026-10-17T09:03Z; zip sha256 1cff6906...cb230, member sha256 ac27a26f...fb1f5b, both recomputed OK). Input kept outside Git.
-- Counts: **72 open non-PR issues** (95 mixed open - 23 open PRs); open PRs: **23**. Classes in TRIAGE.md header (already-fixed-upstream = 0: no evidence available).
-- Closed window: see `census.json` (closed_at >= 2025-10-17 filtered locally; mixed closed response 84, closed-PR page 100 with min updated 2022-12-25, Link next present but beyond window). Closed issues and PRs in the window are counted from the supplied normalized items only.
-- TRIAGE.md, TOP5.md (1 ranked), AUDIT.md (real run).
-- Sources: LTFS commit efc9e3a5c498504c03c2f1d0b931bae058922104; mhvtl commit 852b78a7ae3add53ffdc418add5f14999762d788 (docs not read this pass).
+## Current deliverables
+- `TRIAGE.md` / `triage/ALL.csv`: 72 open non-PR issues (snapshot 2026-10-17T09:03Z), 23 open PRs kept separate. Classes: repro-mhvtl 5, hardware-only 20, question/support 40, stale/duplicate 5, already-fixed-upstream 2.
+- `triage/TOP5.md`: final ranking, **4 of 5 slots** (#333, #106, #535 weak, #305 large). No fifth qualifies.
+- `AUDIT.md`: real audit run (`python3 -I audit.py`), 72 = 72 IDs, CSV agrees.
+- Root `TOP5.md` is now only a pointer.
+
+## What changed vs the 2026-10-17 draft
+- Source: fresh read-only `git clone` of upstream, HEAD efc9e3a (same as the snapshot); open PR heads fetched read-only via `refs/pull/N/head`. No upstream writes, no API calls.
+- #541: real on main, but OPEN PR #603 already fixes it (`return fuse_failed ? 1 : ret;`), so it is excluded and **no `fixes/541.patch` was made** (your condition: only if not already fixed there). Open question: if #603 is not expected to merge soon, a standalone 1-line fix plus harness is possible; say so and I will do it.
+- #598 and #414 are now already-fixed-upstream with commits (ba1695e / PR 599; 7d5c5af / #415). #522: closed PR 660 is NOT merged; symptom unread.
+- #392/#513/#661/#650 are covered by open PRs 658/659/662/651 (diffs read).
 
 ## NOT DONE / limits
-- Snapshot is normalized selected fields, not raw HTTP. src/libltfs/ltfs_fsops.c was omitted by the parent's guard; not read.
-- Only #541's source was read. 4 more ranks not filled. No maintainer comments or merged-state data, so #598/#522 stay UNVERIFIED.
-- mhvtl capability was not checked against docs; repro sketches are reasoned only. No bug reproduced/fixed; no physical-drive claim; no CI ran.
+- Nothing built or run; no bug reproduced or fixed; no hardware claim. Repro plans use the file backend, not mhvtl (needs a kernel module; mhvtl docs not re-read).
+- Maintainer comment threads (e.g. #535's 12 comments, #106 "historical issue") were not read. #305 recovery path not fully traced. #650 matched to PR 651 by title and diff only.
+- Non-repro rows are still title/label-based, low confidence. ltfs_fsops.c was read only incidentally.
+- User-requested layout: files live under `ltfs-triage/2026-10-17/triage/`, not a repo-root `triage/`.
 
 ## Reproduce
-`python3 -I build.py <snapshot.json>` (writes census.json, TRIAGE.md), then `python3 -I audit.py`.
+`python3 -I build.py <snapshot.json>` then `python3 -I audit.py` (run from this folder; snapshot is the parent-supplied file, kept out of Git).
 
 ## Lead review
-Overlap of #541 with open PRs #603/#655; class judgments for non-repro rows are title/label-based (low confidence).
+Pick which of #333 / #106 to implement; #106 needs a maintainer answer on the "historical issue" before any patch.
