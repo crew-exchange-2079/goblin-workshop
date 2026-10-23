@@ -115,22 +115,37 @@ class SequentialAccessPage:
     values: dict = field(default_factory=dict)   # known exact bytes / cleaning flag
 
 
-_SA_HEADER = "Sequential access device log page (ssc-3)"
+# Two literal spellings of the same decoder: sg3_utils 1.46 (Ubuntu 24.04,
+# checked by running the binary on synthetic pages, see
+# tests/fixtures/sg3_utils_1.46/) and current git (show_sequential_access_page
+# at the commit cited below). Each line is matched exactly; no fuzzy matching.
+_SA_HEADERS = frozenset({
+    "Sequential access device page (ssc-3)",       # 1.46
+    "Sequential access device log page (ssc-3)",   # git
+})
 _SA_BYTE_LABELS = {
+    "Data bytes received with WRITE commands": "bytes_received_write",
+    "Data bytes written to media by WRITE commands": "bytes_written_media",
+    "Data bytes read from media by READ commands": "bytes_read_media",
+    "Data bytes transferred by READ commands": "bytes_transferred_read",
     "Data bytes received with WRITE operations": "bytes_received_write",
     "Data bytes written to media by WRITE operations": "bytes_written_media",
     "Data bytes read from media by READ operations": "bytes_read_media",
     "Data bytes transferred by READ operations": "bytes_transferred_read",
 }
+SA_FIELDS = ("bytes_received_write", "bytes_written_media", "bytes_read_media",
+             "bytes_transferred_read", "cleaning_action_required")
 _SA_EXACT_RE = re.compile(r"([0-9]{1,20}) GB \[([0-9]{1,20}) bytes\]")
 _SA_CLEANING = {
-    "  Cleaning action required (or in progress)": 1,
-    "  Cleaning action not required (or completed)": 0,
+    "  Cleaning action required": 1,                        # 1.46
+    "  Cleaning action required (or in progress)": 1,       # git
+    "  Cleaning action not required (or completed)": 0,     # both
 }
 
 
 def parse_sg_logs_sequential_access(text):
-    """Parse the ordinary SSC 0x0c decoded body decoded by sg3_utils.
+    """Parse the SSC Sequential-Access Device log page (0x0c) as decoded by
+    `sg_logs --verbose` on a tape drive (peripheral device type 1).
 
     Public decoder reference (parameter codes 0-3 and 0x100):
     https://github.com/doug-gilbert/sg3_utils/blob/
@@ -141,10 +156,10 @@ def parse_sg_logs_sequential_access(text):
     Other unindented page headings (including comment-prefixed hex headings)
     end the body. Repeated SSC sections share duplicate/conflict tracking.
 
-    Bytes require a decimal uint64 verbose suffix consistent with the displayed
-    truncated decimal GB. Nonverbose GB, even zero, is unknown. Any malformed
-    occurrence or disagreement permanently removes that field; equal exact
-    duplicates are accepted. Whole cleaning narratives yield 0/1; conflicting
+    Bytes require a decimal uint64 suffix (printed only with --verbose)
+    consistent with the displayed truncated decimal GB. Nonverbose GB, even
+    zero, is unknown. Any malformed occurrence or disagreement permanently
+    removes that field; equal exact duplicates are accepted. Whole cleaning narratives yield 0/1; conflicting
     narratives remain unknown. Optional verbose cleaning values are ignored.
     Unknown/vendor and capacity lines are ignored. These values establish no
     error counts, power-on lifetime, or counter reset/persistence guarantees.
@@ -154,7 +169,7 @@ def parse_sg_logs_sequential_access(text):
     header_seen = False
     in_expected = False
     for line in text.splitlines():
-        if line == _SA_HEADER:
+        if line in _SA_HEADERS:
             header_seen = True
             in_expected = True
             continue

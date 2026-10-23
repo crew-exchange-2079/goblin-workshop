@@ -1,8 +1,57 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (not yet tagged)
 
-* Add parser-only SSC sequential-access support; exact byte totals require consistent verbose byte suffixes because displayed GB values are truncated.
+Synthetic fixtures (0x0c decoded by the real sg_logs 1.46 binary), unit
+tests, mhvtl emulation and the Grafana smoke test only. Still **not** run
+against real tape hardware.
+
+### Added
+
+* **SSC Sequential-Access Device log page (0x0c)** collector,
+  `sg_logs_sequential_access`, run as
+  `sg_logs --readonly --verbose --page=0xc /dev/sgN` (`--verbose` is the
+  only way to get exact byte counts from sg_logs text). New metrics:
+  `tape_data_bytes_total{direction,side}` (host vs media bytes written and
+  read), `tape_cleaning_required` and
+  `tape_sequential_access_field_present{field}`. Unknown is not zero: a
+  failed page or an inexact/conflicting field exports no value.
+* Dashboard panels *Cleaning required* and *Data bytes (rate): host vs
+  media* (dashboard `version` 3, uid unchanged; panels 1 and 2 are
+  narrower to make room). Alert `LTOCleaningRequired` (30 min), with
+  promtool tests.
+* Golden fixtures in `tests/fixtures/sg3_utils_1.46/seqaccess_*`, including
+  nonverbose output (no exact bytes) and page 0x0c decoded for a disk
+  (Logical Block Provisioning, rejected).
+
+### Changed
+
+* **Default collectors are now `["sg_logs", "sequential_access"]`**: a
+  device without a `collectors` key gets one more LOG SENSE per scrape
+  (worst case per device `3 × (timeout + 2 s)`, was 2 ×). Configs that list
+  `"collectors": ["sg_logs"]` explicitly behave exactly as before.
+* `commands._check()` accepts a second exact shape,
+  `[sg_logs, --readonly, --verbose, --page=0xc, /dev/sgN]`; `--verbose` is
+  refused with any other page and 0xc is refused without it.
+* mhvtl integration: the exec/CDB allowlist includes page 0x0c, at least one
+  LOG SENSE of 0x0c is required, and its metrics must equal the harness's
+  own `sg_logs --verbose` read when the emulator lists the page.
+
+### Fixed
+
+* The SSC parser added after 0.2.0 matched only sg3_utils git's wording
+  ("Sequential access device log page", "... WRITE operations",
+  "Cleaning action required (or in progress)"). sg3_utils 1.46, the version
+  this project targets (Ubuntu 24.04), prints "Sequential access device
+  page", "... WRITE commands" and "Cleaning action required", so every 1.46
+  page would have been a `parse_error`. Both spellings are now accepted,
+  literally.
+
+### Not included (by design)
+
+* TapeAlert flags (page 0x2E can clear on read) and `mt status` drive state
+  (needs exclusive-open `/dev/stN`/`nstN`; `/dev/stN` rewinds on close). See
+  README "Out of scope".
 
 ## 0.2.0
 

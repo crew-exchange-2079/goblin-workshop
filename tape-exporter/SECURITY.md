@@ -7,10 +7,11 @@ GitHub's private vulnerability reporting if it is enabled on the repository.
 ## What it is designed to guarantee
 
 * The only program it executes is `sg_logs`, with exactly
-  `--readonly --page=0x2|0x3 /dev/sgN`. This is enforced in
+  `--readonly --page=0x2|0x3 /dev/sgN` or
+  `--readonly --verbose --page=0xc /dev/sgN`. This is enforced in
   `commands._check()`, which every spawn path calls. No shell.
 * The only SCSI commands that result are INQUIRY and LOG SENSE (SP=0) of
-  pages 0x02/0x03, issued by sg_logs on an `O_RDONLY` descriptor. No LOG
+  pages 0x02/0x03/0x0c, issued by sg_logs on an `O_RDONLY` descriptor. No LOG
   SELECT, no TapeAlert read, no tape motion, no writes, no reset. The CI
   mhvtl job verifies this at the syscall/CDB level against an emulated drive.
 * It needs no root and no capabilities: read access to one sg node.
@@ -38,8 +39,9 @@ GitHub's private vulnerability reporting if it is enabled on the repository.
   unprivileged exporter read-only even if sg_logs misbehaved. Granting write
   access to the node or `CAP_SYS_RAWIO` removes that safety net.
 * **Vendor behaviour.** Some drives may have side effects on LOG SENSE that
-  the standard doesn't describe. Pages 0x02/0x03 are the least likely, but
-  this is untested on real drives.
+  the standard doesn't describe. Counter pages 0x02/0x03/0x0c are the least
+  likely (unlike TapeAlert 0x2E, which the exporter never reads), but this
+  is untested on real drives.
 * **No TLS, no authentication.** Default bind is 127.0.0.1. Put a reverse
   proxy in front if you need remote scraping.
 * **Supply chain.** Runtime has no Python dependencies. CI pins GitHub

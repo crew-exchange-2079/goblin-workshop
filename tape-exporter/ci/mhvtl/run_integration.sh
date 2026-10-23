@@ -6,7 +6,8 @@
 # the exporter against it as an unprivileged user under strace, and checks:
 #   * exactly one emulated drive is identified, by synthetic serial AND by
 #     its SCSI host being the mhvtl pseudo adapter;
-#   * the exporter only exec'd `sg_logs --readonly --page=0x2|0x3 <that sg>`,
+#   * the exporter only exec'd `sg_logs --readonly --page=0x2|0x3 <that sg>`
+#     and `sg_logs --readonly --verbose --page=0xc <that sg>`,
 #     opened that node O_RDONLY, and only sent INQUIRY / LOG SENSE CDBs
 #     (no LOG SELECT, no motion, no writes);
 #   * metrics match what the emulator says it supports (unknown != zero).
@@ -137,6 +138,10 @@ for pg in 0x2 0x3; do
   sg_logs --readonly --page=$pg "$SG" > "$EVIDENCE/harness_sg_logs_$pg.txt" 2>&1
   echo "$?" > "$EVIDENCE/harness_sg_logs_$pg.rc"
 done
+# Same argv as the exporter (--verbose: exact byte counts). stderr kept apart
+# so the parsed text is exactly what the exporter would see.
+sg_logs --readonly --verbose --page=0xc "$SG" > "$EVIDENCE/harness_sg_logs_0xc.txt" 2> "$EVIDENCE/harness_sg_logs_0xc.stderr"
+echo "$?" > "$EVIDENCE/harness_sg_logs_0xc.rc"
 set -e
 cat "$EVIDENCE/supported_pages.txt"
 

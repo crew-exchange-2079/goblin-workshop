@@ -7,14 +7,20 @@ It runs exactly one external tool, `sg_logs` from sg3_utils, without a
 shell, and parses its text output:
 
 ```
-sg_logs --readonly --page=0x2 /dev/sgN   # Write Error Counter log page
-sg_logs --readonly --page=0x3 /dev/sgN   # Read Error Counter log page
+sg_logs --readonly --page=0x2 /dev/sgN             # Write Error Counter log page
+sg_logs --readonly --page=0x3 /dev/sgN             # Read Error Counter log page
+sg_logs --readonly --verbose --page=0xc /dev/sgN   # SSC Sequential-Access Device log page
 ```
+
+From these it exports read/write error counters, bytes processed, host and
+media byte counters (written/read) and the drive's "cleaning required" flag.
+It does **not** export TapeAlert flags or `mt status` drive state; see
+[Out of scope](#out-of-scope-tapealert-flags-and-mt-drive-state) for why.
 
 **`tapeinfo` (mtx) is never executed** and can't be enabled. See
 [Why no tapeinfo](#why-no-tapeinfo).
 
-> **Status: v0.2.0 release candidate.** Tested with unit tests, real
+> **Status: v0.3.0 release candidate.** Tested with unit tests, real
 > `sg_logs` 1.46 output (decoded offline from synthetic pages) and, in CI,
 > against an **mhvtl emulated** drive (see [Integration test](#integration-test-mhvtl)).
 > It has **not** been run against real tape hardware. Treat the first
@@ -23,12 +29,16 @@ sg_logs --readonly --page=0x3 /dev/sgN   # Read Error Counter log page
 
 ## Safety model
 
-* **One fixed command shape.** `commands._check()` accepts only
-  `[<sg_logs_path>, --readonly, --page=0x2|0x3, /dev/sgN]`: exactly four
-  arguments, each validated, including the last. `run_command()` calls it
-  itself, so code that builds its own argv can't bypass it. No LOG SELECT,
-  `--reset`, `--select`, `--sp`, other pages (TapeAlert 0x2E included), tape
-  motion, writes, load/unload or MODE SELECT are ever constructed.
+* **Two fixed command shapes.** `commands._check()` accepts only
+  `[<sg_logs_path>, --readonly, --page=0x2|0x3, /dev/sgN]` and
+  `[<sg_logs_path>, --readonly, --verbose, --page=0xc, /dev/sgN]`: every
+  argument validated, including the last, and `--verbose` only together with
+  page 0xc. `run_command()` calls it itself, so code that builds its own argv
+  can't bypass it. No LOG SELECT, `--reset`, `--select`, `--sp`, other pages
+  (TapeAlert 0x2E included), tape motion, writes, load/unload or MODE SELECT
+  are ever constructed. `--verbose` is needed because without it sg_logs
+  prints page 0xc byte counters only as truncated GB; it adds diagnostics
+  on stderr (discarded) and changes no SCSI command.
 * **Explicit allowlist, no `/dev` scan.** Up to 16 devices, each given by name
   and path in the config.
 * **Only `/dev/sgN` (SCSI generic) nodes.** `/dev/stN` rewinds on close;
@@ -75,7 +85,7 @@ An earlier draft had an opt-in `tapeinfo` collector. It was removed:
 Enforcement, all covered by tests:
 * The config rejects `"collectors": ["tapeinfo"]` and `tapeinfo_path`.
 * The command check refuses any executable whose basename isn't `sg_logs`
-  and any page other than 0x2/0x3.
+  and any page other than 0x2/0x3/0xc.
 * The exporter has no TapeAlert/tapeinfo metrics.
 * The exporter never imports the offline parser below, and the wheel does
   not ship it.
@@ -86,6 +96,29 @@ into JSON (`python3 -m offline.tapeinfo_text < captured.txt`). It runs no
 commands, opens no device and emits no metrics. Because `tapeinfo` prints
 TapeAlert lines only for set flags, it reports `tapealert_support: "unknown"`
 and the listed codes, never a zero count. It never parses the serial number.
+
+### Out of scope: TapeAlert flags and `mt` drive state
+
+Both were considered for 0.3.0 and left out on purpose:
+
+* **TapeAlert flags** come from LOG SENSE page 0x2E (or `tapeinfo`, which
+  reads the same page). Reading it can clear the flags, as described above,
+  which would hide alerts from the backup software that relies on them.
+  "Read-only" in the SCSI sense isn't side-effect free here.
+  The one TapeAlert-derived signal that is safe to read is the
+  **cleaning-required** flag, which drives also report in the
+  Sequential-Access Device page (0x0c, parameter 0x0100). It is exported as
+  `tape_cleaning_required`. SSC-4's TapeAlert Response page (0x12) is not
+  read either: it isn't confirmed on real drives here, and mhvtl doesn't
+  emulate it.
+* **`mt status` / drive state** (online, BOT/EOD, write-protect, file and
+  block number) needs the st driver: `mt` opens `/dev/stN` or `/dev/nstN`.
+  Those nodes are exclusive-open, so a scrape during a backup can make the
+  backup job's open fail with `EBUSY`. Closing `/dev/stN` also rewinds the
+  tape. The exporter therefore never touches st nodes and never runs `mt`.
+  The availability signals it does have are the per-collector `status`
+  values (`ok`, `not_ready`, `unit_attention`, `device_missing`, ...),
+  shown in the dashboard's *Collector status* table.
 
 ## Install and run
 
@@ -241,11 +274,12 @@ promtool check config /etc/prometheus/prometheus.yml
 
 `127.0.0.1` means Prometheus must run on the same host; don't widen
 `listen_address` or the unit's IP policy for this (the exporter has no
-TLS/auth). A scrape runs two `sg_logs` commands per device, one device at a
-time, so with the defaults a device can take up to `2 × (10 + 2) = 24 s` on
-an uncached scrape. Size `scrape_timeout` for your number of devices and the
-worst-case command latency (`24 s × devices` with defaults), and keep it at or
-below `scrape_interval`.
+TLS/auth). A scrape runs three `sg_logs` commands per device (two with
+`"collectors": ["sg_logs"]`), one device at a time, so with the defaults a
+device can take up to `3 × (10 + 2) = 36 s` on an uncached scrape. Size
+`scrape_timeout` for your number of devices and the worst-case command
+latency (`36 s × devices` with defaults), and keep it at or below
+`scrape_interval`.
 
 The cache is only a rate limit, not something to rely on: a result is reused
 only while it is younger than `cache_seconds`. With `scrape_interval: 60s` and
@@ -276,7 +310,7 @@ needs no new accounts or integrations beyond permission to create dashboards.
   "cache_seconds": 30,
   "sg_logs_path": "/usr/bin/sg_logs",
   "devices": [
-    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
+    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs", "sequential_access"]}
   ]
 }
 ```
@@ -291,7 +325,7 @@ needs no new accounts or integrations beyond permission to create dashboards.
 | `sg_logs_path` | `/usr/bin/sg_logs` | absolute, no whitespace/control chars, basename `sg_logs`; checked executable at startup |
 | `devices[].name` | (required) | `[A-Za-z][A-Za-z0-9_]{0,31}` exactly (no trailing newline), unique |
 | `devices[].path` | (required) | absolute `/dev/` path, no whitespace/control chars, must be or resolve to `/dev/sgN`; two entries may not pin the same node |
-| `devices[].collectors` | `["sg_logs"]` | only `sg_logs` (`tapeinfo` is rejected) |
+| `devices[].collectors` | `["sg_logs", "sequential_access"]` | non-empty subset of `sg_logs` (pages 0x2, 0x3) and `sequential_access` (page 0xc); `tapeinfo` is rejected |
 
 `/dev/sgN` numbering can change across reboots and hot-plug. A udev-created
 symlink that resolves to the drive's sg node is more stable, but it is
@@ -315,17 +349,25 @@ Run the exporter as a dedicated unprivileged user. It needs:
 
 ## Metrics
 
-Sample output from the synthetic fixtures (`tests/fixtures/`), abridged:
+Sample output from the synthetic fixtures (`tests/fixtures/`; the 0x0c
+values come from real `sg_logs` 1.46 decoding a synthetic page), abridged:
 
 ```
-tape_exporter_build_info{version="0.2.0"} 1
+tape_exporter_build_info{version="0.3.0"} 1
 tape_exporter_collector_success{device="drive0",collector="sg_logs_write_errors"} 1
+tape_exporter_collector_success{device="drive0",collector="sg_logs_sequential_access"} 1
 tape_exporter_collector_duration_seconds{device="drive0",collector="sg_logs_write_errors"} 0.12
 tape_exporter_collector_status{device="drive0",collector="sg_logs_write_errors",status="ok"} 1
 tape_log_parameter_present{device="drive0",direction="read",parameter="rewrites_or_rereads"} 0
 tape_log_errors_total{device="drive0",direction="write",parameter="total_uncorrected"} 0
 tape_log_errors_total{device="drive0",direction="write",parameter="corrected_with_delay"} 3
 tape_bytes_processed_total{device="drive0",direction="write"} 2199023255553
+tape_sequential_access_field_present{device="drive0",field="cleaning_action_required"} 1
+tape_data_bytes_total{device="drive0",direction="write",side="host"} 2199023255553
+tape_data_bytes_total{device="drive0",direction="write",side="media"} 1500000000123
+tape_data_bytes_total{device="drive0",direction="read",side="media"} 734003200000
+tape_data_bytes_total{device="drive0",direction="read",side="host"} 1468006400000
+tape_cleaning_required{device="drive0"} 1
 tape_exporter_unreaped_children 0
 ```
 
@@ -338,12 +380,38 @@ tape_exporter_unreaped_children 0
 | `tape_log_errors_total` | `device`, `direction`, `parameter` | Write (0x02) / Read (0x03) Error Counter log page, parameter codes 0–4 and 6 |
 | `tape_bytes_processed_total` | `device`, `direction` | same pages, parameter code 5 |
 | `tape_log_parameter_present` | `device`, `direction`, `parameter` | 1/0 per known parameter, emitted only when the page was read |
+| `tape_data_bytes_total` | `device`, `direction`, `side` | Sequential-Access Device log page (0x0c), parameter codes 0–3 |
+| `tape_cleaning_required` | `device` | same page, parameter code 0x0100: 1 = cleaning required (or in progress), 0 = not required (or completed) |
+| `tape_sequential_access_field_present` | `device`, `field` | 1/0 per field of page 0x0c, emitted only when the page was read |
 
-`collector` ∈ `sg_logs_write_errors`, `sg_logs_read_errors`; `direction` ∈
-`write`, `read`; `parameter` ∈ `corrected_without_delay`,
-`corrected_with_delay`, `rewrites_or_rereads`, `total_corrected`,
-`correction_algorithm_processed`, `total_uncorrected` (and
-`bytes_processed` on `tape_log_parameter_present` only).
+`collector` ∈ `sg_logs_write_errors`, `sg_logs_read_errors`,
+`sg_logs_sequential_access`; `direction` ∈ `write`, `read`; `parameter` ∈
+`corrected_without_delay`, `corrected_with_delay`, `rewrites_or_rereads`,
+`total_corrected`, `correction_algorithm_processed`, `total_uncorrected`
+(and `bytes_processed` on `tape_log_parameter_present` only).
+
+Page 0x0c byte counters, by `direction` and `side`:
+
+| `direction` | `side` | SSC parameter | meaning |
+|---|---|---|---|
+| `write` | `host` | 0x0000 | data bytes received from the host with WRITE commands |
+| `write` | `media` | 0x0001 | data bytes written to tape (after compression) |
+| `read` | `media` | 0x0002 | data bytes read from tape (before decompression) |
+| `read` | `host` | 0x0003 | data bytes transferred to the host by READ commands |
+
+`rate(...{side="host"}) / rate(...{side="media"})` per direction is the
+effective compression ratio. `field` ∈ `bytes_received_write`,
+`bytes_written_media`, `bytes_read_media`, `bytes_transferred_read`,
+`cleaning_action_required`.
+
+A byte counter is exported only if `sg_logs --verbose` printed its exact
+value and that value matches the truncated GB figure on the same line. A
+field that is repeated with different values, or a cleaning flag reported
+both ways, is treated as unknown. Page 0x0c means Logical Block Provisioning
+on disks; the parser accepts only the SSC heading, which `sg_logs` prints
+after INQUIRY reports a tape (sysfs type 1 is also checked before each
+scrape). sg3_utils 1.46 and current git spell the heading and labels
+differently; both are accepted, matched literally.
 
 ### Collector status
 
@@ -396,8 +464,13 @@ guidance.
   vendor guidance. A missing counter shows **No data**, never 0. A whole
   exporter that is down also shows nothing (its `instance` drops out of the
   variable); `LTOExporterDown` is what reports that, not the dashboard.
+  Panels *Cleaning required* (per device, red = required) and *Data bytes
+  (rate): host vs media* show the 0x0c page; a drive whose page can't be
+  read shows no value there, not "not required".
 * [`monitoring/prometheus/lto-exporter-alerts.yml`](monitoring/prometheus/lto-exporter-alerts.yml):
   alert rules, with promtool unit tests in `lto-exporter-alerts.test.yml`.
+  `LTOCleaningRequired` fires after 30 minutes of cleaning required (long
+  enough not to fire while a cleaning cycle is running).
   `LTOExporterDown` assumes the scrape job is named `lto-exporter`.
   Thresholds are starting points, not vendor guidance.
 
@@ -420,7 +493,13 @@ the dashboard into a real Grafana OSS container with synthetic data; it has
   header `Write error counter log page  [0x2]` (1.46 prints `... error
   counter page  [0x2]`, without "log"; both accepted), then lines
   `  <name> = <n>`, optionally suffixed ` [N GB]`/` [N TB]`. Parameter
-  meanings are from T10 SPC "Error counter log pages".
+  meanings are from T10 SPC "Error counter log pages". Page 0x0c comes from
+  `show_sequential_access_page()` in the same file: heading
+  `Sequential access device page (ssc-3)` (git: `... device log page ...`),
+  then `  Data bytes <...> WRITE|READ commands: <N> GB [<exact> bytes]`
+  (git: `operations`; the `[... bytes]` part only with `--verbose`) and a
+  cleaning line; parameter meanings are from T10 SSC "Sequential-Access
+  Device log page".
   `tests/fixtures/sg3_utils_1.46/` holds real 1.46 output for synthetic pages.
 * The offline-only tapeinfo parser cites
   [tapeinfo(1)](https://manpages.debian.org/stable/mtx/tapeinfo.1.en.html)
@@ -437,10 +516,12 @@ Limits and tolerance:
   are ignored. Unknown and vendor-specific parameter lines are ignored.
 * Values must be decimal and ≤ 2^64−1, otherwise they count as missing.
   Duplicate parameters: first wins. Output is capped at `max_output_bytes`.
-* No TapeAlert, ready-state, compression or drive-identity metrics. That
-  was the cost of removing `tapeinfo`.
-* One scrape runs 2 commands per device, sequentially, under one lock. Worst
-  case is about `2 × (command_timeout_seconds + 2 s) × devices`. Set
+* No TapeAlert, `mt`/ready-state or drive-identity metrics (see
+  [Out of scope](#out-of-scope-tapealert-flags-and-mt-drive-state)). Cleaning
+  required and host/media byte counts (hence compression) come from page
+  0x0c.
+* One scrape runs up to 3 commands per device, sequentially, under one lock.
+  Worst case is about `3 × (command_timeout_seconds + 2 s) × devices`. Set
   Prometheus `scrape_timeout` accordingly, or keep the cache.
 * No TLS/auth. Keep it on loopback or behind a proxy.
 
@@ -471,12 +552,14 @@ identifies it only if its SCSI host is the `mhvtl` pseudo adapter *and* the
 serial matches. The exporter then runs as an unprivileged user with read
 access to that node only, under `strace`, and the run fails unless every
 exec, `open()`, `ioctl()` and SCSI CDB is the expected read-only one (INQUIRY
-and LOG SENSE of pages 0x02/0x03 with SP=0) and the metrics agree with what
-the emulator reports in its Supported Log Pages page. Evidence (identify
+and LOG SENSE of pages 0x02/0x03/0x0c with SP=0) and the metrics agree with
+what the emulator reports in its Supported Log Pages page and with the
+harness's own `sg_logs` reads of the same pages. Evidence (identify
 JSON, strace, metrics, summary) is uploaded as the `mhvtl-evidence`
 artifact.
 
-mhvtl's error-counter pages are static zeros: a passing run proves the
+mhvtl's error-counter and 0x0c pages are static zeros (no media is ever
+loaded, and its cleaning flag is clear): a passing run proves the
 command path, permissions and parsing against a real kernel SCSI stack, not
 that the numbers mean anything for real drives. The script refuses to run
 outside CI unless `LTO_MHVTL_I_UNDERSTAND=yes`; only run it on a throwaway VM.
@@ -498,8 +581,8 @@ The synthetic targets ([`ci/grafana/synthetic_target.py`](ci/grafana/synthetic_t
 are the exporter's own `Collector` and HTTP handler with a fake `sg_logs`
 runner, so names, labels and format are exactly the exporter's: a
 **healthy** exporter (non-zero, growing counters; one page with missing
-parameters), a **failing** one (`unsupported`, `timeout`, `device_missing`;
-no counters) and an **absent** one (a name that doesn't resolve, `up` = 0).
+parameters; one drive needing cleaning), a **failing** one (`unsupported`,
+`timeout`, `not_ready`, `device_missing`; no counters) and an **absent** one (a name that doesn't resolve, `up` = 0).
 All values are made up. Nothing is executed and no device is opened.
 
 Isolation: containers sit on an `--internal` Docker network; only Grafana

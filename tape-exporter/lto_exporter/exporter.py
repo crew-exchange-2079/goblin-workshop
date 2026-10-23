@@ -15,12 +15,25 @@ from lto_exporter.commands import ChildTracker, run_command, sg_logs_argv
 from lto_exporter.config import (ConfigError, check_device,
                                  check_sg_logs_executable, load_config,
                                  validate_listen_address, validate_port)
-from lto_exporter.parsers import (PARAM_LABELS, parse_sg_logs_error_counters,
+from lto_exporter.parsers import (PARAM_LABELS, SA_FIELDS,
+                                  parse_sg_logs_error_counters,
+                                  parse_sg_logs_sequential_access,
                                   sg_exit_status)
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 DIRECTIONS = ("write", "read")
-COLLECTORS = tuple(f"sg_logs_{d}_errors" for d in DIRECTIONS)
+SA_COLLECTOR = "sg_logs_sequential_access"
+COLLECTORS = tuple(f"sg_logs_{d}_errors" for d in DIRECTIONS) + (SA_COLLECTOR,)
+# Sequential-Access Device page byte counters -> (direction, side).
+# "host" = bytes moved over the SCSI bus (before compression), "media" =
+# bytes written to / read from tape (after compression).
+SA_BYTES = {
+    "bytes_received_write": ("write", "host"),
+    "bytes_written_media": ("write", "media"),
+    "bytes_read_media": ("read", "media"),
+    "bytes_transferred_read": ("read", "host"),
+}
+SIDES = ("host", "media")
 
 # Every value the `status` label can take. See README "Collector status".
 COLLECTOR_STATUSES = (
@@ -49,6 +62,9 @@ METRIC_LABELS = {
     "tape_log_parameter_present": ("device", "direction", "parameter"),
     "tape_log_errors_total": ("device", "direction", "parameter"),
     "tape_bytes_processed_total": ("device", "direction"),
+    "tape_sequential_access_field_present": ("device", "field"),
+    "tape_data_bytes_total": ("device", "direction", "side"),
+    "tape_cleaning_required": ("device",),
 }
 
 HELP = {
@@ -60,6 +76,9 @@ HELP = {
     "tape_log_parameter_present": ("gauge", "1 if the drive returned this error-counter parameter, 0 if absent/unparsable."),
     "tape_log_errors_total": ("counter", "SCSI Write/Read Error Counter log page parameter, as reported by the drive (resets with the drive)."),
     "tape_bytes_processed_total": ("counter", "Error Counter log page 'Total bytes processed', as reported by the drive."),
+    "tape_sequential_access_field_present": ("gauge", "1 if the Sequential-Access Device log page reported this field with an exact value, 0 if absent/unparsable/conflicting."),
+    "tape_data_bytes_total": ("counter", "Sequential-Access Device log page byte counter: side=host is data moved over SCSI, side=media is data written to/read from tape (resets with the drive)."),
+    "tape_cleaning_required": ("gauge", "1 if the drive reports cleaning required (or in progress), 0 if not required (or completed). Absent if unknown."),
 }
 
 
@@ -115,10 +134,10 @@ class Collector:
         s.add("tape_exporter_collector_duration_seconds", base, _fmt(duration))
         s.add("tape_exporter_collector_status", {**base, "status": status}, 1)
 
-    def _one_page(self, dev, direction):
+    def _one_page(self, dev, page_name, parse):
         """Return (status, duration, page-or-None). Never raises."""
         try:
-            argv = sg_logs_argv(self.config.sg_logs_path, direction, dev.resolved)
+            argv = sg_logs_argv(self.config.sg_logs_path, page_name, dev.resolved)
             res = self._run(argv)
         except Exception:  # never let one command break the whole scrape
             return "internal_error", 0.0, None
@@ -127,21 +146,22 @@ class Collector:
             status = sg_exit_status(res.returncode)
         page = None
         if status == "ok":
-            page = parse_sg_logs_error_counters(res.stdout, direction)
+            try:
+                page = parse(res.stdout)
+            except Exception:
+                return "internal_error", res.duration, None
             status = page.status
         return status, res.duration, page
 
-    def _sg_logs(self, s, dev):
-        try:
-            bad = self.device_check(dev)
-        except Exception:
-            bad = "device_mismatch"
+    def _sg_logs(self, s, dev, bad):
         for direction in DIRECTIONS:
             name = f"sg_logs_{direction}_errors"
             if bad:
                 self._record(s, dev, name, bad, 0.0)
                 continue
-            status, duration, page = self._one_page(dev, direction)
+            status, duration, page = self._one_page(
+                dev, direction,
+                functools.partial(parse_sg_logs_error_counters, expected_direction=direction))
             self._record(s, dev, name, status, duration)
             if status != "ok":
                 continue
@@ -161,6 +181,29 @@ class Collector:
                           {"device": dev.name, "direction": direction, "parameter": label},
                           page.values[label])
 
+    def _sequential_access(self, s, dev, bad):
+        if bad:
+            self._record(s, dev, SA_COLLECTOR, bad, 0.0)
+            return
+        status, duration, page = self._one_page(
+            dev, "sequential_access", parse_sg_logs_sequential_access)
+        self._record(s, dev, SA_COLLECTOR, status, duration)
+        if status != "ok":
+            return
+        for field in SA_FIELDS:
+            present = field in page.values
+            s.add("tape_sequential_access_field_present",
+                  {"device": dev.name, "field": field}, 1 if present else 0)
+            if not present:
+                continue
+            if field == "cleaning_action_required":
+                s.add("tape_cleaning_required", {"device": dev.name}, page.values[field])
+            else:
+                direction, side = SA_BYTES[field]
+                s.add("tape_data_bytes_total",
+                      {"device": dev.name, "direction": direction, "side": side},
+                      page.values[field])
+
     def collect(self):
         with self._lock:
             now = self.clock()
@@ -170,8 +213,14 @@ class Collector:
             s = Samples()
             s.add("tape_exporter_build_info", {"version": __version__}, 1)
             for dev in self.config.devices:
+                try:
+                    bad = self.device_check(dev)
+                except Exception:
+                    bad = "device_mismatch"
                 if "sg_logs" in dev.collectors:
-                    self._sg_logs(s, dev)
+                    self._sg_logs(s, dev, bad)
+                if "sequential_access" in dev.collectors:
+                    self._sequential_access(s, dev, bad)
             s.add("tape_exporter_unreaped_children", {}, self.tracker.count())
             self._cached = s.render()
             self._cached_at = self.clock()

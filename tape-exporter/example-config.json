@@ -6,6 +6,6 @@
   "cache_seconds": 30,
   "sg_logs_path": "/usr/bin/sg_logs",
   "devices": [
-    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs"]}
+    {"name": "drive0", "path": "/dev/sg3", "collectors": ["sg_logs", "sequential_access"]}
   ]
 }
