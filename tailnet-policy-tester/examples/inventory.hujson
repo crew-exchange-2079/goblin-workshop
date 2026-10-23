@@ -1,0 +1,16 @@
+// Optional device inventory: lets host/IP rules and role autogroups be evaluated.
+{
+  "users": {
+    "carol@example.com": {"roles": ["admin"]},
+  },
+  "devices": [
+    {"name": "alice-mbp", "user": "alice@example.com", "ips": ["100.64.0.2"]},
+    {"name": "bob-phone", "user": "bob@example.com", "ips": ["100.64.0.3"]},
+    {"name": "carol-desk", "user": "carol@example.com", "ips": ["100.64.0.4"]},
+    {"name": "web1", "tags": ["tag:web"], "ips": ["100.64.0.10", "fd7a:115c:a1e0::10"]},
+    {"name": "web2", "tags": ["tag:web"], "ips": ["100.64.0.11"]},
+    {"name": "db1", "tags": ["tag:db"], "ips": ["100.64.0.20"]},
+    {"name": "ci1", "tags": ["tag:ci"], "ips": ["100.64.0.30"]},
+    {"name": "nas", "user": "carol@example.com", "ips": ["100.64.0.50"]},
+  ],
+}

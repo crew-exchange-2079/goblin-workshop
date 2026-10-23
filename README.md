@@ -7,6 +7,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
+- [`tailnet-policy-tester/`](tailnet-policy-tester/): offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own `tests`/`sshTests`, and policy diffs; stdlib-only Python, not affiliated with Tailscale (MIT).
 
 ## Tape tools
 
@@ -24,6 +25,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
+(cd tailnet-policy-tester && python -m pytest -q tests)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python
 ```
