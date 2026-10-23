@@ -1,6 +1,6 @@
-"""Command line: python3 -m rackparts {schema,validate,generate,check-stl} ...
+"""Command line: python3 -m rackparts {schema,validate,generate,check-stl,spec-check} ...
 
-Exit codes: 0 ok, 2 input refused, 3 tool failure / output exists, 4 mesh rejected.
+Exit codes: 0 ok, 2 input refused, 3 tool failure / output exists, 4 mesh rejected, 5 spec check failed.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import os
 import sys
 
 from . import generate as gen
-from . import mesh, spec, validate
+from . import mesh, spec, speccheck, validate
 
 
 def _refused(e):
@@ -33,7 +33,34 @@ def main(argv=None):
     g.add_argument("--timeout", type=int, default=300, help="render timeout in seconds (default 300)")
     c = sub.add_parser("check-stl", help="run the mesh checks on an existing STL")
     c.add_argument("stl")
+    k = sub.add_parser("spec-check", help="wall thickness, overhang and M6 cage-nut checks on a generated part")
+    k.add_argument("dir", help="output directory written by generate (manifest.json + STL)")
+    k.add_argument("--max-overhang-deg", type=float, default=speccheck.MAX_OVERHANG_DEG,
+                   help="steepest unsupported surface, degrees from vertical (default %(default)g)")
+    k.add_argument("--max-bridge-mm", type=float, default=speccheck.MAX_BRIDGE_MM,
+                   help="longest bridge (supported at both ends) accepted (default %(default)g)")
+    k.add_argument("--max-ledge-mm", type=float, default=speccheck.MAX_LEDGE_MM,
+                   help="longest unsupported ledge (supported on one side) accepted (default %(default)g)")
+    k.add_argument("--fastener", choices=("m6", "none"), default="m6",
+                   help="rail fastener profile to check (default %(default)s)")
     a = ap.parse_args(argv)
+
+    if a.cmd == "spec-check":
+        if not (0 < a.max_overhang_deg < 90 and 0 < a.max_bridge_mm <= 1000 and 0 <= a.max_ledge_mm <= 1000):
+            print("ERROR: --max-overhang-deg must be in (0, 90), --max-bridge-mm in (0, 1000] and --max-ledge-mm "
+                  "in [0, 1000]", file=sys.stderr)
+            return 2
+        try:
+            rep = speccheck.check_dir(a.dir, max_overhang_deg=a.max_overhang_deg, max_bridge_mm=a.max_bridge_mm,
+                                      max_ledge_mm=a.max_ledge_mm, fastener=a.fastener)
+        except speccheck.SpecError as e:
+            print("ERROR: %s" % e, file=sys.stderr)
+            return 2
+        except (OSError, mesh.MeshError) as e:
+            print("REJECTED: %s" % e, file=sys.stderr)
+            return 4
+        print(json.dumps(rep, indent=2))
+        return 0 if rep["ok"] else 5
 
     if a.cmd == "schema":
         print(json.dumps(spec.json_schema(), indent=2))

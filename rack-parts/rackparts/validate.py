@@ -369,6 +369,7 @@ def derive_cradle(c):
             "UNVALIDATED suggestion: print base-down as modelled; the retention lip is an overhang and "
             "will likely need supports or a chamfer you add yourself. Not tested on any physical printer."
         ),
+        "print_orientations": {"base_down": [0, 0, 1]},
     }
 
 
@@ -445,9 +446,10 @@ FILLET_STEPS = 6  # straight-sided steps used to approximate each quarter-round 
 
 
 def derive_panel(c):
-    """Blanking or cable panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
+    """Blanking, cable or label panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
     p = []
     cable = c["part"] == "cable_panel"
+    label = c["part"] == "label_panel"
     fn = c["facets"]
     w = c["min_wall_mm"]
     W = c["panel_width_mm"]
@@ -515,6 +517,13 @@ def derive_panel(c):
                              "need >= min_wall_mm %g" % (i, j, gap, w))
         face = {"pass_through_face_width_mm": 2 * (half + R), "pass_through_face_height_mm": 2 * R}
 
+    lab = {}
+    if label:
+        lab = _label_holder(c, t, H, S / 2 - slot / 2 - head / 2 - w, p)
+        face = {"label_pocket_mm": [lab["x1"] - lab["x0"], lab["z1"] - lab["z0"], lab["depth"]],
+                "label_window_mm": [lab["x1"] - lab["wx0"], lab["wz1"] - lab["wz0"]],
+                "label_rear_wall_mm": t - lab["face_t"] - lab["depth"]}
+
     fits = _fits_plate(W, H, c)
     if not fits and not c["allow_oversize_print"]:
         p.append("panel face %g x %g mm does not fit the %g x %g mm build plate in either rotation; set "
@@ -542,6 +551,9 @@ def derive_panel(c):
     if cable:
         orient += ("The far-side rounded edge of each pass-through is a shallow overhang; most slicers print it "
                    "without supports but check the preview. ")
+    if label:
+        orient += ("The back of the label pocket becomes a %.1f mm bridge (pocket height) over the window; "
+                   "run spec-check for the measured spans. " % (lab["z1"] - lab["z0"]))
     if not fits:
         orient += ("WARNING: the %g x %g mm face does NOT fit the stated %g x %g mm build plate; this STL is one "
                    "piece and cannot be printed on that printer. No modular joint is provided. " %
@@ -554,11 +566,53 @@ def derive_panel(c):
             "rail_d": rd, "slot_len": slot, "rib_half": rib_half, "rib_depth": rib_depth, "rib_t": rib_t,
             "cuts": cuts, "cut_len": cut_len, "cut_h": hole_d(cut_h, fn) if cable else 0.0,
             "fillet": fillet, "steps": FILLET_STEPS, "fn": fn,
+            "label": [lab[k] for k in ("x0", "x1", "z0", "z1", "wx0", "wz0", "wz1", "entry_x0", "face_t", "depth")]
+            if label else [],
         },
         "derived": derived,
         "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, depth, H]},
         "print_orientation_suggestion": orient,
+        "print_orientations": dict({"front_face_down": [0, 1, 0]},
+                                   **({"back_face_down": [0, -1, 0]} if label and rib_depth == 0 else {})),
     }
+
+
+def _label_holder(c, t, H, x_lim, p):
+    """Slide-in label holder in the front face of a panel; returns its box edges in the panel frame.
+
+    A pocket (label + clearance) sits behind a front skin of label_face_thickness_mm. The skin is cut away
+    over a window that leaves lips over the label's top, bottom and left edges, and completely over an entry
+    opening at the right end, where the label goes in before it slides left under the lips.
+    """
+    w = c["min_wall_mm"]
+    clr = c["label_clearance_mm"]
+    lip = c["label_lip_mm"]
+    ft = c["label_face_thickness_mm"]
+    entry = c["label_entry_length_mm"]
+    lw, lh = c["label_width_mm"], c["label_height_mm"]
+    depth = c["label_thickness_mm"] + clr
+    cx, cz = c["label_center_x_mm"], c["label_center_z_mm"]
+    plen = lw + 2 * clr + entry
+    ph = lh + 2 * clr
+    x0, x1, z0, z1 = cx - plen / 2, cx + plen / 2, cz - ph / 2, cz + ph / 2
+    if ft < w - 1e-9:
+        p.append("label_face_thickness_mm %g is thinner than min_wall_mm %g" % (ft, w))
+    if t - ft - depth < w - 1e-9:
+        p.append("label pocket (skin %g + label %g + clearance %g mm) leaves %.2f mm of rear wall in a %g mm panel; "
+                 "need >= min_wall_mm %g" % (ft, c["label_thickness_mm"], clr, t - ft - depth, t, w))
+    if lip <= clr + 1e-9:
+        p.append("label_lip_mm %g must exceed label_clearance_mm %g, or a label pushed to one side slips out "
+                 "from under the lip" % (lip, clr))
+    if lh - 2 * lip <= 1e-9:
+        p.append("label_lip_mm %g on top and bottom covers the whole %g mm label height; no window is left" % (lip, lh))
+    if x0 < -x_lim - 1e-9 or x1 > x_lim + 1e-9:
+        p.append("label holder spans x=%.2f..%.2f but must stay within +-%.2f mm (min_wall_mm clear of the "
+                 "rail screw heads)" % (x0, x1, x_lim))
+    if z0 < w - 1e-9 or z1 > H - w + 1e-9:
+        p.append("label holder spans z=%.2f..%.2f but must stay between z=%g and z=%g (min_wall_mm to the "
+                 "panel edges)" % (z0, z1, w, H - w))
+    return {"x0": x0, "x1": x1, "z0": z0, "z1": z1, "wx0": x0 + clr + lip, "wz0": z0 + clr + lip,
+            "wz1": z1 - clr - lip, "entry_x0": x1 - entry, "face_t": ft, "depth": depth}
 
 
 def derive_switch(c):
@@ -725,6 +779,7 @@ def derive_switch(c):
             "slots are bridges; keep them short or enable supports if your printer bridges poorly. "
             "Not tested on any physical printer."
         ),
+        "print_orientations": {"base_down": [0, 0, 1]},
     }
 
 PHYSICAL_USE = ("UNVALIDATED: geometry only. Not printed, fitted, load-, heat-, fire- or electrically tested; "
@@ -750,13 +805,13 @@ def derive_shelf(c):
     lip_t = tw if lip_h > 0 else 0.0
     clr = c["fit_clearance_mm"]
 
-    if c["rack_width_class"] == "19in":
-        # Deferred, not silently oversized: a ~483 mm one-piece shelf does not fit common build plates and
-        # no bolt-together joint is implemented or geometrically checked here.
-        raise ConfigError(["rack_shelf for 19in racks is deferred and refused: the front plate is too wide for "
-                           "common build plates and no bolt-together split joint is implemented or checked; "
-                           "use rack_width_class 10in or a commercial 19-inch shelf"])
     rd, rr = _rail_front_checks(c, W, H, p)
+    if c["rack_width_class"] == "19in" and abs(lip_h - wall_h) > 1e-9:
+        # Between ~440 mm apart walls the floor is otherwise held only along the front plate; a full-height
+        # rear lip ties the walls into a closed frame. This is a geometry rule, not a load rating.
+        p.append("19in rack_shelf needs rear_lip_height_mm equal to side_wall_height_mm (%g, got %g): without a "
+                 "full-height rear lip the floor spans the whole rail opening supported only along the front plate"
+                 % (wall_h, lip_h))
 
     half = opening / 2 - side_clr            # floor/wall outer half-width
     inner_half = half - tw                   # usable half-width between the walls
@@ -833,8 +888,8 @@ def derive_shelf(c):
         orient += ("front face down (-y to the bed): vent slots become vertical slots with rounded overhanging "
                    "tops (depth becomes build height)")
         if lip_h > 0:
-            orient += ("; the rear lip becomes a %.1f mm long horizontal bridge between the side walls, %.1f mm deep, "
-                       "with nothing under it: it needs supports or reliable long-span bridging"
+            orient += ("; the rear lip becomes a %.1f mm long horizontal ledge between the side walls, sticking "
+                       "%.1f mm out from the floor with nothing under it: it needs supports"
                        % (2 * inner_half, lip_h))
         orient += ". "
     orient += "Check your slicer's overhang preview. "
@@ -860,6 +915,7 @@ def derive_shelf(c):
         },
         "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, t + D, H]},
         "print_orientation_suggestion": orient,
+        "print_orientations": {o: ([0, 0, 1] if o == "floor_down" else [0, 1, 0]) for o in orients},
         "physical_use": {
             "status": PHYSICAL_USE,
             "required_before_use": [
@@ -972,6 +1028,7 @@ def derive_pdu(c):
         "print_orientation_suggestion": (
             "UNVALIDATED suggestion: print %d copies base-down as modelled. The strap slot tops are %.1f mm "
             "bridges. Not tested on any physical printer." % (n, s_len)),
+        "print_orientations": {"base_down": [0, 0, 1]},
         "physical_use": {
             "status": PHYSICAL_USE + " Non-electrical accessory: it does not open, drill, cover or modify the strip.",
             "required_before_use": [
@@ -985,9 +1042,107 @@ def derive_pdu(c):
     }
 
 
+def derive_lacing(c):
+    """Cable-lacing bar. Frame: x centred, y = 0 at the flange front face, z = 0 at the flange bottom edge."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    slot = c["rail_slot_extra_length_mm"]
+    gap = c["bar_standoff_mm"]
+    bd = c["bar_depth_mm"]
+    bh = c["bar_height_mm"]
+    n = c["arm_count"]
+    aw = c["arm_width_mm"]
+    sw = c["tie_width_mm"] + c["tie_clearance_mm"]      # tunnel width across the rack
+    sh = c["tie_thickness_mm"] + c["tie_clearance_mm"]  # tunnel height
+    pitch = c["tie_slot_pitch_mm"]
+
+    rd, rr = _rail_front_checks(c, W, H, p)
+    half = c["rail_opening_width_mm"] / 2 - c["rail_side_clearance_mm"]
+    shank_inner = S / 2 - slot / 2 - rr
+    if shank_inner < half - 1e-9:
+        p.append("lacing bar (half-length %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
+                 % (half, shank_inner))
+    if bh > H + 1e-9:
+        p.append("bar_height_mm %g rises above the flange (panel_height_mm %g) into the rack space above" % (bh, H))
+    if bd < w - 1e-9 or aw < w - 1e-9:
+        p.append("bar_depth_mm and arm_width_mm must be at least min_wall_mm %g" % w)
+    if bh < sh + 2 * w - 1e-9:
+        p.append("bar_height_mm %g cannot hold a %.2f mm tie tunnel with min_wall_mm %g below and above it"
+                 % (bh, sh, w))
+    if t + gap + bd > c["rack_clear_depth_mm"] + 1e-9:
+        p.append("lacing bar reaches %.2f mm behind the front face but rack_clear_depth_mm is %g"
+                 % (t + gap + bd, c["rack_clear_depth_mm"]))
+    if pitch < sw + w - 1e-9:
+        p.append("tie_slot_pitch_mm %g leaves less than min_wall_mm between %.2f mm wide tie slots" % (pitch, sw))
+
+    arms = [-half + aw / 2 + i * (2 * half - aw) / (n - 1) for i in range(n)]
+    bay = (2 * half - n * aw) / (n - 1)
+    ties = []
+    if bay < w - 1e-9:
+        p.append("%d arms of %g mm leave %.2f mm bays along a %.2f mm bar; need at least min_wall_mm"
+                 % (n, aw, bay, 2 * half))
+    else:
+        k = int(math.floor((bay - 2 * w - sw) / pitch + 1e-9)) + 1 if bay - 2 * w >= sw - 1e-9 else 0
+        if k < 1:
+            p.append("bays between arms are %.2f mm long; a %.2f mm tie slot with min_wall_mm to both arms does not "
+                     "fit, so the bar would have no tie points" % (bay, sw))
+        for i in range(n - 1):
+            mid = (arms[i] + arms[i + 1]) / 2
+            ties += [mid + (j - (k - 1) / 2) * pitch for j in range(k)]
+
+    depth = t + gap + bd
+    fits = _fits_plate(W, depth, c) and H <= c["build_plate_z_mm"] + 1e-9
+    if not fits and not c["allow_oversize_print"]:
+        p.append("lacing bar footprint %g x %.2f mm (height %g) does not fit the %g x %g x %g mm build volume; set "
+                 "allow_oversize_print to true to generate it anyway (no split is produced)"
+                 % (W, depth, H, c["build_plate_x_mm"], c["build_plate_y_mm"], c["build_plate_z_mm"]))
+    if p:
+        raise ConfigError(p)
+
+    orient = ("UNVALIDATED suggestion: print as modelled (flange bottom edge, arms and bar on the bed). Tie "
+              "tunnels then run horizontally with a %.1f mm bridged top; rail holes are horizontal holes in the "
+              "standing flange (their tops overhang). " % sw)
+    if not fits:
+        orient += ("WARNING: the %g x %.2f mm footprint does NOT fit the stated %g x %g mm build plate; this STL is "
+                   "one piece and cannot be printed on that printer. No modular joint is provided. "
+                   % (W, depth, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    orient += "Not tested on any physical printer."
+    return {
+        "module": "lacing_bar",
+        "args": {
+            "w": W, "h": H, "t": t, "hole_x": S / 2, "hole_zs": list(c["rail_hole_z_offsets_mm"]),
+            "rail_d": rd, "slot_len": slot, "half": half, "gap": gap, "bar_d": bd, "bar_h": bh,
+            "arms": arms, "arm_w": aw, "ties": ties, "tie_w": sw, "tie_h": sh, "tie_z": w, "fn": fn,
+        },
+        "derived": {
+            "flange_mm": [W, H],
+            "overall_depth_mm": depth,
+            "rail_hole_x_mm": [-S / 2, S / 2],
+            "modelled_rail_hole_diameter_mm": rd,
+            "bar_length_mm": 2 * half,
+            "arm_x_mm": arms,
+            "bay_length_mm": bay,
+            "tie_slot_x_mm": ties,
+            "tie_slot_mm": [sw, sh],
+            "tie_slot_z_mm": [w, w + sh],
+            "fits_build_plate": fits,
+            "build_volume_mm": [c["build_plate_x_mm"], c["build_plate_y_mm"], c["build_plate_z_mm"]],
+        },
+        "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, depth, H]},
+        "print_orientation_suggestion": orient,
+        "print_orientations": {"as_modelled": [0, 0, 1]},
+    }
+
+
 DERIVE = {"rack_bracket": derive_bracket, "sff_cradle": derive_cradle, "switch_cradle": derive_switch,
           "blanking_panel": derive_panel, "cable_panel": derive_panel,
-          "rack_shelf": derive_shelf, "pdu_mount": derive_pdu}
+          "rack_shelf": derive_shelf, "pdu_mount": derive_pdu,
+          "label_panel": derive_panel, "lacing_bar": derive_lacing}
 
 
 def validate(data):

@@ -1,11 +1,14 @@
-// rack-parts: flat rack panel (blanking or cable pass-through) with optional stiffening ribs.
+// rack-parts: flat rack panel (blanking, cable pass-through or label holder) with optional stiffening ribs.
 // Frame: x centred on the rack centreline, y = 0 at the front face (+y into the rack),
 // z = 0 at the bottom edge. mm.
 // Parameters are supplied by the generator after validation; see rackparts/validate.py.
 // Cable pass-throughs are horizontal stadiums (semicircular ends). Both face edges are rounded
 // with a quarter-round of radius `fillet`, approximated by `steps` straight-sided frustums.
+// `label` (empty for no holder) is [x0, x1, z0, z1, wx0, wz0, wz1, entry_x0, face_t, depth]: a pocket
+// x0..x1 / z0..z1 behind a front skin face_t thick, a window from wx0 to x1 between wz0 and wz1, and a
+// full-height entry opening from entry_x0 to x1.
 module rack_panel(w, h, t, hole_x, hole_zs, rail_d, slot_len, rib_half, rib_depth, rib_t,
-                  cuts, cut_len, cut_h, fillet, steps, fn) {
+                  cuts, cut_len, cut_h, fillet, steps, fn, label) {
     r = cut_h / 2;
     a = max(cut_len - cut_h, 0) / 2;
     // one frustum of the stadium cutter between y0 and y1, radius r0 -> r1 around both end centres
@@ -39,5 +42,12 @@ module rack_panel(w, h, t, hole_x, hole_zs, rail_d, slot_len, rib_half, rib_dept
                     translate([dx, 0, 0]) cylinder(d = rail_d, h = t + 2, $fn = fn);
         for (c = cuts)
             translate([c[0], 0, c[1]]) cutter();
+        if (len(label) == 10) {
+            x0 = label[0]; x1 = label[1]; z0 = label[2]; z1 = label[3];
+            ft = label[8]; d = label[9];
+            translate([x0, ft, z0]) cube([x1 - x0, d, z1 - z0]);                                 // pocket
+            translate([label[4], -1, label[5]]) cube([x1 - label[4], 1 + ft + d / 2, label[6] - label[5]]);  // window
+            translate([label[7], -1, z0]) cube([x1 - label[7], 1 + ft + d / 2, z1 - z0]);       // entry
+        }
     }
 }
