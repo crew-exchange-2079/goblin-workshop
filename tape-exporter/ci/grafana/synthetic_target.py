@@ -6,9 +6,12 @@ exposition format are exactly what lto-exporter emits), but the collector's
 command runner is replaced by a fake that returns synthetic sg_logs text.
 Nothing is executed and no device is opened: device checks are stubbed out.
 
-  :9101  "healthy"  drive0 (both pages, counters grow every second)
-                    drive1 (write page ok; read page missing parameters)
-  :9102  "failing"  drive2 (write page unsupported, read page timeout)
+  :9101  "healthy"  drive0 (all pages, counters grow every second,
+                           cleaning not required)
+                    drive1 (write page ok; read page missing parameters;
+                           0x0c page: write/host bytes only, cleaning required)
+  :9102  "failing"  drive2 (write page unsupported, read page timeout,
+                           0x0c page not ready)
                     drive3 (pinned node missing: nothing is run)
 
 Usage (in the container): python3 -I /smoke/synthetic_target.py /src
@@ -28,6 +31,13 @@ NAMES = (
     ("correction_algorithm_processed", "Total times correction algorithm processed"),
     ("bytes_processed", "Total bytes processed"),
     ("total_uncorrected", "Total uncorrected errors"),
+)
+SA_HDR = "Sequential access device page (ssc-3)"   # sg3_utils 1.46 spelling
+SA_NAMES = (
+    ("bytes_received_write", "Data bytes received with WRITE commands"),
+    ("bytes_written_media", "Data bytes written to media by WRITE commands"),
+    ("bytes_read_media", "Data bytes read from media by READ commands"),
+    ("bytes_transferred_read", "Data bytes transferred by READ commands"),
 )
 START = time.monotonic()
 
@@ -67,11 +77,37 @@ def healthy_page(device, direction):
                            "bytes_processed": growing(1073741825, 1_000_000)})
 
 
+def sa_page(values, cleaning):
+    """sg_logs 1.46 --verbose text for the Sequential-Access Device page."""
+    lines = ["    SYNTHVND  LTO-SIM           0001", SA_HDR]
+    lines += [f"  {text}: {values[key] // 1000000000} GB [{values[key]} bytes]"
+              for key, text in SA_NAMES if key in values]
+    lines.append("  Cleaning action required" if cleaning
+                 else "  Cleaning action not required (or completed)")
+    lines.append(f"    cleaning value: {int(cleaning)}")
+    return "\n".join(lines) + "\n"
+
+
+def healthy_sa_page(device):
+    if device == "drive0":
+        return sa_page({
+            "bytes_received_write": growing(2199023255553, 80_000_000),
+            "bytes_written_media": growing(1099511627776, 40_000_000),
+            "bytes_read_media": growing(549755813888, 20_000_000),
+            "bytes_transferred_read": growing(1099511627776, 40_000_000),
+        }, cleaning=False)
+    return sa_page({"bytes_received_write": growing(1073741825, 1_000_000)}, cleaning=True)
+
+
 def make_runner(RunResult, scenario):
     def runner(argv, timeout, max_bytes):
         direction = "write" if "--page=0x2" in argv else "read"
         device = {"/dev/sg10": "drive0", "/dev/sg11": "drive1",
                   "/dev/sg12": "drive2"}.get(argv[-1])
+        if "--page=0xc" in argv:
+            if scenario == "healthy":
+                return RunResult("ok", 0, healthy_sa_page(device), 0.05)
+            return RunResult("ok", 2, "", 0.01)   # sg_logs exit 2: not ready
         if scenario == "healthy":
             return RunResult("ok", 0, healthy_page(device, direction), 0.12)
         if direction == "write":

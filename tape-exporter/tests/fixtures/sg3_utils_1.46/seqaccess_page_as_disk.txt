@@ -1,0 +1,11 @@
+Logical block provisioning page  [0xc]
+  Reserved [parameter_code=0x0]:
+ 00     00 00 60 08 00 00 02 00  00 00 00 01                ..`.........
+    Available LBA mapping threshold resource count: 349
+    Scope: not dedicated to lu
+    Used LBA mapping threshold resource count: 170
+    Scope: not dedicated to lu
+    Available provisioning resource percentage: 0 %
+    Scope: not reported
+  Reserved [parameter_code=0x4]:
+ 00     00 04 60 08 00 00 00 00  00 b7 1b 00                ..`.........

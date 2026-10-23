@@ -1,0 +1,8 @@
+Sequential access device page (ssc-3)
+  Data bytes received with WRITE commands: 2199 GB
+  Data bytes written to media by WRITE commands: 1500 GB
+  Data bytes read from media by READ commands: 734 GB
+  Data bytes transferred by READ commands: 1468 GB
+  Native capacity from BOP to EOD: 12000000 MB
+  Cleaning action required
+  Vendor specific parameter [0x8000] value: 7

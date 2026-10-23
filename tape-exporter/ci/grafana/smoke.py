@@ -512,32 +512,39 @@ def evaluate_panel(panel, expect, series_by_ref):
 # Per-case expectations. "case" = variable selection; ids are dashboard panels.
 CASES = [
     {"name": "healthy", "instance": [HEALTHY], "device": "All", "expect": {
-        1: {"values": {"A": 0, "B": 4}},
+        1: {"values": {"A": 0, "B": 6}},
         2: {"min_series": 1},
-        3: {"min_series": 4, "statuses_ok": True},
+        3: {"min_series": 6, "statuses_ok": True},
         4: {"nonzero": True}, 5: {"nonzero": True}, 6: {"nonzero": True},
         7: {"nonzero": True},
         8: {"min_series": 1, "devices": {"drive1"}},
-        9: {"min_series": 4}}},
+        9: {"min_series": 6},
+        10: {"min_series": 2, "nonzero": True},
+        11: {"min_series": 5, "nonzero": True}}},
     {"name": "failing", "instance": [FAILING], "device": "All", "expect": {
-        1: {"values": {"A": 4, "B": 4}, "not_healthy": True},
+        1: {"values": {"A": 6, "B": 6}, "not_healthy": True},
         2: {"min_series": 1},
-        3: {"min_series": 4, "statuses_ok": False},
+        3: {"min_series": 6, "statuses_ok": False},
         4: {"none": True}, 5: {"none": True}, 6: {"none": True}, 7: {"none": True},
         8: {"none": True},
-        9: {"min_series": 4}}},
+        9: {"min_series": 6},
+        10: {"none": True}, 11: {"none": True}}},
     {"name": "absent", "instance": [ABSENT], "device": "All", "expect": {
-        i: {"none": True} for i in range(1, 10)}},
+        i: {"none": True} for i in range(1, 12)}},
     {"name": "device=drive1", "instance": "All", "device": ["drive1"], "expect": {
-        3: {"min_series": 2, "devices": {"drive1"}},
+        3: {"min_series": 3, "devices": {"drive1"}},
         4: {"min_series": 1, "devices": {"drive1"}},
         7: {"min_series": 2, "devices": {"drive1"}},
         8: {"min_series": 1, "devices": {"drive1"}},
-        9: {"min_series": 2, "devices": {"drive1"}}}},
+        9: {"min_series": 3, "devices": {"drive1"}},
+        10: {"values": {"A": 1}, "devices": {"drive1"}},
+        11: {"min_series": 1, "devices": {"drive1"}}}},
     {"name": "device=drive0+drive2", "instance": "All", "device": ["drive0", "drive2"], "expect": {
-        3: {"min_series": 4, "devices": {"drive0", "drive2"}},
+        3: {"min_series": 6, "devices": {"drive0", "drive2"}},
         4: {"nonzero": True, "devices": {"drive0"}},
-        9: {"min_series": 4, "devices": {"drive0", "drive2"}}}},
+        9: {"min_series": 6, "devices": {"drive0", "drive2"}},
+        10: {"values": {"A": 0}, "devices": {"drive0"}},
+        11: {"min_series": 4, "nonzero": True, "devices": {"drive0"}}}},
 ]
 
 

@@ -4,10 +4,11 @@ Checks, from strace of the exporter process tree (run as an unprivileged
 user) and from the scraped metrics:
 
   exec      every program the exporter started is exactly
-            [sg_logs, --readonly, --page=0x2|0x3, <identified sg node>]
+            [sg_logs, --readonly, --page=0x2|0x3, <identified sg node>] or
+            [sg_logs, --readonly, --verbose, --page=0xc, <identified sg node>]
   open      device nodes opened: only the identified sg node, O_RDONLY
   cdb       every SG_IO CDB is INQUIRY (0x12) or LOG SENSE (0x4d) with
-            SP=0, PPC=0 and page 0x02/0x03 -- no LOG SELECT (0x4c), no
+            SP=0, PPC=0 and page 0x02/0x03/0x0c -- no LOG SELECT (0x4c), no
             motion, no writes; at least one LOG SENSE per page
   write     no write()/pwrite()/writev() to any sg node (the sg driver's
             async command interface)
@@ -16,7 +17,9 @@ user) and from the scraped metrics:
             equal to the harness's own sg_logs run; if it does not list it,
             the collector must not be ok and no counters may be exported
             (unknown is not zero); if support is unknown, only consistency
-            is checked and the result says UNKNOWN.
+            is checked and the result says UNKNOWN. Page 0x0c the same way:
+            if listed, the collector must be ok with every field present
+            and equal to the harness's own `sg_logs --verbose` run.
 
 Exit 0 only if every check passes. Writes summary.json and summary.md.
 """
@@ -30,10 +33,15 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 
-from lto_exporter.parsers import (PARAM_LABELS,  # noqa: E402
-                                  parse_sg_logs_error_counters)
+from lto_exporter.parsers import (PARAM_LABELS, SA_FIELDS,  # noqa: E402
+                                  parse_sg_logs_error_counters,
+                                  parse_sg_logs_sequential_access)
 
 PAGES = {"write": 0x02, "read": 0x03}
+SA_PAGE = 0x0C
+LOG_PAGES = set(PAGES.values()) | {SA_PAGE}
+SA_BYTES = {("write", "host"): "bytes_received_write", ("write", "media"): "bytes_written_media",
+            ("read", "media"): "bytes_read_media", ("read", "host"): "bytes_transferred_read"}
 _HEX = re.compile(r"\\x([0-9a-fA-F]{2})")
 _LINE = re.compile(r"^(\d+)\s+(.*)$")
 _STR = r'"((?:\\x[0-9a-fA-F]{2})*)"(\.\.\.)?'
@@ -122,13 +130,13 @@ def analyse_strace(text, sg, sg_logs):
         if e["failed"]:
             bad_exec.append(e)
             continue
-        if not (e["path"] == sg_logs and len(e["argv"]) == 4
-                and os.path.basename(e["argv"][0]) == "sg_logs"
-                and e["argv"][1] == "--readonly"
-                and e["argv"][2] in ("--page=0x2", "--page=0x3")
-                and e["argv"][3] == sg):
+        a = e["argv"]
+        shape_ok = bool(a) and a[1:] in (["--readonly", "--page=0x2", sg],
+                                         ["--readonly", "--page=0x3", sg],
+                                         ["--readonly", "--verbose", "--page=0xc", sg])
+        if not (shape_ok and e["path"] == sg_logs and os.path.basename(a[0]) == "sg_logs"):
             bad_exec.append(e)
-    v.add("exec: only sg_logs --readonly --page=0x2|0x3 <sg>", bool(execs) and not bad_exec,
+    v.add("exec: only sg_logs --readonly [--verbose] --page=0x2|0x3|0xc <sg>", bool(execs) and not bad_exec,
           {"count": len(execs), "unexpected": bad_exec[:10]})
 
     # opens
@@ -154,15 +162,15 @@ def analyse_strace(text, sg, sg_logs):
             continue
         elif op == 0x4D and len(b) >= 10:
             sp, ppc, page = b[1] & 0x01, (b[1] >> 1) & 0x01, b[2] & 0x3F
-            if sp or ppc or page not in PAGES.values():
+            if sp or ppc or page not in LOG_PAGES:
                 bad_cdb.append({**c, "why": f"LOG SENSE sp={sp} ppc={ppc} page=0x{page:02x}"})
             log_sense_pages[page] = log_sense_pages.get(page, 0) + 1
         else:
             bad_cdb.append({**c, "why": f"opcode 0x{op:02x} not allowed" if op is not None else "empty"})
     opcodes = sorted({c["cdb"][:2] for c in cdbs})
-    v.add("cdb: only INQUIRY / LOG SENSE(SP=0,PPC=0,page 0x02|0x03)",
+    v.add("cdb: only INQUIRY / LOG SENSE(SP=0,PPC=0,page 0x02|0x03|0x0c)",
           bool(cdbs) and not bad_cdb and undecoded == 0
-          and all(log_sense_pages.get(p) for p in PAGES.values()),
+          and all(log_sense_pages.get(p) for p in LOG_PAGES),
           {"sg_io_count": len(cdbs), "opcodes": opcodes,
            "log_sense_per_page": {f"0x{k:02x}": n for k, n in sorted(log_sense_pages.items())},
            "undecoded_lines": undecoded, "unexpected": bad_cdb[:10]})
@@ -231,7 +239,39 @@ def analyse_metrics(v, evidence, sg):
             v.add(name, ok, detail)
         else:
             v.add(name, status != ["ok"] and not counters and not present, detail)
+    analyse_sequential_access(v, evidence, rows, supported)
     return supported
+
+
+def analyse_sequential_access(v, evidence, rows, supported):
+    status = [l["status"] for n, l, _ in rows
+              if n == "tape_exporter_collector_status" and l.get("collector") == "sg_logs_sequential_access"]
+    values = {SA_BYTES.get((l.get("direction"), l.get("side")), "?"): int(val)
+              for n, l, val in rows if n == "tape_data_bytes_total"}
+    values.update({"cleaning_action_required": int(val)
+                   for n, _, val in rows if n == "tape_cleaning_required"})
+    present = {l["field"]: val for n, l, val in rows if n == "tape_sequential_access_field_present"}
+    detail = {"status": status, "values": values, "present": present,
+              "listed_in_supported_pages": None if supported is None else SA_PAGE in supported}
+    name = "metrics: page 0x0c (sequential access)"
+    if supported is None:
+        consistent = status == ["ok"] or not values
+        v.add(name, "UNKNOWN" if consistent else False,
+              {**detail, "note": "supported-pages query failed; support unknown, not zero"})
+    elif SA_PAGE in supported:
+        try:
+            with open(os.path.join(evidence, "harness_sg_logs_0xc.txt")) as fh:
+                harness = fh.read()
+        except OSError:
+            harness = ""
+        parsed = parse_sg_logs_sequential_access(harness)
+        detail["harness_parsed"] = {"status": parsed.status, "values": parsed.values}
+        ok = (status == ["ok"] and set(present) == set(SA_FIELDS)
+              and all(x == "1" for x in present.values())
+              and parsed.status == "ok" and values == parsed.values)
+        v.add(name, ok, detail)
+    else:
+        v.add(name, status != ["ok"] and not values and not present, detail)
 
 
 def main():

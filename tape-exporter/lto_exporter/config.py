@@ -26,11 +26,14 @@ SG_RE = re.compile(r"/dev/sg([0-9]{1,4})")
 # Printable, no whitespace, no control characters.
 SAFE_PATH_RE = re.compile(r"/[\x21-\x7e]{1,4095}")
 HOST_RE = re.compile(r"[A-Za-z0-9.:\-]{1,253}")
-KNOWN_COLLECTORS = ("sg_logs",)
+# "sg_logs": Write/Read Error Counter pages (0x2, 0x3).
+# "sequential_access": SSC Sequential-Access Device page (0xc).
+# Both are sg_logs LOG SENSE reads; see commands.py for the exact argv.
+KNOWN_COLLECTORS = ("sg_logs", "sequential_access")
 # Keys from the withdrawn tapeinfo collector. Rejected so nobody believes it
 # is still running.
 REMOVED_KEYS = ("tapeinfo_path",)
-DEFAULT_COLLECTORS = ("sg_logs",)
+DEFAULT_COLLECTORS = ("sg_logs", "sequential_access")
 MAX_DEVICES = 16
 # Linux Documentation/admin-guide/devices.txt: char major 21 = SCSI generic.
 SCSI_GENERIC_MAJOR = 21
