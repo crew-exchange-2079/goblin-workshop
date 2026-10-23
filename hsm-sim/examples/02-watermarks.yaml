@@ -1,0 +1,31 @@
+# An ingest burst that outruns the tape: watermarks, early migration, rejected writes.
+name: watermarks
+description: |
+  A 3000 MB burst arrives at 10 MB/s into a 2000 MB cache, while the single
+  drive writes tape at only 5 MB/s. Nothing is old enough to migrate by age,
+  so once the cache crosses its high watermark with nothing purgeable the
+  system migrates early ("pressure"). Purging can only free data that is
+  already on tape, so while the cache is full of resident files, writes are
+  rejected. Migration hands the drive batches of at most batch_mb, and each
+  batch can be purged as soon as it lands. Compare the peak cache use with
+  the rejected-write count.
+duration_s: 3600
+cache:
+  capacity_mb: 2000
+  high_watermark: 0.85
+  low_watermark: 0.60
+library:
+  drives: 1
+  tapes: 3
+  tape_capacity_mb: 10000
+  mount_s: 60
+  seek_s: 15
+  rate_mb_s: 5
+policy:
+  scan_interval_s: 600
+  migrate_after_s: 3000
+  batch_mb: 300
+events:
+  - {t: 0, op: write, file: "ingest-{i:03d}.raw", size_mb: 100, count: 30, every_s: 10}
+  - {t: 1800, op: read, file: ingest-000.raw}
+  - {t: 1800, op: read, file: ingest-029.raw}

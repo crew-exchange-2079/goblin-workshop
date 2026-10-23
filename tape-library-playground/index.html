@@ -40,7 +40,8 @@
       <input id="speed" type="range" min="1" max="60" step="1" value="20">
       <output id="speedout" for="speed">20&times;</output>
     </div>
-    <p class="hint">Keyboard: <kbd>space</kbd> play/pause · <kbd>[</kbd> <kbd>]</kbd> speed · <kbd>1</kbd>–<kbd>4</kbd> scenario · <kbd>F</kbd> <kbd>B</kbd> <kbd>P</kbd> <kbd>U</kbd> policy</p>
+    <p class="hint" id="kbdhint">Keyboard: <kbd>space</kbd> play/pause · <kbd>[</kbd> <kbd>]</kbd> speed · <kbd>1</kbd>–<kbd>4</kbd> scenario · <kbd>F</kbd> <kbd>B</kbd> <kbd>P</kbd> <kbd>U</kbd> policy · <kbd>C</kbd> compare · <kbd>Esc</kbd> close it</p>
+    <p id="announce" class="visually-hidden" role="status" aria-live="polite"></p>
   </section>
 
   <section class="panel library" aria-label="Library">
@@ -73,16 +74,16 @@
 
   <section class="panel log" aria-label="Event log">
     <div class="paneltitle"><h2>What the robot is doing</h2></div>
-    <ul id="events" class="events" aria-live="polite"></ul>
+    <ul id="events" class="events" aria-live="polite" tabindex="0" aria-label="Event log, newest first"></ul>
   </section>
 
   <section class="panel compare" id="comparepanel" hidden aria-label="Policy comparison">
     <div class="paneltitle">
-      <h2>Same seed, four policies</h2>
-      <button id="compareclose" type="button" class="ghost">close</button>
+      <h2 id="comparetitle" tabindex="-1">Same seed, four policies</h2>
+      <button id="compareclose" type="button" class="ghost" aria-label="Close policy comparison">close</button>
     </div>
     <p class="blurb" id="comparecaption"></p>
-    <div class="tablewrap"><table id="comparetable"></table></div>
+    <div class="tablewrap" tabindex="0" role="region" aria-labelledby="comparetitle"><table id="comparetable"></table></div>
   </section>
 </main>
 
