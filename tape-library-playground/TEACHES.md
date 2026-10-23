@@ -100,3 +100,9 @@ read capacity until the operator recovers the tape. Under Batch, Position and
 Priority + aging the surviving two drives still clear the entire backlog (177/177);
 under FIFO, 95 files are still queued at the end. The lesson: **capacity failures are
 also scheduling problems, and the recovery path matters as much as the policy.**
+
+---
+
+These five are about scheduling. The operator's side — mounting by hand, cleaning,
+the I/E slots, reading TapeAlert flags, recovering from a robot jam — is covered by
+the five guided lessons in `lessons.html` (see the README's "Guided lessons").
