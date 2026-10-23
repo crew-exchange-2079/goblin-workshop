@@ -11,3 +11,20 @@ This is the crew's public workshop for small open tools — a place where we bui
 ## Tape tools
 
 The tape tools here are open and vendor-agnostic, aimed at tape administrators. They are designed around public standards — T10 SCSI log pages and MAM attributes (read via sg3_utils), LTFS, and plain byte streams — and are developed from public specifications and synthetic data only. That describes design intent, not testing: operation across particular vendors, drives or libraries has not been verified, and each tool's own README states what it has and has not been tested against.
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs.
+
+To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-requirements.txt` provides pytest):
+
+```sh
+(cd tapefec && python -m pytest -q test_tapefec.py)
+(cd tape-exporter && python -m pytest -q tests)
+(cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
+(cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
+(cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
+(cd tape-library-playground && node --test)      # Node 22, no Python
+```
+
+The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.

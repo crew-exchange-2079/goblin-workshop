@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# One independent job per project: a failure in one never cancels the others
+# (jobs do not use `needs`), and inside a job the first failing step stops it.
+jobs:
+  tapefec:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tapefec
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q test_tapefec.py
+
+  tape-exporter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-exporter
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+
+  rack-parts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: rack-parts
+    env:
+      # Shelf/PDU render tests fail instead of skipping when a tool is missing.
+      RACKPARTS_REQUIRE_RENDER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - name: Install OpenSCAD and ADMesh (render tests)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends openscad admesh
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+
+  ltfs-index-validator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ltfs-index-validator
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .github/ci-requirements.txt
+            ltfs-index-validator/requirements.txt
+      - run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+
+  mhvtl-status:
+    # Runner boundary tests only. The full build-and-sanitizer run stays in
+    # mhvtl-status-ci.yml because it needs a toolchain and clones upstream.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-regression-lab/mhvtl-status
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
+      - run: timeout --kill-after=5s 120s python -m pytest -q test_runner.py
+
+  tape-library-playground:
+    # JavaScript project: no Python, no pip.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-library-playground
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - run: node --test
