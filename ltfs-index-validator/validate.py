@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Offline LTFS 2.4.0 index XML *schema* checker.
+"""Offline LTFS 2.4.0 full-index XML checker: schema plus index semantics.
 
-Schema success is NOT LTFS compliance: UID uniqueness, extent ordering/overlap/
-coverage, payload checksums, tape layout and recovery are never checked.
+VALID means the index passed the bundled schema and every semantic rule in
+RULES.md. It is NOT LTFS compliance: payload checksums, the tape itself, label
+contents and recovery are never checked.
 """
 import argparse
 import hashlib
@@ -18,10 +19,20 @@ try:  # a missing dependency is reported as ERROR, never as success
 except ImportError:  # pragma: no cover - exercised by tests via monkeypatch
     etree = None
 
-TOOL_VERSION = "0.1.0"
+import semantic
+
+TOOL_VERSION = "0.2.0"
 HERE = Path(__file__).resolve().parent
-SCHEMA_PATH = HERE / "schema" / "ltfs-index-2.4.0.xsd"
-SCHEMA_SHA256 = "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"
+# errata1 = Annex B with one fix: xattr <value> may carry text (Annex B gives it an
+# empty content model, so every non-empty xattr would be INVALID). See PROVENANCE.json.
+SCHEMAS = {
+    "errata1": (HERE / "schema" / "ltfs-index-2.4.0-errata1.xsd",
+                "13c497c8816e9c76bf903857739873267f14f8a4b4d50c29b8feb4d44aed2d20"),
+    "annex-b": (HERE / "schema" / "ltfs-index-2.4.0.xsd",
+                "c9c72686e628834bcdd321ffa96f5d6a8debbf2388448b0ca114a567f5fa7b65"),
+}
+DEFAULT_SCHEMA = "errata1"
+SCHEMA_PATH, SCHEMA_SHA256 = SCHEMAS[DEFAULT_SCHEMA]
 SUPPORTED_VERSION = "2.4.0"
 
 MAX_INPUT_BYTES = 4 * 1024 * 1024
@@ -30,14 +41,16 @@ MAX_NODES = 100000
 MAX_REPORT_BYTES = 64 * 1024
 MAX_DIAGNOSTICS = 50
 
-SCHEMA_VALID_ONLY, INVALID, UNSUPPORTED, ERROR = ("SCHEMA_VALID_ONLY", "INVALID",
-                                                  "UNSUPPORTED", "ERROR")
-EXIT = {SCHEMA_VALID_ONLY: 0, INVALID: 1, UNSUPPORTED: 2, ERROR: 3}
+VALID, SCHEMA_VALID_ONLY, INVALID, UNSUPPORTED, ERROR = (
+    "VALID", "SCHEMA_VALID_ONLY", "INVALID", "UNSUPPORTED", "ERROR")
+EXIT = {VALID: 0, SCHEMA_VALID_ONLY: 0, INVALID: 1, UNSUPPORTED: 2, ERROR: 3}
 
 LIMITATIONS = [
-    "Schema validity only; this is not LTFS compliance or certification.",
-    "Not checked: UID uniqueness, extent ordering/overlap/coverage, payload "
-    "checksums, tape layout, recovery, interoperability.",
+    "Schema and index-semantic checks only; this is not LTFS compliance or certification.",
+    "Not checked: payload checksums, tape contents, the volume label, recovery, "
+    "interoperability. Generation and back-pointer chains are checked only "
+    "against an index given with --previous; partition roles only with "
+    "--index-partition/--data-partition; tape byte ranges only with --blocksize.",
 ]
 _URL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -145,17 +158,18 @@ def _sha256(data):
 _loaded = {}
 
 
-def load_schema(schema_path=None):
+def load_schema(schema_path=None, variant=DEFAULT_SCHEMA):
     """Return (XMLSchema, known element names, sha256); hash-verified, local only."""
     if etree is None:
         raise Refusal(ERROR, "DEPENDENCY_MISSING")
-    path = Path(schema_path) if schema_path is not None else SCHEMA_PATH
+    default_path, pinned = SCHEMAS[variant]
+    path = Path(schema_path) if schema_path is not None else default_path
     try:
         raw = path.read_bytes()
     except OSError:
         raise Refusal(ERROR, "SCHEMA_MISSING")
     digest = _sha256(raw)
-    if digest != SCHEMA_SHA256:
+    if digest != pinned:
         raise Refusal(ERROR, "SCHEMA_HASH_MISMATCH")
     if digest not in _loaded:
         try:
@@ -204,9 +218,30 @@ def _code_for(type_name):
     return "SCHEMA_OTHER"
 
 
-def check_document(data, schema_path=None, resolver=None):
-    """Return (status, established_version, diagnostics, schema_sha256)."""
-    schema, names, digest = load_schema(schema_path)
+class Options:
+    """Validation options; every field is a CLI value, never input-derived."""
+
+    def __init__(self, schema_variant=DEFAULT_SCHEMA, schema_only=False, strict=False,
+                 partitions=None, blocksize=None):
+        self.schema_variant, self.schema_only, self.strict = schema_variant, schema_only, strict
+        self.partitions, self.blocksize = partitions, blocksize
+
+    def as_report(self):
+        return {"schema_variant": self.schema_variant, "schema_only": self.schema_only,
+                "strict": self.strict, "blocksize": self.blocksize,
+                "index_partition": self.partitions[0] if self.partitions else None,
+                "data_partition": self.partitions[1] if self.partitions else None}
+
+
+class Outcome:
+    def __init__(self, status, version, diags, schema_sha, semantic_checks,
+                 counts=(0, 0), facts=None):
+        self.status, self.version, self.diags, self.schema_sha = status, version, diags, schema_sha
+        self.semantic_checks, self.counts, self.facts = semantic_checks, counts, facts
+
+
+def parse_document(data, resolver=None):
+    """Return the ltfsindex root of a safe, UTF-8, 2.4.0 document or raise Refusal."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError:
@@ -248,29 +283,60 @@ def check_document(data, schema_path=None, resolver=None):
         raise Refusal(INVALID, "VERSION_MALFORMED")
     if version != SUPPORTED_VERSION:
         raise Refusal(UNSUPPORTED, "VERSION_UNSUPPORTED")
-    if schema.validate(root):
-        return SCHEMA_VALID_ONLY, SUPPORTED_VERSION, [], digest
-    diags = [{"code": _code_for(e.type_name), "line": e.line,
-              "path": _safe_path(e.path, names)} for e in schema.error_log]
-    if not diags:
-        diags = [{"code": "SCHEMA_OTHER", "line": 0, "path": "/"}]
-    return INVALID, SUPPORTED_VERSION, diags, digest
+    return root
 
 
-def build_report(status, code=None, data=None, version=None, diags=None, schema_sha=None):
-    diags = list(diags or [])
+def check_document(data, schema_path=None, resolver=None, options=None, previous=None):
+    """Return an Outcome. previous: summarize() facts of the index this one points back to."""
+    options = options or Options()
+    schema, names, digest = load_schema(schema_path, options.schema_variant)
+    root = parse_document(data, resolver)
+    if not schema.validate(root):
+        diags = [{"code": _code_for(e.type_name), "severity": semantic.ERROR, "line": e.line,
+                  "path": _safe_path(e.path, names)} for e in schema.error_log]
+        if not diags:
+            diags = [{"code": "SCHEMA_OTHER", "severity": semantic.ERROR, "line": 0, "path": "/"}]
+        return Outcome(INVALID, SUPPORTED_VERSION, diags, digest, "SKIPPED_SCHEMA_INVALID",
+                       (len(diags), 0))
+    if options.schema_only:
+        return Outcome(SCHEMA_VALID_ONLY, SUPPORTED_VERSION, [], digest, "NOT_PERFORMED")
+    out = semantic.check_index(root, options.partitions, options.blocksize)
+    facts = semantic.summarize(root)
+    if previous is not None:
+        semantic.check_chain(root, facts, previous, out)
+    for d in out.items:
+        d["path"] = _safe_path(d["path"], names)
+    failed = out.errors or (options.strict and out.warnings)
+    return Outcome(INVALID if failed else VALID, SUPPORTED_VERSION, out.items, digest,
+                   "PERFORMED", (out.errors, out.warnings), facts)
+
+
+def _input_info(data):
+    return {"sha256": _sha256(data) if data is not None else None,
+            "bytes": len(data) if data is not None else None}
+
+
+def build_report(status, code=None, data=None, outcome=None, options=None, previous_data=None):
+    options = options or Options()
+    diags = list(outcome.diags) if outcome else []
+    errors, warnings = outcome.counts if outcome else (0, 0)
     if code:
-        diags = [{"code": code, "line": 0, "path": "/"}] + diags
-    truncated = len(diags) > MAX_DIAGNOSTICS
+        diags = [{"code": code, "severity": semantic.ERROR, "line": 0, "path": "/"}] + diags
+        errors += 1
+    truncated = len(diags) > MAX_DIAGNOSTICS or len(diags) < errors + warnings
     report = {
         "tool": "ltfs-index-validator", "tool_version": TOOL_VERSION,
         "status": status, "exit_code": EXIT[status],
-        "input": {"sha256": _sha256(data) if data is not None else None,
-                  "bytes": len(data) if data is not None else None},
-        "schema": {"sha256": schema_sha, "pinned_sha256": SCHEMA_SHA256,
+        "input": _input_info(data),
+        "previous": _input_info(previous_data) if previous_data is not None else None,
+        "schema": {"variant": options.schema_variant,
+                   "sha256": outcome.schema_sha if outcome else None,
+                   "pinned_sha256": SCHEMAS[options.schema_variant][1],
                    "ltfs_version": SUPPORTED_VERSION},
-        "established_version": version,
-        "semantic_checks": "NOT_PERFORMED",
+        "options": options.as_report(),
+        "established_version": outcome.version if outcome else None,
+        "semantic_checks": outcome.semantic_checks if outcome else "NOT_PERFORMED",
+        "counts": {"errors": errors, "warnings": warnings},
         "limitations": LIMITATIONS,
         "diagnostics": diags[:MAX_DIAGNOSTICS], "diagnostics_truncated": truncated,
     }
@@ -280,16 +346,56 @@ def build_report(status, code=None, data=None, version=None, diags=None, schema_
     return report
 
 
-def validate_path(path, schema_path=None, resolver=None):
-    data = None
+def _previous_facts(prev_data, schema_path, resolver, options):
+    """The --previous index must itself be VALID; its refusal is ERROR, not INVALID."""
+    try:
+        prev = check_document(prev_data, schema_path, resolver,
+                              Options(options.schema_variant, partitions=options.partitions,
+                                      blocksize=options.blocksize))
+    except Refusal as r:
+        if r.status == ERROR:
+            raise
+        raise Refusal(ERROR, "PREVIOUS_INDEX_REJECTED")
+    if prev.status != VALID:
+        raise Refusal(ERROR, "PREVIOUS_INDEX_REJECTED")
+    return prev.facts
+
+
+def validate_bytes(data, schema_path=None, resolver=None, options=None, previous_data=None):
+    """Validate an in-memory document (same verdicts as validate_path)."""
+    options = options or Options()
+    try:
+        if len(data) > MAX_INPUT_BYTES:
+            raise Refusal(ERROR, "INPUT_TOO_LARGE")
+        previous = None
+        if previous_data is not None:
+            if options.schema_only:
+                raise Refusal(ERROR, "USAGE_ERROR")
+            try:
+                previous = _previous_facts(previous_data, schema_path, resolver, options)
+            except Refusal:
+                check_document(data, schema_path, resolver, options)  # input's own refusal wins
+                raise
+        outcome = check_document(data, schema_path, resolver, options, previous)
+        return build_report(outcome.status, None, data, outcome, options, previous_data)
+    except Refusal as r:
+        return build_report(r.status, r.code, data, None, options, previous_data)
+    except Exception:  # never leak raw exception text; never look like success
+        return build_report(ERROR, "INTERNAL_ERROR", data, None, options, previous_data)
+
+
+def validate_path(path, schema_path=None, resolver=None, options=None, previous_path=None):
+    data = prev = None
     try:
         data = read_input(path)
-        status, version, diags, digest = check_document(data, schema_path, resolver)
-        return build_report(status, None, data, version, diags, digest)
+        if previous_path is not None:
+            try:
+                prev = read_input(previous_path)
+            except Refusal as r:
+                raise Refusal(r.status, "PREVIOUS_" + r.code)
     except Refusal as r:
-        return build_report(r.status, r.code, data)
-    except Exception:  # never leak raw exception text; never look like success
-        return build_report(ERROR, "INTERNAL_ERROR", data)
+        return build_report(r.status, r.code, data, None, options, prev)
+    return validate_bytes(data, schema_path, resolver, options, prev)
 
 
 class _Parser(argparse.ArgumentParser):
@@ -297,12 +403,47 @@ class _Parser(argparse.ArgumentParser):
         raise Refusal(ERROR, "USAGE_ERROR")
 
 
+def _partition(value):
+    if not re.fullmatch(r"[a-z]", value):
+        raise argparse.ArgumentTypeError("partition")
+    return value
+
+
+def _blocksize(value):
+    if not re.fullmatch(r"[1-9][0-9]{0,9}", value):
+        raise argparse.ArgumentTypeError("blocksize")
+    return int(value)
+
+
+def options_from_args(args):
+    if (args.index_partition is None) != (args.data_partition is None):
+        raise Refusal(ERROR, "USAGE_ERROR")
+    parts = None
+    if args.index_partition is not None:
+        if args.index_partition == args.data_partition:
+            raise Refusal(ERROR, "USAGE_ERROR")
+        parts = (args.index_partition, args.data_partition)
+    if args.schema_only and (args.strict or parts or args.blocksize or args.previous):
+        raise Refusal(ERROR, "USAGE_ERROR")
+    return Options(args.schema, args.schema_only, args.strict, parts, args.blocksize)
+
+
 def main(argv=None):
     parser = _Parser(prog="validate.py", description=__doc__)
     parser.add_argument("--input", required=True, help="path to a regular index XML file")
+    parser.add_argument("--previous", help="the index that --input's previousgenerationlocation "
+                        "points to; enables generation/back-pointer chain checks")
+    parser.add_argument("--index-partition", type=_partition, help="index partition letter (label)")
+    parser.add_argument("--data-partition", type=_partition, help="data partition letter (label)")
+    parser.add_argument("--blocksize", type=_blocksize, help="label block size in bytes")
+    parser.add_argument("--schema", choices=sorted(SCHEMAS), default=DEFAULT_SCHEMA,
+                        help="schema variant (default errata1)")
+    parser.add_argument("--schema-only", action="store_true", help="skip semantic checks")
+    parser.add_argument("--strict", action="store_true", help="warnings also make the index INVALID")
     try:
         args = parser.parse_args(argv)
-        report = validate_path(args.input)
+        options = options_from_args(args)
+        report = validate_path(args.input, options=options, previous_path=args.previous)
     except Refusal as r:
         report = build_report(r.status, r.code)
     sys.stdout.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
