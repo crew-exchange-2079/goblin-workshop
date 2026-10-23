@@ -1,0 +1,52 @@
+diff --git a/src/libltfs/pathname.c b/src/libltfs/pathname.c
+index 19abc32..41b141e 100644
+--- a/src/libltfs/pathname.c
++++ b/src/libltfs/pathname.c
+@@ -439,7 +439,7 @@ int _pathname_validate(const char *name, bool allow_slash)
+  */
+ int _pathname_valid_in_xml(UChar32 c)
+ {
+-	if (c == 0 || c == 0x1f || (c >= 0xd800 && c <= 0xdfff) || c == 0xfffe || c == 0xffff)
++	if (c == 0 || (c >= 0xd800 && c <= 0xdfff) || c == 0xfffe || c == 0xffff)
+ 		return 0;
+ 	else
+ 		return 1;
+diff --git a/src/libltfs/xml_reader_libltfs.c b/src/libltfs/xml_reader_libltfs.c
+index ae5b9cf..a66882e 100644
+--- a/src/libltfs/xml_reader_libltfs.c
++++ b/src/libltfs/xml_reader_libltfs.c
+@@ -114,15 +114,10 @@ static int decode_entry_name(char **new_name, const char *name)
+ 			encoded = false;
+ 
+ 			/*
+-			 * Allow '/' (0x2f), US (0x1f) and '\0' (0x00) but revert to percent encoded
++			 * Allow '/' (0x2f) and '\0' (0x00) but revert to percent encoded
+ 			 * string for supporting bad manner writer
+ 			 */
+-			/*
+-			 * TODO: Need to remove US (0x1f) from this list. Because
+-			 * US shall be accepted as a part of filename.
+-			 * Now LTFS rejects US because of a historical issue. (See Issue #106 on GitHub)
+-			 */
+-			if (tmp_name[j] == '/' || tmp_name[j] == 0x1f || tmp_name[j] == 0x00) {
++			if (tmp_name[j] == '/' || tmp_name[j] == 0x00) {
+ 				tmp_name[j] = '%';
+ 				tmp_name[j+1] = buf_decode[0];
+ 				tmp_name[j+2] = buf_decode[1];
+@@ -137,14 +132,9 @@ static int decode_entry_name(char **new_name, const char *name)
+ 		}
+ 
+ 		/*
+-		 * Allow '/' and US (0x1f) but replace to '_' for supporting bad manner writer
+-		 */
+-		/*
+-		 * TODO: Need to remove US (0x1f) from this list. Because
+-		 * US shall be accepted as a part of filename.
+-		 * Now LTFS rejects US because of a historical issue. (See Issue #106 on GitHub)
++		 * Allow '/' but replace to '_' for supporting bad manner writer
+ 		 */
+-		if (tmp_name[j] == '/' || tmp_name[j] == 0x1f) {
++		if (tmp_name[j] == '/') {
+ 			tmp_name[j] = '_';
+ 			ltfsmsg(LTFS_INFO, 17257I, name);
+ 		}

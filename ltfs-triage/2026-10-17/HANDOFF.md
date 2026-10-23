@@ -28,3 +28,6 @@ Pick which of #333 / #106 to implement; #106 needs a maintainer answer on the "h
 
 ## Update: #333 fix drafted and proven (2026-10-23)
 `fixes/333.patch`, `fixes/333/` (shim, repro script, before/after outputs), `FIX-333.md`. Before: FAIL (A and B); after: PASS; no-fault control PASS on both builds. Caveat: stock ltfs never sets `index_cache_path`, so the bug is only reachable by external users of that field. Nothing sent upstream. Not run: real tape backends, LTFS-EE.
+
+## Update: #106 fix drafted and round-trip proven (2026-10-23)
+`fixes/106.patch`, `fixes/106/` (repro script, before/after outputs), `FIX-106.md`. Unfixed: create/mkdir/symlink with a 0x1f name fail with EINVAL; fixed: create, unmount, remount, read back all PASS. Compatibility risk: old LTFS silently renames such entries to literal `%1F` when it rewrites the index; the original "historical issue" reason is not documented in the repo and is UNKNOWN. Do not send upstream without a maintainer answer. Nothing sent upstream.
