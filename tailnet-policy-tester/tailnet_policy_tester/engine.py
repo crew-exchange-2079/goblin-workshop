@@ -282,6 +282,8 @@ class SSHDecision:
     def verdict(self) -> str:
         if self.action is None:
             return "deny"
+        if self.network is not None and self.network.verdict == "conditional":
+            return "conditional (tcp/22 depends on posture/via)"
         if self.network is not None and self.network.verdict != "allow":
             return "deny (no network path on tcp/22)"
         return self.action
@@ -305,9 +307,10 @@ def ssh_user_allowed(users: list[str], login: str, src: Endpoint) -> bool:
 
 def check_ssh(policy: Policy, src: Endpoint, dst: Endpoint, login: str,
               require_network: bool = True) -> SSHDecision:
-    """Rules are scanned in policy order and the first match decides the action
-    (tailscaled evaluates the compiled SSHPolicy first-match); every match is
-    listed. With require_network, tcp/22 must also be allowed by acls/grants."""
+    """Check rules are evaluated before accept rules (policy-file docs, "order
+    of evaluation"), so any matching check rule makes the action "check";
+    every match is listed in policy order. With require_network, tcp/22 must
+    also be allowed by acls/grants."""
     hits = []
     for rule in policy.ssh:
         if not any(matches(policy, s, src) for s in rule.srcs):
@@ -316,9 +319,11 @@ def check_ssh(policy: Policy, src: Endpoint, dst: Endpoint, login: str,
             continue
         if ssh_user_allowed(rule.users, login, src):
             hits.append(rule)
-    dec = SSHDecision(hits[0].action if hits else None,
+    checks = [r for r in hits if r.action == "check"]
+    first = checks[0] if checks else hits[0] if hits else None
+    dec = SSHDecision(first.action if first else None,
                       [(r.origin, r.action) for r in hits],
-                      hits[0].check_period if hits else None)
+                      first.check_period if first else None)
     if require_network and hits:
         dec.network = check_network(policy, src, dst, "tcp", 22)
     return dec

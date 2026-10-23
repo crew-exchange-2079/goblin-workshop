@@ -39,6 +39,25 @@ def test_test_proto_restricts():
     assert [r.status for r in run_all(p)] == ["PASS", "PASS"]
 
 
+def test_default_test_proto_is_tcp_and_udp():
+    p = mk(acls=[acl(["*"], ["tag:web:*"], proto="icmp")],
+           tests=[{"src": "a@x.y", "accept": ["tag:web:22"]},
+                  {"src": "a@x.y", "deny": ["tag:web:22"]}])
+    assert [r.status for r in run_all(p)] == ["FAIL", "PASS"]
+
+
+def test_icmp_tests_use_port_zero():
+    p = mk(acls=[acl(["*"], ["tag:web:*"], proto="icmp"), acl(["*"], ["tag:db:22"])],
+           tests=[{"src": "a@x.y", "proto": "icmp", "accept": ["tag:web:0"], "deny": ["tag:db:0"]}])
+    assert run_all(p)[0].status == "PASS"
+
+
+def test_default_posture_makes_tests_inconclusive():
+    p = mk(defaultSrcPosture=["posture:latest"], acls=[acl(["*"], ["tag:web:443"])],
+           tests=[{"src": "a@x.y", "accept": ["tag:web:443"]}])
+    assert run_all(p)[0].status == "INCONCLUSIVE"
+
+
 def test_default_test_proto_does_not_let_icmp_ignore_ports():
     p = mk(acls=[acl(["*"], ["tag:web:80"])], tests=[{"src": "a@x.y", "deny": ["tag:web:22"]}])
     assert run_all(p)[0].status == "PASS"
@@ -116,6 +135,20 @@ def test_diff_ssh_changes():
     got = {str(c) for c in diff(old, new)[0]}
     assert "~ ssh a@x.y -> tag:web as root: accept -> check" in got
     assert "+ ssh a@x.y -> tag:web as <other-nonroot>: deny -> accept" in got
+
+
+def test_diff_adding_a_later_check_rule_changes_accept():
+    rule = {"action": "accept", "src": ["a@x.y"], "dst": ["tag:web"], "users": ["root"]}
+    got = {str(c) for c in diff(mk(ssh=[rule]), mk(ssh=[rule, dict(rule, action="check")]))[0]}
+    assert got == {"~ ssh a@x.y -> tag:web as root: accept -> check"}
+
+
+def test_cli_ssh_conditional_exit(tmp_path, capsys):
+    pol = tmp_path / "p.hujson"
+    pol.write_text('{"tagOwners": {"tag:web": []}, "defaultSrcPosture": ["posture:x"],'
+                   ' "acls": [{"action": "accept", "src": ["*"], "dst": ["tag:web:22"]}],'
+                   ' "ssh": [{"action": "accept", "src": ["autogroup:member"], "dst": ["tag:web"], "users": ["root"]}]}')
+    assert main(["ssh", str(pol), "--src", "a@x.y", "--dst", "tag:web", "--user", "root"]) == 3
 
 
 def test_diff_internet_and_hosts():

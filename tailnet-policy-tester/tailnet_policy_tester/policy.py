@@ -33,6 +33,8 @@ PORTED_PROTOS = frozenset({"tcp", "udp", "sctp"})
 # ACL with "proto" omitted: TCP, UDP and ICMP (v4 and v6).
 DEFAULT_PROTOS = frozenset({"tcp", "udp", "icmp", "ipv6-icmp"})
 ANY_PROTO = "*"
+# Protocols a tests entry may name (policy-syntax docs, "tests").
+TEST_PROTOS = PORTED_PROTOS | {"icmp"}
 
 ROLE_AUTOGROUPS = {
     "autogroup:owner": "owner", "autogroup:admin": "admin",
@@ -50,11 +52,11 @@ UNSUPPORTED_AUTOGROUPS = frozenset({"autogroup:shared"})
 
 KNOWN_SECTIONS = {
     "groups", "hosts", "tagowners", "acls", "grants", "ssh", "tests",
-    "sshtests",
+    "sshtests", "defaultsrcposture",
 }
 IGNORED_SECTIONS = {
     "nodeattrs", "autoapprovers", "derpmap", "disableipv4", "onecgnatroute",
-    "randomizeclientport", "postures", "defaultsrcposture", "ipsets",
+    "randomizeclientport", "postures", "ipsets",
     "attrconfig", "warndevicesgrantedbyacls",
 }
 
@@ -174,6 +176,7 @@ class Policy:
     ssh: list[SSHRule] = field(default_factory=list)
     tests: list[NetTest] = field(default_factory=list)
     ssh_tests: list[SSHTest] = field(default_factory=list)
+    default_src_posture: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
 
@@ -312,6 +315,13 @@ class _Parser:
         self.groups(top.get("groups", {}))
         self.tag_owners(top.get("tagowners", {}))
         self.hosts(top.get("hosts", {}))
+        # defaultSrcPosture applies to every acls/grants rule without its own
+        # srcPosture, so it must be known before those are parsed.
+        self.p.default_src_posture = self.strlist(
+            "defaultSrcPosture", top.get("defaultsrcposture"), required=False)
+        if self.p.default_src_posture:
+            self.warn("defaultSrcPosture", "not evaluated; acls/grants without their own "
+                      "srcPosture are reported as conditional on it (SSH rules are evaluated without it)")
         for i, r in enumerate(self.lst(top, "acls")):
             self.acl(f"acls[{i}]", r)
         for i, r in enumerate(self.lst(top, "grants")):
@@ -455,11 +465,14 @@ class _Parser:
         return out
 
     def _conditions(self, path, r):
-        conds = []
+        """Posture conditions of an acls/grants rule: its own srcPosture, or
+        else the policy's defaultSrcPosture, which it inherits."""
         if "srcposture" in r:
-            conds.append(f"srcPosture {r['srcposture']!r}")
             self.warn(path, "srcPosture is not evaluated; matches are reported as conditional")
-        return conds
+            return [f"srcPosture {r['srcposture']!r}"]
+        if self.p.default_src_posture:
+            return [f"defaultSrcPosture {self.p.default_src_posture!r}"]
+        return []
 
     def acl(self, path, raw):
         r = self.obj(path, raw)
@@ -599,8 +612,7 @@ class _Parser:
         elif action == "check":
             cp = "12h"
         env = self.strlist(f"{path}.acceptEnv", r.get("acceptenv"), required=False)
-        conds = self._conditions(path, r)
-        if conds:
+        if "srcposture" in r:
             self.err(path, "srcPosture on SSH rules is not supported by this tool")
         self.p.ssh.append(SSHRule(path, action or "", srcs, dsts, users, cp, env))
 
@@ -621,8 +633,8 @@ class _Parser:
         if r.get("proto") not in (None, ""):
             try:
                 proto = parse_proto(r["proto"])
-                if proto not in PORTED_PROTOS:
-                    self.err(f"{path}.proto", "tests only support tcp, udp or sctp")
+                if proto not in TEST_PROTOS:
+                    self.err(f"{path}.proto", "tests only support tcp, udp, sctp or icmp")
             except ValueError as e:
                 self.err(f"{path}.proto", str(e))
         accept = self.strlist(f"{path}.accept", r.get("accept"), required=False)
@@ -632,6 +644,11 @@ class _Parser:
         for j, d in enumerate(accept + deny):
             try:
                 _, ports = split_dst(d)
+                if proto == "icmp":
+                    # ICMP tests name destination port 0.
+                    if ports != "0":
+                        raise ValueError("icmp test destinations use port 0")
+                    continue
                 ps = parse_ports(ports)
                 if len(ps.ranges) != 1 or ps.ranges[0][0] != ps.ranges[0][1]:
                     raise ValueError("test destinations need exactly one port")

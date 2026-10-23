@@ -251,11 +251,30 @@ def test_localpart_needs_user_source():
     assert not ssh_user_allowed(["localpart:*@example.com"], "web", WEB)
 
 
-def test_ssh_first_match_decides_action():
-    p = mk(ssh=[ssh(action="check"), ssh(action="accept")])
+@pytest.mark.parametrize("order", [("check", "accept"), ("accept", "check")])
+def test_ssh_check_rules_win_over_accept(order):
+    p = mk(ssh=[ssh(action=a) for a in order])
     d = check_ssh(p, ALICE, WEB, "root", require_network=False)
-    assert d.action == "check" and [a for _, a in d.matched] == ["check", "accept"]
+    assert d.action == "check" and [a for _, a in d.matched] == list(order)
     assert d.check_period == "12h"
+
+
+def test_ssh_check_period_from_check_rule():
+    p = mk(ssh=[ssh(), ssh(action="check", checkPeriod="1h"), ssh(action="check")])
+    assert check_ssh(p, ALICE, WEB, "root", require_network=False).check_period == "1h"
+
+
+def test_ssh_accept_only_when_no_check_matches():
+    p = mk(ssh=[ssh(), ssh(action="check", users=["deploy"])])
+    assert check_ssh(p, ALICE, WEB, "root", require_network=False).action == "accept"
+
+
+def test_default_posture_makes_allows_conditional():
+    p = mk(defaultSrcPosture=["posture:latest"],
+           grants=[{"src": ["*"], "dst": ["tag:web"], "ip": ["*"]}])
+    assert verdict(p, ALICE, WEB) == "conditional"
+    p2 = mk(defaultSrcPosture=["posture:latest"], acls=[acl(["*"], ["tag:web:22"])], ssh=[ssh()])
+    assert check_ssh(p2, ALICE, WEB, "root").verdict.startswith("conditional")
 
 
 def test_ssh_requires_network_path():

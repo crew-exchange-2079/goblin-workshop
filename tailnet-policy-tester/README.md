@@ -110,7 +110,9 @@ was written in, so those pages were **not re-read** for this release; the
 rules below are from prior knowledge of them, cross-checked line by line
 against the open-source headscale v2 policy engine
 (`hscontrol/policy/v2/{types,utils,test,sshtest,policy,filter}.go`, commit
-`30ff8df9`), whose tests encode captured Tailscale SaaS behaviour. Where this
+`30ff8df9`), whose tests encode captured Tailscale SaaS behaviour. Three rows
+(SSH order of evaluation, `tests` protocols, `defaultSrcPosture`) were corrected
+after review against the current docs pages linked in those rows. Where this
 tool goes beyond both, the row says "this tool".
 
 | rule | source | tests |
@@ -137,8 +139,9 @@ tool goes beyond both, the row says "this tool".
 | SSH `users`: `root` only if listed; `autogroup:nonroot` = any login but root; literal names; `localpart:*@domain` = source user's local part | Tailscale SSH "users"; headscale `sshRuleAllowsUser` | `test_ssh_users` |
 | SSH src may not be `*`; dst may not be `*`/internet; a user dst must equal the (single) user src; tag sources can't reach `autogroup:member` or `autogroup:self` | Tailscale SSH; headscale errors | `test_ssh_*_rejected`, `test_ssh_self_needs_user_src` |
 | SSH also needs tcp/22 allowed by acls/grants (`ssh` command only) | Tailscale SSH, from prior knowledge | `test_ssh_requires_network_path` |
-| SSH action is the first matching rule in policy order; all matches are listed | this tool (tailscaled evaluates its compiled rule list first-match; the ordering the control plane emits is assumed to be policy order) | `test_ssh_first_match_decides_action` |
-| `tests`: one `src`; `accept`/`deny` are `dst:port` with one port; `proto` only tcp/udp/sctp, omitted = passes if TCP, UDP or ICMP is allowed | policy syntax "tests"; headscale `validateTests`, `srcReachesDst` | `test_tests_block_shapes`, `test_test_proto_restricts` |
+| SSH check rules are evaluated before accept rules: if any matching rule is `check` the action is check (its `checkPeriod`), else accept; all matches are listed | policy file "order of evaluation" <https://tailscale.com/docs/reference/syntax/policy-file#order-of-evaluation>; headscale sorts check before accept (`filter.go`) | `test_ssh_check_rules_win_over_accept`, `test_diff_adding_a_later_check_rule_changes_accept` |
+| `tests`: one `src`; `accept`/`deny` are `dst:port` with one port; `proto` tcp, udp, sctp or icmp (ICMP destinations use port 0); omitted = passes if TCP or UDP is allowed | policy file "tests" <https://tailscale.com/docs/reference/syntax/policy-file#tests>. headscale differs (ICMP in the default set, ICMP tests rejected); the docs win here | `test_tests_block_shapes`, `test_default_test_proto_is_tcp_and_udp`, `test_icmp_tests_use_port_zero` |
+| `defaultSrcPosture` applies to every acls/grants rule without its own `srcPosture` | device posture in access rules <https://tailscale.com/docs/features/device-posture/postures-in-access-rules> | `test_default_src_posture_is_inherited`, `test_default_posture_makes_allows_conditional` |
 | `sshTests`: `accept` = allowed by accept or check rule, `check` = a check rule matches, `deny` = no rule; dst has no ports or CIDRs | policy syntax "sshTests"; headscale `sshtest.go` | `test_ssh_tests_accept_check_deny`, `test_ssh_test_dst_shapes` |
 | Multi-endpoint test src/dst: accept needs every pair, deny needs every pair denied | this tool (stricter than headscale, which passes a deny if any source is blocked) | `test_group_source_is_strict` |
 
@@ -146,12 +149,14 @@ tool goes beyond both, the row says "this tool".
 
 Reported, never silently guessed:
 
-* **`srcPosture`** (acls/grants) and **`via`** (grants): not evaluated. A match
-  that depends on them is reported `conditional` (exit 3); tests become
-  `INCONCLUSIVE`. `srcPosture` on SSH rules and `srcPostureAttrs` in tests are
-  errors.
+* **`srcPosture`**, inherited **`defaultSrcPosture`** (acls/grants) and
+  **`via`** (grants): not evaluated. A match that depends on them is reported
+  `conditional` (exit 3); tests become `INCONCLUSIVE`; `ssh` reports
+  `conditional` when the tcp/22 path does. `srcPosture` on SSH rules and
+  `srcPostureAttrs` in tests are errors. SSH rules themselves are evaluated
+  without `defaultSrcPosture` (whether it applies to them is not modelled).
 * **Ignored sections** (warned): `nodeAttrs`, `autoApprovers`, `postures`,
-  `defaultSrcPosture`, `ipsets`, `derpMap`, `disableIPv4`, `OneCGNATRoute`,
+  `ipsets`, `derpMap`, `disableIPv4`, `OneCGNATRoute`,
   `randomizeClientPort`, `attrConfig`. Unknown sections and fields are warned too.
 * **Rejected as unsupported**: `ipset:` aliases, `autogroup:shared`.
 * **Application grants** (`app`): parsed, warned, not evaluated.
@@ -166,7 +171,7 @@ Reported, never silently guessed:
 ## Tests
 
 ```sh
-python -m pytest -q tests      # 179 test cases; pytest from ../.github/ci-requirements.txt
+python -m pytest -q tests      # 189 test cases; pytest from ../.github/ci-requirements.txt
 ```
 
 MIT licensed (see `LICENSE`).

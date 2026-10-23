@@ -167,6 +167,16 @@ def test_grant_via_is_conditional_and_tag_checked():
     assert "via entries must be tags" in errors(grants=[{"src": ["*"], "dst": ["*"], "ip": ["*"], "via": ["x@y.z"]}])
 
 
+def test_default_src_posture_is_inherited():
+    p = mk(defaultSrcPosture=["posture:latest"],
+           acls=[acl(["*"], ["tag:web:443"]), acl(["*"], ["tag:db:1"], srcPosture=["posture:own"])],
+           grants=[{"src": ["*"], "dst": ["tag:web"], "ip": ["*"]}])
+    assert [r.conditions for r in p.rules] == [
+        ["defaultSrcPosture ['posture:latest']"], ["srcPosture ['posture:own']"],
+        ["defaultSrcPosture ['posture:latest']"]]
+    assert any("defaultSrcPosture" in w for w in p.warnings)
+
+
 def test_unknown_and_ignored_sections_warn():
     p = mk(nodeAttrs=[], frobnicate=1)
     ws = " ".join(p.warnings)
@@ -215,7 +225,9 @@ def test_ssh_users_validation():
 
 
 def test_tests_block_shapes():
-    assert "tcp, udp or sctp" in errors(tests=[{"src": "a@x.y", "proto": "icmp", "accept": ["tag:web:1"]}])
+    assert "tcp, udp, sctp or icmp" in errors(tests=[{"src": "a@x.y", "proto": "gre", "accept": ["tag:web:1"]}])
+    assert "use port 0" in errors(tests=[{"src": "a@x.y", "proto": "icmp", "accept": ["tag:web:1"]}])
+    mk(tests=[{"src": "a@x.y", "proto": "icmp", "accept": ["tag:web:0"]}])
     assert "exactly one port" in errors(tests=[{"src": "a@x.y", "accept": ["tag:web:80,443"]}])
     assert "at least one" in errors(tests=[{"src": "a@x.y"}])
     assert "single non-empty string" in errors(tests=[{"src": ["a@x.y"], "accept": ["tag:web:1"]}])

@@ -4,7 +4,8 @@ Semantics (Tailscale policy-syntax docs, "tests" and "sshTests"):
 
 * tests: ``src`` is one alias; every ``accept`` entry ("dst:port") must be
   reachable and every ``deny`` entry must not be. With ``proto`` omitted the
-  check passes if TCP, UDP or ICMP is allowed; otherwise only that protocol.
+  check passes if TCP or UDP is allowed; otherwise only that protocol. ICMP
+  tests name destination port 0.
 * sshTests: ``src`` is one alias, ``dst`` a list of hosts; every ``accept``
   login must be allowed (by an accept or check rule), every ``check`` login
   must hit a check rule, every ``deny`` login must hit nothing. Only ``ssh``
@@ -20,9 +21,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .engine import QueryError, check_network, check_ssh, parse_target, resolve
-from .policy import Policy
+from .policy import PORTED_PROTOS, Policy, split_dst
 
-TEST_DEFAULT_PROTOS = ("tcp", "udp", "icmp", "ipv6-icmp")
+TEST_DEFAULT_PROTOS = ("tcp", "udp")
 
 
 @dataclass
@@ -62,7 +63,10 @@ def run_net_test(policy: Policy, inv, t) -> Result:
     for want, entries in (("allow", t.accept), ("deny", t.deny)):
         for entry in entries:
             try:
-                alias, port = parse_target(entry)
+                if t.proto and t.proto not in PORTED_PROTOS:
+                    alias, port = split_dst(entry)[0], None  # icmp: "host:0"
+                else:
+                    alias, port = parse_target(entry)
                 dsts = resolve(policy, inv, alias)
             except QueryError as e:
                 res.fail(f"{entry}: {e}")

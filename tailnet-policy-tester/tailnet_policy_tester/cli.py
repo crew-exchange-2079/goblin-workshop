@@ -108,7 +108,10 @@ def cmd_ssh(args):
             extra += f"  checkPeriod={r['checkPeriod']}"
         lines.append(f"{r['verdict']:<6} {r['src']} -> {r['dst']} as {r['user']}{extra}")
     _emit(args, {"results": rows}, lines)
-    return OK if all(r["verdict"] in ("accept", "check") for r in rows) else NO
+    if all(r["verdict"] in ("accept", "check") for r in rows):
+        return OK
+    return MAYBE if all(r["verdict"] in ("accept", "check") or r["verdict"].startswith("conditional")
+                        for r in rows) else NO
 
 
 def cmd_test(args):
