@@ -51,13 +51,6 @@ validation:
   unrecognized_links: warn
   anchors: warn
 
+# Tool pages are appended to the nav by docs/hooks.py (TOOLS).
 nav:
   - Home: index.md
-  - Tape tools:
-      - tape-exporter: tools/tape-exporter.md
-      - tapefec: tools/tapefec.md
-      - tape-library-playground: tools/tape-library-playground.md
-      - ltfs-index-validator: tools/ltfs-index-validator.md
-      - mhvtl-status: tools/mhvtl-status.md
-  - Other tools:
-      - rack-parts: tools/rack-parts.md

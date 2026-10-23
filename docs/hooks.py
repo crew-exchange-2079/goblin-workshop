@@ -5,8 +5,11 @@ Relative links in a README point at files next to it in the repository, which
 are not part of the site, so they are rewritten to GitHub URLs (images to raw
 URLs so they still render). Links to another tool's README go to its page.
 
-The build fails if a top-level directory has a README.md that is not in TOOLS,
-so a new tool cannot silently miss the site.
+TOOLS is the one registry: it drives the tool pages, the "Tools" part of the
+nav and the tables on the landing page. A listed tool whose README is not on the
+branch is left out of all three, so a tool can be registered before the PR that
+adds it lands. The build fails if a top-level directory has a README.md that is
+not in TOOLS, so a new tool cannot silently miss the site.
 """
 
 from __future__ import annotations
@@ -21,23 +24,40 @@ from mkdocs.structure.files import File, Files
 REPO = "crew-exchange-2079/goblin-workshop"
 BRANCH = "main"
 
-# README directory (relative to the repo root) -> page path under docs/.
+TAPE, OTHER = "Tape tools", "Other tools"
+SECTIONS = (TAPE, OTHER)
+
+# README directory (relative to the repo root) -> (nav section, landing-page blurb).
+# The page is tools/<last path component>.md. Nav and table order follow this dict.
 TOOLS = {
-    "tape-exporter": "tools/tape-exporter.md",
-    "tapefec": "tools/tapefec.md",
-    "tape-library-playground": "tools/tape-library-playground.md",
-    "ltfs-index-validator": "tools/ltfs-index-validator.md",
-    "rack-parts": "tools/rack-parts.md",
-    "tape-regression-lab/mhvtl-status": "tools/mhvtl-status.md",
+    "tape-exporter": (TAPE, "Read-only Prometheus exporter for Linux LTO/SCSI tape drives."),
+    "tapefec": (TAPE, "Streaming Reed–Solomon forward-error-correction framer for tar-to-tape pipelines; pure-Python educational prototype."),
+    "tape-library-playground": (TAPE, "Browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller."),
+    "ltfs-index-validator": (TAPE, "Offline schema-only checker for LTFS 2.4.0 full index XML; not compliance or certification."),
+    "tape-regression-lab/mhvtl-status": (TAPE, "Regression kit for mhvtl's optional log pages, run against a fresh upstream checkout."),
+    "lto-capacity-planner": (TAPE, "Static calculator for LTO cartridges, library slots and media cost per generation; arithmetic, not a vendor sizing tool."),
+    "tape-label-gen": (TAPE, "Code 39 LTO cartridge barcode labels as print-ready PDF sheets (CLI) or a static web page."),
+    "rack-parts": (OTHER, "Parametric OpenSCAD generator for printable rack parts (brackets, shelves, panels, PDU mounts)."),
 }
 
 # Top-level directories that are not tools and have no page of their own.
 NOT_TOOLS = {"docs", "tests", "tape-regression-lab"}
 
+# docs/index.md marks where each section's table goes: <!-- tools: Tape tools -->
+TABLE_MARKER = re.compile(r"<!-- tools: (.+?) -->")
+
 FENCE = re.compile(r"^\s*(```|~~~)")
 # [text](target) and ![alt](target); target may carry a "title".
 MD_LINK = re.compile(r"(!?)\[([^\]]*)\]\(\s*<?([^)\s>]+)>?((?:\s+\"[^\"]*\")?)\s*\)")
 HTML_ATTR = re.compile(r"""\b(src|href)=(["'])([^"']+)\2""")
+
+
+def _page(readme_dir: str) -> str:
+    return f"tools/{posixpath.basename(readme_dir)}.md"
+
+
+def _present(root: Path) -> list[str]:
+    return [d for d in TOOLS if (root / d / "README.md").is_file()]
 
 
 def _is_external(target: str) -> bool:
@@ -51,9 +71,9 @@ def _rewrite(target: str, readme_dir: str, root: Path, page: str, image: bool) -
     repo_path = posixpath.normpath(posixpath.join(readme_dir, path))
     frag = "#" + frag if frag else ""
     if posixpath.basename(repo_path) == "README.md":
-        other = TOOLS.get(posixpath.dirname(repo_path))
-        if other:
-            return posixpath.relpath(other, posixpath.dirname(page)) + frag
+        other = posixpath.dirname(repo_path)
+        if other in TOOLS:
+            return posixpath.relpath(_page(other), posixpath.dirname(page)) + frag
     if repo_path.startswith(".."):
         raise PluginError(f"{readme_dir}/README.md links outside the repository: {target}")
     if image:
@@ -94,7 +114,32 @@ def on_files(files: Files, config) -> Files:
     )
     if unlisted:
         raise PluginError(f"README.md without a docs page; add to TOOLS in docs/hooks.py: {unlisted}")
-    for readme_dir, page in TOOLS.items():
+    present = _present(root)
+    for readme_dir in present:
+        page = _page(readme_dir)
         readme = (root / readme_dir / "README.md").read_text(encoding="utf-8")
         files.append(File.generated(config, page, content=render(readme, readme_dir, root, page)))
+    # mkdocs.yml lists only the hand-written pages; the tool pages are appended here,
+    # before MkDocs builds the nav from config. Sections added by an earlier build of
+    # the same config (mkdocs serve) are dropped first so they are not doubled.
+    base = [e for e in config["nav"] or [] if not (isinstance(e, dict) and e.keys() <= set(SECTIONS))]
+    config["nav"] = base + [
+        {section: [{posixpath.basename(d): _page(d)} for d in present if TOOLS[d][0] == section]}
+        for section in SECTIONS
+        if any(TOOLS[d][0] == section for d in present)
+    ]
     return files
+
+
+def on_page_markdown(markdown: str, page, config, files) -> str:
+    if page.file.src_uri != "index.md":
+        return markdown
+    present = _present(Path(config.config_file_path).parent)
+
+    def table(m: re.Match) -> str:
+        if m[1] not in SECTIONS:
+            raise PluginError(f"docs/index.md: unknown tools section {m[1]!r}")
+        rows = [f"| [{posixpath.basename(d)}]({_page(d)}) | {TOOLS[d][1]} |" for d in present if TOOLS[d][0] == m[1]]
+        return "\n".join(["| Tool | What it is |", "| --- | --- |", *rows])
+
+    return TABLE_MARKER.sub(table, markdown)
