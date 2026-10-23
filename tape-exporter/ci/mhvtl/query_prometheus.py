@@ -24,6 +24,7 @@ from check_evidence import supported_pages  # noqa: E402
 ALWAYS_DATA = ("tape_exporter_collector_success", "tape_exporter_collector_status",
                "tape_exporter_unreaped_children", "tape_exporter_collector_duration_seconds")
 COUNTER_DATA = ("tape_log_errors_total", "tape_bytes_processed_total")
+SA_DATA = ("tape_data_bytes_total", "tape_cleaning_required")
 
 
 def get(url, path, **params):
@@ -40,6 +41,7 @@ def main():
     args = ap.parse_args()
     sup = supported_pages(args.supported, args.supported[:-4] + ".rc")
     both_pages = sup is not None and {0x02, 0x03} <= sup
+    sa_page = sup is not None and 0x0C in sup
 
     _, dexprs = cm.dashboard_exprs()
     results, problems = [], []
@@ -57,12 +59,14 @@ def main():
                 problems.append(f"{where}: no data")
             if any(m in q for m in COUNTER_DATA) and both_pages and n == 0:
                 problems.append(f"{where}: no counter data although pages are supported")
+            if any(m in q for m in SA_DATA) and sa_page and n == 0:
+                problems.append(f"{where}: no 0x0c data although the page is supported")
     rules = get(args.url, "/api/v1/rules")
     unhealthy = [r["name"] for g in rules["data"]["groups"] for r in g["rules"] if r.get("health") != "ok"]
     alerts = get(args.url, "/api/v1/alerts")["data"]["alerts"]
     if unhealthy:
         problems.append(f"unhealthy rules: {unhealthy}")
-    if not both_pages:
+    if not (both_pages and sa_page):
         alerts = [a for a in alerts if a["labels"].get("alertname") != "LTOLogPageUnsupported"]
     if alerts:
         problems.append(f"alerts active on a healthy emulated drive: {alerts}")

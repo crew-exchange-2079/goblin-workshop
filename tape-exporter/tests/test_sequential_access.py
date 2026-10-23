@@ -158,3 +158,54 @@ class SequentialAccessTests(unittest.TestCase):
             result = parse_sg_logs_error_counters(self.fixture("normal"), direction)
             self.assertEqual(result.status, "parse_error")
             self.assertEqual(result.values, {})
+
+
+class RealSgLogs146Tests(unittest.TestCase):
+    """Golden output of the real sg_logs 1.46 binary (synthetic page bytes)."""
+
+    def golden(self, name):
+        return (FIX / "sg3_utils_1.46" / name).read_text(encoding="utf-8")
+
+    def test_full_page(self):
+        result = parse_sg_logs_sequential_access(self.golden("seqaccess_page.txt"))
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.values, {
+            "bytes_received_write": 2199023255553,
+            "bytes_written_media": 1500000000123,
+            "bytes_read_media": 734003200000,
+            "bytes_transferred_read": 1468006400000,
+            "cleaning_action_required": 1,
+        })
+
+    def test_partial_page_cleaning_not_required(self):
+        result = parse_sg_logs_sequential_access(self.golden("seqaccess_clean_page.txt"))
+        self.assertEqual(result.values, {
+            "bytes_received_write": 999999999,
+            "bytes_written_media": 0,
+            "cleaning_action_required": 0,
+        })
+
+    def test_nonverbose_output_gives_no_bytes(self):
+        result = parse_sg_logs_sequential_access(self.golden("seqaccess_page_nonverbose.txt"))
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.values, {"cleaning_action_required": 1})
+
+    def test_page_0xc_decoded_for_a_disk_is_rejected(self):
+        result = parse_sg_logs_sequential_access(self.golden("seqaccess_page_as_disk.txt"))
+        self.assertEqual(result.status, "parse_error")
+        self.assertEqual(result.values, {})
+
+    def test_inquiry_line_before_header_is_ignored(self):
+        text = "    IBM       ULT3580-TD8       0105\n" + self.golden("seqaccess_page.txt")
+        self.assertEqual(len(parse_sg_logs_sequential_access(text).values), 5)
+
+    def test_mixed_spellings_share_conflict_tracking(self):
+        result = parse_sg_logs_sequential_access("\n".join((
+            "Sequential access device page (ssc-3)",
+            "  Data bytes received with WRITE commands: 0 GB [5 bytes]",
+            "  Cleaning action required",
+            HEADER,
+            counter("0 GB [6 bytes]"),
+            NOT_REQUIRED,
+        )))
+        self.assertEqual(result.values, {})
