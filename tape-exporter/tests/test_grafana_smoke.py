@@ -140,7 +140,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_browser_negative_control_must_see_errors(self):
         titles = [p["title"] for p in DASH["panels"]]
-        blind = {"headers": 9, "panel_errors": 0, "dialog_visible": False, "http_errors": [],
+        blind = {"headers": len(titles), "panel_errors": 0, "dialog_visible": False, "http_errors": [],
                  "queries": ["x"], "responses": [(200, {"results": {}})], "no_data": 0}
         self.assertIn("would miss", browser_smoke.check_view("v", blind, titles, {"errors": True})[0])
         covered = dict(blind, dialog_visible=True)

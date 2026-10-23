@@ -89,3 +89,13 @@ groups:
         annotations:
           summary: "{{ $labels.device }} does not report {{ $labels.parameter }} ({{ $labels.direction }})"
           description: "The log page was read but this parameter was absent or unparsable. LTOUncorrectedErrorsIncreased cannot fire for it."
+
+      - alert: LTOCleaningRequired
+        expr: |
+          max by (instance, device) (tape_cleaning_required) == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.device }}: drive reports cleaning required"
+          description: "The Sequential-Access Device log page (0x0c) has reported cleaning required (or in progress) for 30 minutes on {{ $labels.instance }}. Load a cleaning cartridge or check the library's auto-clean. A drive whose page cannot be read is not covered by this alert (unknown is not 'not required')."

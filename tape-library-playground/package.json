@@ -7,5 +7,9 @@
   "scripts": {
     "test": "node --test",
     "compare": "node compare.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.0",
+    "@playwright/test": "1.56.0"
   }
 }

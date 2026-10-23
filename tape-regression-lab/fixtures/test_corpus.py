@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "tape-exporter"))
 
 from lto_exporter import parsers  # noqa: E402
+from offline import tapeinfo_text  # noqa: E402
 
 MANIFEST = json.loads((HERE / "manifest.json").read_text(encoding="utf-8"))
 FIXTURES = MANIFEST["fixtures"]
@@ -28,12 +29,14 @@ PARSERS = {
     "error_counters.read": lambda text: parsers.parse_sg_logs_error_counters(text, "read"),
     "sequential_access": parsers.parse_sg_logs_sequential_access,
 }
-# Each public parse_* function in lto_exporter.parsers and the PARSERS
-# entries that drive it. A new parser fails test_every_parser_is_covered
-# until it is added here and to generate.py.
+# Each public parse_* function in the tape-exporter parser modules and the
+# test that drives it. A new parser fails test_every_parser_is_covered until
+# it is added here (and, for an sg_logs parser, to PARSERS and generate.py).
+PARSER_MODULES = (parsers, tapeinfo_text)
 COVERS = {
     "parse_sg_logs_error_counters": {"error_counters.write", "error_counters.read"},
     "parse_sg_logs_sequential_access": {"sequential_access"},
+    "parse_tapeinfo_text": {"tapeinfo_text"},
 }
 REQUIRED_PAGES = {"0x02", "0x03", "0x0c", "0x2e", "0x31", "0x17"}
 OLD, NEWER = "1.46", {v for v in MANIFEST["sg_logs_versions"] if v != "1.46"}
@@ -48,10 +51,12 @@ def _text(out):
 
 
 def test_every_parser_is_covered():
-    public = {name for name, obj in inspect.getmembers(parsers, inspect.isfunction)
-              if name.startswith("parse_") and obj.__module__ == parsers.__name__}
+    public = {name for mod in PARSER_MODULES
+              for name, obj in inspect.getmembers(mod, inspect.isfunction)
+              if name.startswith("parse_") and obj.__module__ == mod.__name__}
     assert public == set(COVERS)
-    assert set().union(*COVERS.values()) == set(PARSERS) == set(MANIFEST["parsers"])
+    assert set().union(*COVERS.values()) == set(PARSERS) | {"tapeinfo_text"}
+    assert set(PARSERS) == set(MANIFEST["parsers"])
 
 
 def test_corpus_shape():
@@ -106,3 +111,16 @@ def test_parser_survives_truncation(pair, parser):
         assert all(type(v) is int and 0 <= v < 2**64 for v in result.values.values())
         if cut == len(text) or text[cut - 1:cut] == "\n":
             assert all(want.get(k) == v for k, v in result.values.items()), cut
+
+
+@pytest.mark.parametrize("pair", OUTPUTS, ids=_id)
+def test_tapeinfo_parser_extracts_nothing(pair):
+    # The offline tapeinfo parser reads a different tool's text. sg_logs
+    # output, TapeAlert pages included, must not look like tapeinfo to it.
+    _, out = pair
+    text = _text(out)
+    for cut in (len(text), *(i + 1 for i, c in enumerate(text) if c == "\n")):
+        assert tapeinfo_text.parse_tapeinfo_text(text[:cut]) == {
+            "parsed": False, "vendor": None, "product": None, "ready": None,
+            "compression_enabled": None, "tapealert_codes_listed": [],
+            "tapealert_support": "unknown"}

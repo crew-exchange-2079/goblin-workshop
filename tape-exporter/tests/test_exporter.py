@@ -121,6 +121,8 @@ class CommandTests(unittest.TestCase):
     def test_sg_logs_argv_is_fixed_and_readonly(self):
         self.assertEqual(sg_logs_argv("/usr/bin/sg_logs", "write", "/dev/sg3"), SG)
         self.assertEqual(sg_logs_argv("/usr/bin/sg_logs", "read", "/dev/sg3")[2], "--page=0x3")
+        self.assertEqual(sg_logs_argv("/usr/bin/sg_logs", "sequential_access", "/dev/sg3"),
+                         ["/usr/bin/sg_logs", "--readonly", "--verbose", "--page=0xc", "/dev/sg3"])
         with self.assertRaises(KeyError):
             sg_logs_argv("/usr/bin/sg_logs", "0x2e", "/dev/sg3")
 
@@ -158,10 +160,23 @@ class CommandTests(unittest.TestCase):
                      [SG[0], "-X", "--page=0x2", SG[3]],
                      [SG[0], "--readonly", "-p", "0x2"],
                      [SG[0], "--readonly", "--page=0x2", b"/dev/sg3"],
-                     "sg_logs --readonly --page=0x2 /dev/sg3", None):
+                     "sg_logs --readonly --page=0x2 /dev/sg3", None,
+                     # page 0xc only with --verbose, and --verbose only with 0xc
+                     [SG[0], "--readonly", "--page=0xc", SG[3]],
+                     [SG[0], "--readonly", "--verbose", "--page=0x2", SG[3]],
+                     [SG[0], "--readonly", "--verbose", "--page=0x2e", SG[3]],
+                     [SG[0], "--verbose", "--readonly", "--page=0xc", SG[3]],
+                     [SG[0], "--readonly", "-v", "--page=0xc", SG[3]],
+                     [SG[0], "--readonly", "--verbose", "--page=0xc", SG[3], SG[3]],
+                     [SG[0], "--readonly", "--reset", "--page=0xc", SG[3]],
+                     [SG[0], "--readonly", "--verbose", "--page=0xc", "/dev/st0"],
+                     [SG[0], "--readonly", "--verbose", "--page=0xC", SG[3]],
+                     [SG[0], "--readonly", "--verbose", "--page=0x0c", SG[3]]):
             with self.assertRaises(UnsafeCommand, msg=repr(argv)):
                 _check(argv)
         self.assertEqual(_check(tuple(SG)), SG)
+        sa = [SG[0], "--readonly", "--verbose", "--page=0xc", SG[3]]
+        self.assertEqual(_check(sa), sa)
 
     def test_run_command_permission_error_is_exec_error(self):
         def popen(argv, **kw):
@@ -187,8 +202,9 @@ class CommandTests(unittest.TestCase):
     def test_collector_only_issues_allowlisted_commands(self):
         runner = FakeRunner({})
         collector(cfg(), runner).collect()
-        allowed = {("--readonly", "--page=0x2"), ("--readonly", "--page=0x3")}
-        self.assertEqual(len(runner.calls), 2)
+        allowed = {("--readonly", "--page=0x2"), ("--readonly", "--page=0x3"),
+                   ("--readonly", "--verbose", "--page=0xc")}
+        self.assertEqual(len(runner.calls), 3)
         for argv in runner.calls:
             self.assertIn(tuple(argv[1:-1]), allowed)
             self.assertEqual(argv[-1], "/dev/sg3")
@@ -258,11 +274,11 @@ class CommandTests(unittest.TestCase):
         tracker = ChildTracker()
         runner = lambda a, t, m: run_command(a, t, m, popen=P, tracker=tracker)
         out = collector(c, runner).collect()
-        self.assertEqual(len(spawned), 6)
+        self.assertEqual(len(spawned), 9)
         for argv in spawned:
             self.assertEqual(argv[0], "/usr/bin/sg_logs")
             self.assertEqual(argv[1], "--readonly")
-            self.assertIn(argv[2], ("--page=0x2", "--page=0x3"))
+            self.assertIn(argv[-2], ("--page=0x2", "--page=0x3", "--page=0xc"))
             self.assertNotIn("tapeinfo", " ".join(argv))
         self.assertNotIn("tapeinfo", out)
         self.assertNotIn("tapealert", out.lower())
@@ -642,6 +658,7 @@ def full_runner():
     return FakeRunner({
         "--page=0x2": RunResult("ok", 0, fx("sg_logs_write_ok.txt"), 0.12),
         "--page=0x3": RunResult("ok", 0, fx("sg_logs_read_partial.txt"), 0.08),
+        "--page=0xc": RunResult("ok", 0, fx("sg3_utils_1.46/seqaccess_page.txt"), 0.05),
     })
 
 
@@ -688,10 +705,10 @@ class CollectorTests(unittest.TestCase):
         runner = full_runner()
         c = collector(cfg(cache_seconds=30), runner, clock=lambda: t[0])
         c.collect(); c.collect()
-        self.assertEqual(len(runner.calls), 2)
+        self.assertEqual(len(runner.calls), 3)
         t[0] = 31.0
         c.collect()
-        self.assertEqual(len(runner.calls), 4)
+        self.assertEqual(len(runner.calls), 6)
 
 
 class HttpTests(unittest.TestCase):
@@ -800,7 +817,7 @@ class MainTests(unittest.TestCase):
     def test_example_config_parses(self):
         with open(os.path.join(ROOT, "example-config.json")) as fh:
             c = parse_config(json.load(fh), resolver=lambda p: "/dev/sg3")
-        self.assertEqual(c.devices[0].collectors, ("sg_logs",))
+        self.assertEqual(c.devices[0].collectors, ("sg_logs", "sequential_access"))
 
     def write_cfg(self, text):
         fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)

@@ -22,7 +22,7 @@ class MonitoringAssetTests(unittest.TestCase):
         errors, nd, nr = cm.run()
         self.assertEqual(errors, [])
         self.assertGreaterEqual(nd, 10)
-        self.assertEqual(nr, 7)
+        self.assertEqual(nr, 8)
 
     def test_checker_catches_mismatches(self):
         bad = {
@@ -32,6 +32,9 @@ class MonitoringAssetTests(unittest.TestCase):
             'tape_drive_temperature_celsius': "unknown metric",
             'sum by (serial) (tape_exporter_collector_success)': "grouping label",
             'tape_exporter_unreaped_children{device="d"}': "no label",
+            'tape_data_bytes_total{side="compressed"}': "never emitted",
+            'tape_sequential_access_field_present{field="tapealert"}': "never emitted",
+            'tape_cleaning_required{direction="write"}': "no label",
         }
         for expr, msg in bad.items():
             errors = []

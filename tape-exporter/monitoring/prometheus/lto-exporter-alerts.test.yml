@@ -98,3 +98,25 @@ tests:
       - {eval_time: 65m, alertname: LTOCollectorFailing, exp_alerts: []}
       - {eval_time: 65m, alertname: LTOExporterUnreapedChild, exp_alerts: []}
       - {eval_time: 65m, alertname: LTOUncorrectedErrorsIncreased, exp_alerts: []}
+      - {eval_time: 65m, alertname: LTOCleaningRequired, exp_alerts: []}
+
+  # Cleaning: fires after 30 minutes of "required"; a drive that went back to
+  # 0 does not fire, and a drive with no series (page unreadable) does not
+  # count as "not required" -- it simply produces nothing.
+  - interval: 1m
+    input_series:
+      - series: 'tape_cleaning_required{instance="h:9842",device="drive0"}'
+        values: '1x40'
+      - series: 'tape_cleaning_required{instance="h:9842",device="drive1"}'
+        values: '1x10 0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LTOCleaningRequired
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: LTOCleaningRequired
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "h:9842", device: drive0}
+            exp_annotations:
+              summary: "drive0: drive reports cleaning required"
+              description: "The Sequential-Access Device log page (0x0c) has reported cleaning required (or in progress) for 30 minutes on h:9842. Load a cleaning cartridge or check the library's auto-clean. A drive whose page cannot be read is not covered by this alert (unknown is not 'not required')."

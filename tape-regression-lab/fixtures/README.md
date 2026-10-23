@@ -3,7 +3,8 @@
 A public corpus of `sg_logs` text output for the SSC log pages a tape tool is
 likely to meet, in **sg3_utils 1.46** wording (Ubuntu 24.04's package) and the
 **newer** wording of sg3_utils 1.47 and later (1.49 here), plus a test that
-every parser in [`tape-exporter`](../../tape-exporter/) handles every fixture.
+every parser in [`tape-exporter`](../../tape-exporter/), including the
+offline `tapeinfo` text parser, handles every fixture.
 
 Everything here is synthetic. No page was captured from a drive, and no
 device was opened to make them.
@@ -47,7 +48,7 @@ by running the parsers.
 |---|---|---|
 | 0x02 Write error counters | typical, all zero, uint64 edge, partial + vendor param | exporter reads this page |
 | 0x03 Read error counters | typical, all zero, partial + vendor params | exporter reads this page |
-| 0x0c Sequential access device | cleaning required / not, all zero, partial | parsed by `parse_sg_logs_sequential_access` |
+| 0x0c Sequential access device | cleaning required / not, all zero, partial | exporter reads this page (`--verbose`) |
 | 0x2e TapeAlert | all clear; flags 3, 4, 0x14, 0x1e set | **read-may-clear**, see below |
 | 0x31 Tape capacity (LTO-5/6) | main/alternate partition remaining and maximum | vendor-specific (`--vendor=lto5`) |
 | 0x17 Volume statistics, subpage 0 | page valid, counts, volume serial | SSC-4 |
@@ -56,7 +57,7 @@ by running the parsers.
 reading the page (whether they are depends on the drive and on the
 Informational Exceptions mode page). A monitor that reads it can hide an alert
 from the backup software or library that was meant to act on it. tape-exporter
-never reads 0x2e (`commands.py` only allows `--page=0x2` and `--page=0x3`);
+never reads 0x2e (`commands.py` only allows `--page=0x2`, `0x3` and `0xc`);
 these fixtures exist so every parser is shown to reject TapeAlert text, and
 they are flagged `"read_may_clear": true` in the manifest. 0x31 and 0x17 are
 here for the same reason: no parser reads them, and each must say
@@ -75,14 +76,16 @@ gain a `[N GB]` suffix, and TapeAlert flags 0x2f-0x31 and 0x3d are named.
 python -m pytest -q test_corpus.py      # from this directory; needs pytest only
 ```
 
-[`test_corpus.py`](test_corpus.py) imports `lto_exporter.parsers` from this
+[`test_corpus.py`](test_corpus.py) imports the parsers from this
 checkout and, for every output file and every parser, checks the parser's
 status and values against the manifest. It also checks that the sha256 values
 match, that no file is unlisted, that each fixture has both 1.46 and newer
 output, that only 0x2e is read-may-clear, that every prefix of every fixture
 parses without raising, and that a prefix cut at a line boundary reports only
-values of the full page. A new `parse_*` function in `parsers.py` fails the
-test until it is added to the corpus.
+values of the full page. The offline `tapeinfo` parser must extract nothing
+from any fixture or line-boundary prefix. A new `parse_*` function in
+`lto_exporter/parsers.py` or `offline/tapeinfo_text.py` fails the test until
+it is added to the corpus.
 
 A prefix cut inside a number can make a parser report a shorter number
 (`= 21990` for `= 2199023255553`). The exporter never parses such output,
