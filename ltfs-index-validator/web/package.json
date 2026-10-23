@@ -1,0 +1,12 @@
+{
+  "name": "ltfs-index-viewer",
+  "private": true,
+  "license": "MIT",
+  "description": "Static, client-side viewer for LTFS 2.4.0 index XML",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}
