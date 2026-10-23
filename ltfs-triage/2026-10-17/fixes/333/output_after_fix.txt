@@ -1,0 +1,18 @@
+== A: mkltfs (index smaller than one block -> close callback path)
+FI: index_cache_path=/tmp/tmp.XXXX/cacheA.xml
+FI: injecting ENOSPC on cache write (883 bytes)
+LTFS17245E XML writer: failed to flush cached data to the disk (28).
+FI: injecting ENOSPC on cache write (994 bytes)
+LTFS17245E XML writer: failed to flush cached data to the disk (28).
+LTFS15024I Medium formatted successfully.
+mkltfs exit=0
+remount without fault: ltfs exit=0 mounted=1
+A: PASS
+== B: mount + 60 files + unmount (index spans several 4 KiB blocks -> write callback path; cache is only used for the index partition write)
+      1 FI: index_cache_path=/tmp/tmp.XXXX/cacheB.xml
+      1 FI: injecting ENOSPC on cache write (4096 bytes)
+      1 LTFS17236I Wrote index of NO_BARCODE (Gen = 2, Part = a, Pos = 5, DUMMY).
+      1 LTFS17244E XML writer: failed to write a block to the disk (28).
+index written to partition a at unmount: 1 (expected 1); 'Cannot unmount' errors: 0 (expected 0)
+B: PASS
+RESULT: PASS

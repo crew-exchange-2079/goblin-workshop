@@ -25,3 +25,6 @@ History: `HANDOFF-2026-10-17-initial-403-blocker.md` (API 403 receipts in `raw/`
 
 ## Lead review
 Pick which of #333 / #106 to implement; #106 needs a maintainer answer on the "historical issue" before any patch.
+
+## Update: #333 fix drafted and proven (2026-10-23)
+`fixes/333.patch`, `fixes/333/` (shim, repro script, before/after outputs), `FIX-333.md`. Before: FAIL (A and B); after: PASS; no-fault control PASS on both builds. Caveat: stock ltfs never sets `index_cache_path`, so the bug is only reachable by external users of that field. Nothing sent upstream. Not run: real tape backends, LTFS-EE.
