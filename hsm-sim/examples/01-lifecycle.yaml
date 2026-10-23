@@ -1,0 +1,31 @@
+# One file's whole life: write, migrate, purge, recall.
+name: lifecycle
+description: |
+  Three files are written, age past migrate_after_s and are copied to tape
+  (premigrated). Later writes push the cache over its high watermark, so the
+  least recently used premigrated copies are purged to stubs. A read of a stub
+  is a miss and triggers a recall; the second read is a hit.
+duration_s: 3600
+cache:
+  capacity_mb: 1000
+  high_watermark: 0.80
+  low_watermark: 0.50
+library:
+  drives: 1
+  tapes: 3
+  tape_capacity_mb: 4000
+  mount_s: 60
+  seek_s: 20
+  rate_mb_s: 100
+policy:
+  scan_interval_s: 300
+  migrate_after_s: 600
+events:
+  - {t: 0, op: write, file: alpha.dat, size_mb: 200}
+  - {t: 30, op: write, file: beta.dat, size_mb: 200}
+  - {t: 60, op: write, file: gamma.dat, size_mb: 200}
+  - {t: 700, op: read, file: alpha.dat}
+  - {t: 1200, op: write, file: delta.dat, size_mb: 300}
+  - {t: 1800, op: read, file: beta.dat}
+  - {t: 1900, op: read, file: beta.dat}
+  - {t: 2400, op: read, file: gamma.dat}
