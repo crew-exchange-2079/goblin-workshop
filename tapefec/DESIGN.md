@@ -158,7 +158,7 @@ codes. The generator element is **α = 0x02**, which is primitive under 0x11D.
 
 Implemented with log/antilog tables (`_gf_exp`, `_gf_log`) built once at import,
 plus one 256-byte `bytes.translate` table per constant (`_MULTAB[c][x] = c·x`).
-No dependencies.
+No dependencies; numpy is an optional accelerator (§2.4) over the same tables.
 
 ### 2.2 Construction: default v2 Cauchy, legacy v1 Vandermonde
 
@@ -239,6 +239,23 @@ So parity row `i` is
 block `k` times at memory speed. Decode is the same shape plus one small
 matrix inversion. Measured throughput is in `README.md` §Throughput.
 
+**Optional numpy engine.** Profiling the pure encoder shows the big-integer
+round trip (`int.from_bytes`, XOR, `to_bytes`) costing more than the
+`translate` calls themselves. When numpy is importable, `_np_combine` computes
+the same `rows[i] = XOR_j c_ij·d_j` differently: for input block `j` it builds
+a 256-entry table whose entry `x` packs `c_0j·x, c_1j·x, …` for up to 8 output
+rows side by side in one 1/2/4/8-byte word (taken from `_MULTAB`, so the field
+arithmetic is literally the same table), does one `np.take` of block `j`
+through it, and XORs the words into an accumulator. That is one gather per
+input block per 8 rows, instead of one translate plus a big-integer conversion
+per (row, block) pair. Encode calls it with `G`; repair calls it twice, with
+`[G[P][known] | I]` over the known data and surviving parity to form `b`, then
+with `A⁻¹` over `b`. GF(2⁸) arithmetic is exact, so the two engines cannot
+differ except by a bug, and `test_tapefec.py` holds them to golden stream
+digests captured from the pure encoder before the numpy engine existed.
+Engine choice (`--engine`, `TAPEFEC_ENGINE`, `auto` by default) never reaches
+the wire.
+
 ### 2.5 Padding the final group
 
 If the input length is not a multiple of `k·b`, the last group has `k' < k`
@@ -262,12 +279,17 @@ scan frames, resyncing on magic + header CRC
     masquerade as a real block)
 group frames by (block_id // k) for data, (block_id // m) for parity
   ↓ ordinal gaps reveal groups that vanished entirely → emit zeros, unrecoverable
+  ↓ a CRC-valid parity payload whose length is not block_size, or a data
+    payload longer than block_size, cannot be a codeword symbol: erasure
 for each group, in order:
     good data  = frames present AND payload_crc32 ok
     E          = positions in 0..k'−1 that are absent or CRC-failed
     P          = parity positions present AND payload_crc32 ok
     if |E| > |P|: mark those blocks unrecoverable, emit b zero bytes each
     else:        u = A⁻¹b → repaired blocks, emit them
+a group is finalized as soon as all k' data and m parity frames are in and
+  intact (nothing later can change it; a duplicate is dropped), otherwise
+  when a frame of a later group, or the trailer, arrives
 hold back the last k+1 blocks in a delay line
   ↓ the trailer's total_length is the only thing that says how long the final
     block is, and it arrives last; the delay line bounds memory at ~2(k+m)·b

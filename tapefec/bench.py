@@ -1,27 +1,35 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Throughput benchmark for tapefec.
+"""Throughput benchmark for tapefec, per Reed-Solomon engine.
 
     nice -n 19 python3 bench.py --mb 100
+    python3 bench.py --mb 20 --engines pure        # numpy not needed
 
-Reports end-to-end throughput through the CLI (stdin -> stdout, as a shell
-pipeline would drive it) and the isolated cost of the Reed-Solomon parity step.
+For each engine (pure Python, and numpy when importable) it reports:
 
-Wall-clock time on this workstation is noisy -- identical runs have been
-observed at 0.09 s and 1.51 s for the same 24 MB of work -- so each measurement
-is repeated and the **best** wall time is reported, and the child process's
-user+sys CPU time (which is what the algorithm actually costs) is reported next
-to it.  Throughput is quoted from CPU time.
+  * end-to-end throughput through the CLI (stdin -> stdout, as a shell
+    pipeline would drive it), for encode, clean decode, and the streaming
+    recovery pipeline `encode | damage --per-group m | decode`;
+  * in-process CPU throughput of encode, clean decode and decode of a stream
+    that lost m frames in every group (the only case that runs RS repair);
+  * the isolated cost of the parity step, rs_encode_group().
+
+plus the engine-independent floor: SHA-256 and CRC-32 over the stream.
+
+Wall-clock time is noisy on shared machines, so each CLI measurement is
+repeated and the run with the best wall time is reported together with the
+child processes' user+sys CPU time.  Throughput is quoted per input byte.
 """
 
 import argparse
+import hashlib
 import io
-import tempfile
 import os
 import random
 import resource
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 
@@ -37,23 +45,39 @@ def child_cpu():
     return ru.ru_utime + ru.ru_stime
 
 
-def sh(cmd, stdin=None, stdout=None):
-    """Run the CLI the way a shell pipeline would; return (best wall, matching cpu)."""
+def sh(cmd, stdin, stdout, env, reps=3):
+    """Run a shell command line; return (best wall, cpu of that run)."""
     runs = []
-    for _ in range(3):
+    for _ in range(reps):
         c0 = child_cpu()
-        t0 = time.time()
+        t0 = time.perf_counter()
         with open(stdin, "rb") as fin, open(stdout, "wb") as fout:
-            p = subprocess.run(cmd, stdin=fin, stdout=fout,
-                               stderr=subprocess.DEVNULL)
-        dt = time.time() - t0
+            p = subprocess.run(cmd, shell=True, stdin=fin, stdout=fout,
+                               stderr=subprocess.DEVNULL, env=env)
+        dt = time.perf_counter() - t0
         cpu = child_cpu() - c0
         if p.returncode != 0:
-            raise SystemExit("command failed (%d): %s"
-                             % (p.returncode, " ".join(cmd)))
+            raise SystemExit("command failed (%d): %s" % (p.returncode, cmd))
         runs.append((dt, cpu))
-    best_wall, best_cpu = min(runs, key=lambda r: r[0])
-    return best_wall, best_cpu
+    return min(runs, key=lambda r: r[0])
+
+
+class Discard:
+    """Output sink for in-process runs, so the numbers measure the codec
+    rather than a growing BytesIO."""
+
+    def write(self, data):
+        return len(data)
+
+
+def cpu_time(fn, reps=3):
+    best = None
+    for _ in range(reps):
+        t0 = time.process_time()
+        fn()
+        dt = time.process_time() - t0
+        best = dt if best is None else min(best, dt)
+    return best
 
 
 def main():
@@ -62,8 +86,16 @@ def main():
     ap.add_argument("--k", type=int, default=T.DEFAULT_K)
     ap.add_argument("--m", type=int, default=T.DEFAULT_M)
     ap.add_argument("--block-size", type=int, default=T.DEFAULT_BLOCK_SIZE)
+    ap.add_argument("--engines", default=None,
+                    help="comma-separated engines to measure "
+                         "(default: pure, plus numpy if importable)")
     ap.add_argument("--scratch", default=None)
     args = ap.parse_args()
+
+    engines = (args.engines.split(",") if args.engines else
+               ["pure"] + (["numpy"] if T.numpy_available() else []))
+    for e in engines:
+        T.resolve_engine(e)            # fail early on a bad name
 
     if args.scratch is None:
         _td = tempfile.TemporaryDirectory()
@@ -76,76 +108,102 @@ def main():
     fec = os.path.join(scratch, "bench.tapefec")
     back = os.path.join(scratch, "bench.back")
     n = args.mb * 1000 * 1000
+    k, m, b = args.k, args.m, args.block_size
 
-    if not os.path.exists(plain) or os.path.getsize(plain) != n:
-        print("writing %d MB of random input ..." % args.mb, flush=True)
-        with open(plain, "wb") as fh:
-            fh.write(random.Random(20261013).randbytes(n))
-    data = os.path.getsize(plain)
+    print("writing %d MB of random input ..." % args.mb, flush=True)
+    raw = random.Random(20261013).randbytes(n)
+    with open(plain, "wb") as fh:
+        fh.write(raw)
 
-    enc_cmd = [sys.executable, SCRIPT, "encode", "-k", str(args.k), "-m",
-               str(args.m), "--block-size", str(args.block_size)]
-    dec_cmd = [sys.executable, SCRIPT, "decode", "-q"]
+    enc_buf = io.BytesIO()
+    T.encode_stream(io.BytesIO(raw), enc_buf, k=k, m=m, block_size=b)
+    enc_bytes = enc_buf.getvalue()
+    broken_buf = io.BytesIO()
+    T.damage_stream(io.BytesIO(enc_bytes), broken_buf, per_group=m, seed=1)
+    broken = broken_buf.getvalue()
 
-    print("measuring encode (CLI, stdin -> stdout) ...", flush=True)
-    enc_wall, enc_cpu = sh(enc_cmd, stdin=plain, stdout=fec)
-    enc_size = os.path.getsize(fec)
-    print("measuring decode (CLI, stdin -> stdout) ...", flush=True)
-    dec_wall, dec_cpu = sh(dec_cmd, stdin=fec, stdout=back)
+    py = sys.executable
+    fec_cmd = "%s %s" % (py, SCRIPT)
+    enc_cmd = "%s encode -k %d -m %d --block-size %d" % (fec_cmd, k, m, b)
+    dec_cmd = "%s decode -q" % fec_cmd
+    pipe_cmd = "%s | %s damage --per-group %d --seed 1 | %s" % (
+        enc_cmd, fec_cmd, m, dec_cmd)
 
-    raw = open(plain, "rb").read()
-    buf = io.BytesIO()
-    t0 = time.process_time()
-    T.encode_stream(io.BytesIO(raw), buf, k=args.k, m=args.m,
-                    block_size=args.block_size)
-    cpu_enc = data / (time.process_time() - t0) / 1e6
-    enc_bytes = buf.getvalue()
+    results = {}
+    for engine in engines:
+        env = dict(os.environ, TAPEFEC_ENGINE=engine)
+        r = results[engine] = {}
+        print("[%s] CLI encode ..." % engine, flush=True)
+        r["cli_enc"] = sh(enc_cmd, plain, fec, env)
+        print("[%s] CLI decode ..." % engine, flush=True)
+        r["cli_dec"] = sh(dec_cmd, fec, back, env)
+        assert os.path.getsize(back) == n, "CLI round trip changed the size"
+        print("[%s] CLI encode | damage | decode ..." % engine, flush=True)
+        r["cli_pipe"] = sh(pipe_cmd, plain, back, env)
+        with open(back, "rb") as fh:
+            assert fh.read() == raw, "recovery pipeline did not restore input"
 
-    out = io.BytesIO()
-    t0 = time.process_time()
-    T.decode_stream(io.BytesIO(enc_bytes), out)
-    cpu_dec = data / (time.process_time() - t0) / 1e6
+        print("[%s] in-process ..." % engine, flush=True)
+        r["enc"] = cpu_time(lambda: T.encode_stream(
+            io.BytesIO(raw), Discard(), k=k, m=m, block_size=b,
+            engine=engine))
+        r["dec"] = cpu_time(lambda: T.decode_stream(
+            io.BytesIO(enc_bytes), Discard(), engine=engine))
 
-    b, k, m = args.block_size, args.k, args.m
-    g = T.generator_matrix(k, m)
-    blocks = [bytes(b) for _ in range(k)]
-    reps = 64
-    t0 = time.process_time()
-    for _ in range(reps):
-        T.rs_encode_group(blocks, b, g, m)
-    rs_mbs = reps * k * b / (time.process_time() - t0) / 1e6
+        def repair():
+            rep = T.decode_stream(io.BytesIO(broken), Discard(),
+                                  engine=engine)
+            assert rep.verified and rep.blocks_repaired
+        r["repair"] = cpu_time(repair)
 
-    t0 = time.process_time()
-    c = 0
-    for i in range(0, len(enc_bytes), 1 << 16):
-        c = zlib.crc32(enc_bytes[i:i + (1 << 16)], c)
-    crc_mbs = len(enc_bytes) / (time.process_time() - t0) / 1e6
+        g = T.generator_matrix(k, m)
+        blocks = [raw[i * b:(i + 1) * b] for i in range(k)]
+        encode_group = T.resolve_engine(engine)[1]
+        reps = 64
+        r["rs"] = cpu_time(lambda: [encode_group(blocks, b, g, m)
+                                    for _ in range(reps)]) / reps * (n / (k * b))
 
-    rows = [
-        ("encode  CLI (stdin->stdout), wall", enc_wall, data / enc_wall / 1e6),
-        ("encode  CLI, child CPU", enc_cpu, data / enc_cpu / 1e6),
-        ("decode  CLI (stdin->stdout), wall", dec_wall, data / dec_wall / 1e6),
-        ("decode  CLI, child CPU", dec_cpu, data / dec_cpu / 1e6),
-        ("encode  in-process CPU", None, cpu_enc),
-        ("decode  in-process CPU", None, cpu_dec),
-        ("  rs_encode_group() alone", None, rs_mbs),
-        ("  zlib.crc32 over the whole encoded stream", None, crc_mbs),
-    ]
+    sha = cpu_time(lambda: hashlib.sha256(raw).digest())
+    crc = cpu_time(lambda: zlib.crc32(enc_bytes)) * n / len(enc_bytes)
+
+    def mbs(secs):
+        return n / secs / 1e6
+
     print()
     print("tapefec %s  k=%d m=%d block_size=%d  input %d MB  single core"
           % (T.__version__, k, m, b, args.mb))
-    print("host: %s %s" % (os.uname().sysname, os.uname().release))
+    print("host: %s %s, Python %s%s"
+          % (os.uname().sysname, os.uname().release,
+             sys.version.split()[0],
+             ", numpy " + __import__("numpy").__version__
+             if T.numpy_available() else ""))
     print()
-    print("%-46s %9s %11s" % ("stage", "seconds", "MB/s"))
-    print("-" * 68)
-    for name, secs, mbs in rows:
-        print("%-46s %9s %11.1f"
-              % (name, "-" if secs is None else "%.2f" % secs, mbs))
+    head = "%-44s" % "MB/s of input" + "".join("%12s" % e for e in engines)
+    print(head)
+    print("-" * len(head))
+    rows = [
+        ("encode         CLI, wall", lambda r: mbs(r["cli_enc"][0])),
+        ("encode         CLI, child CPU", lambda r: mbs(r["cli_enc"][1])),
+        ("decode         CLI, wall", lambda r: mbs(r["cli_dec"][0])),
+        ("decode         CLI, child CPU", lambda r: mbs(r["cli_dec"][1])),
+        ("enc|damage|dec CLI pipeline, wall", lambda r: mbs(r["cli_pipe"][0])),
+        ("encode         in-process CPU", lambda r: mbs(r["enc"])),
+        ("decode clean   in-process CPU", lambda r: mbs(r["dec"])),
+        ("decode m lost/group, in-process CPU", lambda r: mbs(r["repair"])),
+        ("  rs_encode_group() alone", lambda r: mbs(r["rs"])),
+    ]
+    for name, fn in rows:
+        print("%-44s" % name + "".join("%12.0f" % fn(results[e])
+                                       for e in engines))
+    print("%-44s%12.0f   (any engine)" % ("  hashlib.sha256 over the input",
+                                          mbs(sha)))
+    print("%-44s%12.0f   (any engine)" % ("  zlib.crc32 over the encoded stream",
+                                          mbs(crc)))
     print()
-    print("encoded size %d bytes (%.3f%% overhead)"
-          % (enc_size, (enc_size / data - 1) * 100))
-    assert os.path.getsize(back) == data, "round trip changed the size"
-    print("round trip through the CLI preserved all %d bytes" % data)
+    print("encoded size %d bytes (%.3f%% overhead); the pipeline row "
+          "repairs %d lost frames per group" % (len(enc_bytes),
+                                                (len(enc_bytes) / n - 1) * 100,
+                                                m))
     for f in (plain, fec, back):
         os.unlink(f)
     print("(scratch files removed)")

@@ -20,13 +20,18 @@ defaults:
 
 jobs:
   test:
-    name: unit tests (Python ${{ matrix.python }})
+    name: unit tests (Python ${{ matrix.python }}, ${{ matrix.engine }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         python: ["3.11", "3.13"]
+        # stdlib: no numpy, so the pure engine alone must pass the golden
+        # digests. numpy: the fast path must match them and the pure path.
+        engine: ["stdlib", "numpy"]
+    env:
+      TAPEFEC_REQUIRE_NUMPY: ${{ matrix.engine == 'numpy' && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,5 +39,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
+      - name: Install numpy
+        if: matrix.engine == 'numpy'
+        run: python -m pip install --disable-pip-version-check numpy==2.2.6
       - name: Unit tests
         run: python -m unittest -v test_tapefec
+      - name: Recovery demo
+        run: sh demo.sh 4
