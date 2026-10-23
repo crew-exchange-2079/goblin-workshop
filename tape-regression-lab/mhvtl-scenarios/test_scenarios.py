@@ -297,6 +297,41 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(d["accepted"] * sc.BLOCK, sc.FULL_TAPE_MB * MiB)
 
 
+class RigCommandTests(unittest.TestCase):
+    """Argv the real rig sends; mhvtl's vtlcmd rejects other arities."""
+
+    def rig(self):
+        rig = sc.Rig.__new__(sc.Rig)
+        rig.bin, rig.drive, rig.loaded, rig.calls = "/m/usr/bin", 11, None, []
+        rig.run = lambda argv, timeout=60, check=False: (rig.calls.append(argv), (0, ""))[1]
+        rig.wait_for = lambda what, pred, timeout=90: ("ok", "")
+        return rig
+
+    def test_load_then_unload_passes_the_barcode(self):
+        rig = self.rig()
+        rig.load("GWS001L8")
+        rig.unload()
+        self.assertEqual([c[1:] for c in rig.calls],
+                         [["11", "load", "GWS001L8"], ["11", "unload", "GWS001L8"]])
+        self.assertIsNone(rig.loaded)
+
+    def test_unload_without_known_media_still_has_an_id(self):
+        rig = self.rig()
+        rig.unload()
+        self.assertEqual(len(rig.calls[0]), 4)
+
+    def test_set_state_writes_trailing_newline(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = sc.Rig.__new__(sc.Rig)
+            rig.state_path = os.path.join(d, "state")
+            rig.log = open(os.devnull, "w")
+            self.addCleanup(rig.log.close)
+
+            rig.set_state("offline")
+            with open(rig.state_path) as fh:
+                self.assertEqual(fh.read(), "offline\n")
+
+
 class ClassifyTests(unittest.TestCase):
     def test_outcomes(self):
         cases = [

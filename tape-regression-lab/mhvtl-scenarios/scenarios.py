@@ -171,6 +171,7 @@ class Rig:
                     "LD_LIBRARY_PATH": os.path.join(a.mhvtl_src, "usr")}
         self.conf, self.home, self.drive, self.lib = a.conf, a.home, a.drive_id, a.library_id
         self.evidence = a.evidence
+        self.loaded = None
         self.state_path = os.path.join("/sys/class/scsi_generic", os.path.basename(a.sg),
                                        "device", "state")
         self.payload = os.path.join(a.work, "block.bin")
@@ -222,13 +223,16 @@ class Rig:
 
     def load(self, barcode, cleaning=False):
         self.vtlcmd("load", barcode)
+        self.loaded = barcode
         if cleaning:   # a cleaning cart never becomes ready; wait until it is in
             return self.wait_for(f"cleaning cart {barcode} mounted", lambda c, t:
                                  c == "not_ready" and "cleaning" in t.lower())
         return self.wait_for(f"{barcode} ready", lambda c, t: c == "ok")
 
     def unload(self):
-        self.vtlcmd("unload")
+        # vtlcmd insists on "unload ID"; vtltape itself only matches "unload".
+        self.vtlcmd("unload", self.loaded or "NONE")
+        self.loaded = None
         self.wait_for("medium removed", lambda c, t:
                       c == "not_ready" and "not present" in t.lower())
 
@@ -249,7 +253,7 @@ class Rig:
 
     def set_state(self, state):
         with open(self.state_path, "w") as fh:
-            fh.write(state)
+            fh.write(state + "\n")   # scsi sysfs store wants the newline: EINVAL without
         self.log.write(f"# {self.state_path} <- {state}\n")
         with open(self.state_path) as fh:
             now = fh.read().strip()
