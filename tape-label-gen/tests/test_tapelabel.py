@@ -119,11 +119,14 @@ class Stocks(unittest.TestCase):
             (dict(base, label_h=15.0), "shorter than"),
             (dict(base, cols=0), "positive integers"),
             (dict(base, cols=1.5), "positive integers"),
-            (dict(base, left=-1), "non-negative"),
-            (dict(base, left="1"), "non-negative"),
+            (dict(base, left=-1), "0 to 5080"),
+            (dict(base, left="1"), "0 to 5080"),
             (dict(base, page_w=float("inf")), "finite"),
             (dict(base, page_w=float("nan")), "finite"),
             (dict(base, label_h=float("nan")), "finite"),
+            (dict(base, page_w=1e308), "0 to 5080"),
+            (dict(base, page_w=5080.1), "0 to 5080"),
+            (dict(base, cols=10 ** 400), "0 to 5080"),
             ({k: v for k, v in base.items() if k != "top"}, "exactly keys"),
         ]
         for stock, why in cases:
@@ -243,11 +246,17 @@ class Cli(unittest.TestCase):
             self.assertIn(why, err, args)
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, "s.json")
-            for bad in ("1e400", "NaN", "Infinity", "-Infinity"):
+            for bad in ("1e400", "1e308", "NaN", "Infinity", "-Infinity"):
                 Path(p).write_text(json.dumps(tl.STOCKS["single"]).replace("78.0", bad, 1))
                 rc, out, err = cli("pdf", "TAP001L9", "--stock-json", p, "-o", "-")
                 self.assertEqual((rc, out), (2, b""), bad)
                 self.assertIn("finite", err, bad)
+            # The largest page PDF allows still works.
+            big = dict(tl.STOCKS["single"], page_w=tl.MAX_MM, page_h=tl.MAX_MM)
+            Path(p).write_text(json.dumps(big))
+            rc, out, err = cli("pdf", "TAP001L9", "--stock-json", p, "-o", "-")
+            self.assertEqual(rc, 0, err)
+            self.assertIn(b"/MediaBox [0 0 14400 14400]", out)
 
     def test_stock_json(self):
         with tempfile.TemporaryDirectory() as td:

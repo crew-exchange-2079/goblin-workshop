@@ -157,13 +157,19 @@ TEXT_SIZE_MM = 4.4  # Courier-Bold em; its capitals are about 2.5 mm tall
 PAD_MM = 0.4
 
 
+# PDF's default user space is limited to 14400 units (200 in) per page side.
+MAX_MM = 14400 / 72 * 25.4
+
+
 def check_stock(s):
     need = {"page_w", "page_h", "cols", "rows", "left", "top", "pitch_x", "pitch_y", "label_w", "label_h"}
     if set(s) != need:
         raise LabelError(f"stock needs exactly keys {sorted(need)}")
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v < 0
+    # 0 <= v <= MAX_MM also refuses NaN, infinities and huge JSON integers, and
+    # keeps every coordinate finite after the mm -> pt conversion.
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not 0 <= v <= MAX_MM
            for v in s.values()):
-        raise LabelError("stock values must be finite non-negative numbers")
+        raise LabelError(f"stock values must be finite numbers from 0 to {MAX_MM:g} mm")
     if s["cols"] < 1 or s["rows"] < 1 or s["cols"] != int(s["cols"]) or s["rows"] != int(s["rows"]):
         raise LabelError("stock cols/rows must be positive integers")
     right = s["left"] + (s["cols"] - 1) * s["pitch_x"] + s["label_w"]
