@@ -30,6 +30,22 @@ the command line, exit codes, config and input formats, output formats
 files) and anything documented in the tool's README. Breaking any of those is
 a major bump (a minor bump while the major version is `0`).
 
+Versions are written in SemVer everywhere: in the source, the changelog and
+the tag. Python packaging uses [PEP 440](https://packaging.python.org/en/latest/specifications/version-specifiers/#normalization)
+instead, so the Python tools (`tape-exporter`, `tapefec`) may only use the
+pre-releases that map onto it with the same ordering, and their sdist/wheel
+file names and metadata carry the PEP 440 form:
+
+| SemVer (source, changelog, tag) | PEP 440 (sdist, wheel) |
+| --- | --- |
+| `1.2.0-alpha.1` | `1.2.0a1` |
+| `1.2.0-beta.2` | `1.2.0b2` |
+| `1.2.0-rc.1` | `1.2.0rc1` |
+| `1.2.0` | `1.2.0` |
+
+Any other pre-release (`-rc`, `-preview.1`, `-alpha.beta`) fails the check for
+a Python tool. The bundle tools accept any SemVer pre-release.
+
 ## Changelogs
 
 Each tool has a `CHANGELOG.md` with entries newest first:

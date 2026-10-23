@@ -1,6 +1,8 @@
 """Tests for release.py. Run from the repo root: python -m pytest -q .github/release"""
 
+import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -27,6 +29,40 @@ class SemverTest(unittest.TestCase):
     def test_prerelease(self):
         self.assertTrue(release.is_prerelease("1.0.0-rc.1"))
         self.assertFalse(release.is_prerelease("1.0.0"))
+
+
+class PythonVersionTest(unittest.TestCase):
+    def test_mapping(self):
+        cases = {"1.2.3": "1.2.3", "1.2.3-alpha.1": "1.2.3a1", "1.2.3-beta.2": "1.2.3b2",
+                 "1.2.3-rc.10": "1.2.3rc10"}
+        for semver, pep440 in cases.items():
+            self.assertEqual(release.python_version(semver), pep440)
+
+    def test_unmappable_prereleases_refused(self):
+        for bad in ("1.0.0-rc", "1.0.0-rc.1.2", "1.0.0-preview.1", "1.0.0-alpha.beta", "1.0.0-dev.1"):
+            with self.assertRaisesRegex(ReleaseError, "PEP 440", msg=bad):
+                release.python_version(bad)
+
+    def test_same_order_as_semver(self):
+        order = ["1.0.0-alpha.1", "1.0.0-alpha.2", "1.0.0-beta.1", "1.0.0-rc.1", "1.0.0-rc.2", "1.0.0"]
+        self.assertEqual(sorted(order, key=release.semver_key), order)
+        # PEP 440 order of the mapped strings, by its pre-release segment rank.
+        rank = {"a": 0, "b": 1, "rc": 2}
+        def key(v):
+            m = re.match(r"^1\.0\.0(?:(a|b|rc)(\d+))?$", release.python_version(v))
+            return (1, 0, 0) if not m.group(1) else (0, rank[m.group(1)], int(m.group(2)))
+        self.assertEqual(sorted(order, key=key), order)
+
+    def test_python_tool_version_checked_on_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "t"))
+            with open(os.path.join(tmp, "t", "v.py"), "w") as fh:
+                fh.write('__version__ = "1.0.0-preview.1"\n')
+            spec = {"file": "v.py", "regex": '^__version__ = "([^"]+)"$'}
+            self.assertEqual(release.read_version({"path": "t", "kind": "source", "version": spec}, tmp),
+                             "1.0.0-preview.1")
+            with self.assertRaisesRegex(ReleaseError, "PEP 440"):
+                release.read_version({"path": "t", "kind": "python", "version": spec}, tmp)
 
 
 class TagTest(unittest.TestCase):
@@ -158,6 +194,41 @@ class ArchiveTest(unittest.TestCase):
             fh.write("changed\n")
         with self.assertRaisesRegex(ReleaseError, "uncommitted"):
             self.build({"path": "tool", "kind": "source"})
+
+
+@unittest.skipUnless(importlib.util.find_spec("build") and importlib.util.find_spec("setuptools"),
+                     "needs the release toolchain (.github/release/requirements.txt)")
+class PythonPrereleaseBuildTest(unittest.TestCase):
+    """A real sdist + wheel build of a SemVer pre-release."""
+
+    def test_rc_builds_with_pep440_names_and_metadata(self):
+        with tempfile.TemporaryDirectory() as root:
+            tool_dir = os.path.join(root, "pkg")
+            os.makedirs(tool_dir)
+            files = {
+                "pyproject.toml": '[build-system]\nrequires = ["setuptools>=77"]\n'
+                                  'build-backend = "setuptools.build_meta"\n\n[project]\n'
+                                  'name = "scratch-pkg"\ndynamic = ["version"]\n\n[tool.setuptools]\n'
+                                  'py-modules = ["scratch"]\n\n[tool.setuptools.dynamic]\n'
+                                  'version = {attr = "scratch.__version__"}\n',
+                "scratch.py": '__version__ = "1.0.0-rc.1"\n',
+            }
+            for rel, body in files.items():
+                with open(os.path.join(tool_dir, rel), "w") as fh:
+                    fh.write(body)
+            _git(root, "init", "-q")
+            _git(root, "add", ".")
+            _git(root, "commit", "-qm", "x")
+            tool = {"path": "pkg", "kind": "python",
+                    "version": {"file": "scratch.py", "regex": '^__version__ = "([^"]+)"$'},
+                    "smoke": [["python", "-c", "import scratch, importlib.metadata as m; "
+                                         "assert m.version('scratch-pkg') == '1.0.0rc1'"]]}
+            version = release.read_version(tool, root)
+            out = os.path.join(root, "out")
+            os.makedirs(out)
+            paths = release.build_python("scratch-pkg", version, tool, out, root)
+            self.assertEqual(sorted(os.path.basename(p) for p in paths),
+                             ["scratch_pkg-1.0.0rc1-py3-none-any.whl", "scratch_pkg-1.0.0rc1.tar.gz"])
 
 
 if __name__ == "__main__":

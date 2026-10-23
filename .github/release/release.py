@@ -80,6 +80,28 @@ def is_prerelease(text):
     return bool(parse_semver(text)[3])
 
 
+# SemVer pre-release -> PEP 440 pre-release segment. Only these map onto a
+# Python version with the same ordering (a < b < rc < release), so a python
+# tool may use no other pre-release form.
+PEP440_PRE = {"alpha": "a", "beta": "b", "rc": "rc"}
+
+
+def python_version(text):
+    """The PEP 440 version a build backend writes for SemVer `text`.
+
+    1.2.3 -> 1.2.3, 1.2.3-alpha.1 -> 1.2.3a1, 1.2.3-beta.2 -> 1.2.3b2,
+    1.2.3-rc.1 -> 1.2.3rc1. Anything else is refused.
+    """
+    major, minor, patch, pre = parse_semver(text)
+    base = "%d.%d.%d" % (major, minor, patch)
+    if not pre:
+        return base
+    if len(pre) == 2 and pre[0] in PEP440_PRE and pre[1].isdigit():
+        return base + PEP440_PRE[pre[0]] + pre[1]
+    raise ReleaseError("%s: a Python tool's pre-release must be -alpha.N, -beta.N or -rc.N "
+                       "(PEP 440 aN, bN, rcN)" % text)
+
+
 # ---------------------------------------------------------------- registry ---
 
 def load_registry(path=REGISTRY):
@@ -106,6 +128,8 @@ def read_version(tool, root=REPO):
             raise ReleaseError("%s: expected one version match, found %d" % (spec["file"], len(found)))
         version = found[0]
     parse_semver(version)
+    if tool["kind"] == "python":
+        python_version(version)
     return version
 
 
@@ -375,9 +399,11 @@ def build_python(name, version, tool, outdir, root=REPO):
                         "--outdir", out, work], check=True, env=env, stdout=sys.stderr)
         built = sorted(os.listdir(out))
         norm = re.sub(r"[-_.]+", "_", project_name(work)).lower()
-        want = ["%s-%s-py3-none-any.whl" % (norm, version), "%s-%s.tar.gz" % (norm, version)]
-        if sorted(built) != sorted(want):
-            raise ReleaseError("expected %s, built %s" % (want, built))
+        pyver = python_version(version)
+        wheel, sdist = "%s-%s-py3-none-any.whl" % (norm, pyver), "%s-%s.tar.gz" % (norm, pyver)
+        if built != sorted([wheel, sdist]):
+            raise ReleaseError("expected %s, built %s" % ([wheel, sdist], built))
+        check_metadata(os.path.join(out, wheel), os.path.join(out, sdist), norm, pyver)
         paths = []
         for f in built:
             dest = os.path.join(outdir, f)
@@ -388,6 +414,18 @@ def build_python(name, version, tool, outdir, root=REPO):
             paths.append(dest)
     smoke_python(tool, [p for p in paths if p.endswith(".whl")][0])
     return paths
+
+
+def check_metadata(wheel, sdist, norm, pyver):
+    """The Version field inside both distributions must be the expected PEP 440 version."""
+    with zipfile.ZipFile(wheel) as z:
+        metas = {"wheel": z.read("%s-%s.dist-info/METADATA" % (norm, pyver)).decode("utf-8")}
+    with tarfile.open(sdist, "r:gz") as t:
+        metas["sdist"] = t.extractfile("%s-%s/PKG-INFO" % (norm, pyver)).read().decode("utf-8")
+    for kind, meta in metas.items():
+        found = re.findall(r"^Version: (.+)$", meta, re.M)
+        if found != [pyver]:
+            raise ReleaseError("%s metadata Version is %s, expected %s" % (kind, found, pyver))
 
 
 def normalize_tar_gz(src, dest, epoch):
