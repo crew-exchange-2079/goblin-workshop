@@ -1,0 +1,3 @@
+# Test runner shared by the Python jobs in .github/workflows/ci.yml.
+# Also the pip cache key for projects with no dependencies of their own.
+pytest==9.1.1
