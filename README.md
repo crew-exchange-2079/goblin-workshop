@@ -8,6 +8,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 - [`tailnet-policy-tester/`](tailnet-policy-tester/): offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own `tests`/`sshTests`, and policy diffs; stdlib-only Python, not affiliated with Tailscale (MIT).
+- [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
 
 ## Tape tools
 
@@ -15,7 +16,7 @@ The tape tools here are open and vendor-agnostic, aimed at tape administrators. 
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs. A newer push to the same branch or PR cancels the superseded run. [`codeql.yml`](.github/workflows/codeql.yml) scans the Python and JavaScript code, and [Dependabot](.github/dependabot.yml) proposes Action, pip and npm updates. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
 
 To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-requirements.txt` provides pytest):
 
@@ -27,7 +28,9 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 (cd tailnet-policy-tester && python -m pytest -q tests)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
+(cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
 (cd tape-library-playground && node --test)      # Node 22, no Python
+(cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.

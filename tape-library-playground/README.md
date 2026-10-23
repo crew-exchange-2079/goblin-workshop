@@ -28,6 +28,7 @@ any physical tape, drive or vendor.
 |---|---|
 | `sim.js` | the whole simulator as a pure module — library, robot, drives, seeks, reads, 4 policies, 4 scenarios. No DOM, no `process`, no `Math.random`; a test asserts that, so the browser loads the same file the tests exercise |
 | `sim.test.js` | 37 tests on Node's built-in runner (`node --test`), no dependencies |
+| `e2e/` + `playwright.config.mjs` | browser tests (Playwright, dev-only): axe-core scan, keyboard-only operation, 360 px layout |
 | `compare.mjs` | CLI: runs every scenario under every policy headless and prints the table (`node compare.mjs [scenario] [--seed N]`) |
 | `index.html` + `ui.js` + `style.css` | the browser front end: no libraries, no network, works offline |
 | `TEACHES.md` | five lessons the toy is meant to illustrate, with the simulator numbers behind them |
@@ -62,8 +63,27 @@ makes a capture reproducible.
 aging, drive failure, and that `sim.js` loads in a browser). `node compare.mjs`
 prints no wall-clock values, so the same seed always prints the same table;
 `compare.txt` is that output, and CI regenerates it and fails on any difference.
-The tests cover `sim.js` only. `ui.js` gets a syntax check (`node --check ui.js`)
-and the screenshots; there is no automated browser or click-through test.
+`node --test` covers `sim.js` only and needs no install. The UI is covered by a
+Playwright suite in `e2e/` (dev dependencies pinned in `package.json`; the page
+itself still loads no libraries):
+
+```
+npm ci && npx playwright install chromium && npx playwright test
+```
+
+- `a11y.spec.mjs` runs axe-core (WCAG 2.1 A/AA + best practice) on five page states —
+  first load, mid-run, urgent requests queued, a failed drive, the comparison table —
+  at 1280 px and 360 px. Any serious or critical finding fails the test.
+- `keyboard.spec.mjs` drives the console and the scenario picker with the keyboard
+  only: Tab order, visible focus, arrow keys in the pickers and slider, Space/Enter on
+  a focused button activating that button (not the global play/pause shortcut),
+  shortcuts ignoring ctrl/cmd/alt, and focus moving into the comparison panel and back
+  out on <kbd>Esc</kbd>.
+- `mobile.spec.mjs` checks that nothing pokes past the right edge at 360 px, across
+  every state and a stepped run, and that the console controls fit and are tappable.
+
+Shortcut changes (scenario, policy, speed, play/pause) are announced through a
+visually hidden status line, since a screen-reader user gets no other cue.
 
 ## Screenshots
 

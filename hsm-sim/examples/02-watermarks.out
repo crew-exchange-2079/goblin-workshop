@@ -1,0 +1,81 @@
+# hsm-sim 0.1.0: watermarks
+# A 3000 MB burst arrives at 10 MB/s into a 2000 MB cache, while the single
+# drive writes tape at only 5 MB/s. Nothing is old enough to migrate by age,
+# so once the cache crosses its high watermark with nothing purgeable the
+# system migrates early ("pressure"). Purging can only free data that is
+# already on tape, so while the cache is full of resident files, writes are
+# rejected. Migration hands the drive batches of at most batch_mb, and each
+# batch can be purged as soon as it lands. Compare the peak cache use with
+# the rejected-write count.
+# cache 2000 MB, watermarks 85% high / 60% low
+# 1 drive(s), 3 tape(s) x 10000 MB, mount 60 s, seek 15 s, 5 MB/s
+# scan every 600 s, migrate after 3000 s in batches of 300 MB, auto-repack off
+
+== timeline ==
+00:00:00  write     ingest-000.raw 100 MB (new) cache 100/2000 MB
+00:00:10  write     ingest-001.raw 100 MB (new) cache 200/2000 MB
+00:00:20  write     ingest-002.raw 100 MB (new) cache 300/2000 MB
+00:00:30  write     ingest-003.raw 100 MB (new) cache 400/2000 MB
+00:00:40  write     ingest-004.raw 100 MB (new) cache 500/2000 MB
+00:00:50  write     ingest-005.raw 100 MB (new) cache 600/2000 MB
+00:01:00  write     ingest-006.raw 100 MB (new) cache 700/2000 MB
+00:01:10  write     ingest-007.raw 100 MB (new) cache 800/2000 MB
+00:01:20  write     ingest-008.raw 100 MB (new) cache 900/2000 MB
+00:01:30  write     ingest-009.raw 100 MB (new) cache 1000/2000 MB
+00:01:40  write     ingest-010.raw 100 MB (new) cache 1100/2000 MB
+00:01:50  write     ingest-011.raw 100 MB (new) cache 1200/2000 MB
+00:02:00  write     ingest-012.raw 100 MB (new) cache 1300/2000 MB
+00:02:10  write     ingest-013.raw 100 MB (new) cache 1400/2000 MB
+00:02:20  write     ingest-014.raw 100 MB (new) cache 1500/2000 MB
+00:02:30  write     ingest-015.raw 100 MB (new) cache 1600/2000 MB
+00:02:40  write     ingest-016.raw 100 MB (new) cache 1700/2000 MB
+00:02:50  write     ingest-017.raw 100 MB (new) cache 1800/2000 MB
+00:02:50  pressure  cache 1800/2000 MB still above low watermark after purging: migrating early, ignoring age
+00:02:50  migrate   start on drive0: 3 file(s) 300 MB -> T01 (early, cache pressure): ingest-000.raw, ingest-001.raw, ingest-002.raw, 135 s, done at 00:05:05
+00:03:00  write     ingest-018.raw 100 MB (new) cache 1900/2000 MB
+00:03:10  write     ingest-019.raw 100 MB (new) cache 2000/2000 MB
+00:03:20  write     ingest-020.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:03:30  write     ingest-021.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:03:40  write     ingest-022.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:03:50  write     ingest-023.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:00  write     ingest-024.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:10  write     ingest-025.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:20  write     ingest-026.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:30  write     ingest-027.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:40  write     ingest-028.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:04:50  write     ingest-029.raw 100 MB REJECTED: cache full, nothing purgeable (cache 2000/2000 MB)
+00:05:05  migrate   done -> T01: 3 file(s) premigrated [T01 300/10000 MB]
+00:05:05  purge     3 file(s) 300 MB for watermark cycle (down to 60%): ingest-000.raw, ingest-001.raw, ingest-002.raw -> stubs, cache 1700/2000 MB
+00:05:05  pressure  cache 1700/2000 MB still above low watermark after purging: migrating early, ignoring age
+00:05:05  migrate   start on drive0: 3 file(s) 300 MB -> T01 (early, cache pressure): ingest-003.raw, ingest-004.raw, ingest-005.raw, 75 s, done at 00:06:20
+00:06:20  migrate   done -> T01: 3 file(s) premigrated [T01 600/10000 MB]
+00:06:20  purge     3 file(s) 300 MB for watermark cycle (down to 60%): ingest-003.raw, ingest-004.raw, ingest-005.raw -> stubs, cache 1400/2000 MB
+00:06:20  pressure  cache 1400/2000 MB still above low watermark after purging: migrating early, ignoring age
+00:06:20  migrate   start on drive0: 3 file(s) 300 MB -> T01 (early, cache pressure): ingest-006.raw, ingest-007.raw, ingest-008.raw, 75 s, done at 00:07:35
+00:07:35  migrate   done -> T01: 3 file(s) premigrated [T01 900/10000 MB]
+00:07:35  purge     2 file(s) 200 MB for watermark cycle (down to 60%): ingest-006.raw, ingest-007.raw -> stubs, cache 1200/2000 MB
+00:30:00  read      ingest-000.raw miss: stub only, recall queued from T01
+00:30:00  recall    start on drive0: 1 file(s) 100 MB from T01 in tape order: ingest-000.raw, 35 s, done at 00:30:35
+00:30:00  read      ingest-029.raw ERROR: no such file
+00:30:35  recall    done from T01: 1 file(s) back on disk cache 1300/2000 MB
+00:30:35  served    ingest-000.raw: 1 read(s) served after waiting 35 s
+
+== stats ==
+simulated    3600 s (01:00:00)
+writes       30 (10 rejected), deletes 0
+reads        2: 0 hit, 1 miss, 1 error, hit ratio 0.0%
+recall wait  n=1 mean 35.0 s, median 35 s, max 35 s
+migrated     9 file(s) 900 MB, 3 early batch(es) under cache pressure
+purged       8 file(s) 800 MB
+recalled     1 file(s) 100 MB
+repacked     0 tape(s), 0 MB copied; 0 tape(s) returned to scratch
+cache        peak 2000/2000 MB, end 1300/2000 MB
+files        11 resident, 2 premigrated, 7 migrated
+
+drive    mounts  busy s  util
+drive0        1     320    9%
+
+tape  state     used MB  live MB  live  mounts
+T01   filling       900      900  100%       1
+T02   scratch         0        0     -       0
+T03   scratch         0        0     -       0

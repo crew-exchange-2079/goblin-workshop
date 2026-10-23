@@ -95,7 +95,7 @@ function newSim() {
   accumulator = 0;
   buildLibrary();
   $('scenehint').textContent = SCENARIOS[scenarioId].blurb;
-  $('comparepanel').hidden = true;
+  hideCompare();
   const pre = Number(params.get('t')) || 0;
   if (pre > 0) for (let t = 0; t < pre; t += SIM_DT) sim.step(SIM_DT);
   render(true);
@@ -249,10 +249,7 @@ $('policy').addEventListener('change', (e) => {
   $('policyblurb').textContent = policyBlurb(policyId);
   newSim();
 });
-$('playpause').addEventListener('click', () => {
-  running = !running;
-  updatePlayButton();
-});
+$('playpause').addEventListener('click', togglePlay);
 $('reset').addEventListener('click', () => newSim());
 $('step').addEventListener('click', () => {
   running = false;
@@ -260,44 +257,76 @@ $('step').addEventListener('click', () => {
   for (let t = 0; t < 60; t += SIM_DT) sim.step(SIM_DT);
   render(true);
 });
-$('speed').addEventListener('input', (e) => {
-  speed = Number(e.target.value);
+$('speed').addEventListener('input', (e) => setSpeed(Number(e.target.value), false));
+$('compare').addEventListener('click', () => showCompare(true));
+$('compareclose').addEventListener('click', () => hideCompare(true));
+
+// Screen readers get no visual cue when a shortcut changes something, so say it.
+function announce(text) {
+  $('announce').textContent = text;
+}
+function togglePlay() {
+  running = !running;
+  updatePlayButton();
+}
+function setSpeed(v, fromKey) {
+  speed = Math.min(60, Math.max(1, v));
+  $('speed').value = speed;
   $('speedout').textContent = speed + '×';
-});
-$('compare').addEventListener('click', showCompare);
-$('compareclose').addEventListener('click', () => ($('comparepanel').hidden = true));
+  if (fromKey) announce(`speed ${speed}×`);
+}
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  // leave browser and OS shortcuts (ctrl+F, cmd+1, ...) alone
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Escape') {
+    if (!$('comparepanel').hidden) {
+      e.preventDefault();
+      hideCompare(true);
+    }
+    return;
+  }
+  // form controls own their keys: arrows in a select, space on a focused button
+  const tag = e.target.tagName;
+  if (tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
   if (e.key === ' ') {
+    if (tag === 'BUTTON') return;
     e.preventDefault();
-    running = !running;
-    updatePlayButton();
+    togglePlay();
+    announce(running ? 'running' : 'paused');
   } else if (e.key === ']') {
-    speed = Math.min(60, speed + 5);
-    $('speed').value = speed;
-    $('speedout').textContent = speed + '×';
+    setSpeed(speed + 5, true);
   } else if (e.key === '[') {
-    speed = Math.max(1, speed - 5);
-    $('speed').value = speed;
-    $('speedout').textContent = speed + '×';
+    setSpeed(speed - 5, true);
   } else if ('1234'.includes(e.key)) {
     scenarioId = SCENARIO_IDS[Number(e.key) - 1];
     $('scenario').value = scenarioId;
     newSim();
+    announce(`scenario: ${SCENARIOS[scenarioId].title}`);
   } else if ('fbpu'.includes(e.key.toLowerCase())) {
     const map = { f: 'fifo', b: 'batch', p: 'position', u: 'priority' };
     policyId = map[e.key.toLowerCase()];
     $('policy').value = policyId;
     $('policyblurb').textContent = policyBlurb(policyId);
     newSim();
-  } else if (e.key === 'c') {
-    showCompare();
+    announce(`policy: ${POLICIES.find((p) => p.id === policyId).name}`);
+  } else if (e.key.toLowerCase() === 'c') {
+    showCompare(true);
   }
 });
 
 /* ---------------- compare table ---------------- */
-function showCompare() {
+// Hiding the panel while focus is inside it would drop focus to <body>; hand it
+// back to the button that opened the panel instead.
+function hideCompare(restoreFocus) {
+  const panel = $('comparepanel');
+  if (panel.hidden) return;
+  const hadFocus = panel.contains(document.activeElement);
+  panel.hidden = true;
+  if (restoreFocus || hadFocus) $('compare').focus();
+}
+
+function showCompare(moveFocus) {
   const rows = comparePolicies(scenarioId);
   const best = rows.reduce((a, b) =>
     b.completed > a.completed || (b.completed === a.completed && b.meanWait < a.meanWait) ? b : a,
@@ -332,6 +361,7 @@ function showCompare() {
     secondsToClock(rows.reduce((a, b) => (b.urgentP95Wait ?? 0) > (a.urgentP95Wait ?? 0) ? b : a).urgentP95Wait) + '.';
   $('comparepanel').hidden = false;
   $('comparepanel').scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+  if (moveFocus) $('comparetitle').focus({ preventScroll: true });
 }
 
 newSim();
