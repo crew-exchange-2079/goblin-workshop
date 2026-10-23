@@ -42,18 +42,37 @@ fi
 [ "${CI:-}" = "true" ] || [ "${LTO_MHVTL_I_UNDERSTAND:-}" = "yes" ] \
   || { echo "refusing to run outside CI; set LTO_MHVTL_I_UNDERSTAND=yes on a throwaway VM"; exit 1; }
 
+# Refuse a host that already has mhvtl BEFORE creating anything or installing
+# the EXIT trap: cleanup must never touch a module or daemon this run didn't
+# start.
+if grep -qs '^mhvtl$' /sys/class/scsi_host/*/proc_name || grep -q '^mhvtl ' /proc/modules; then
+  echo "FAIL: an mhvtl adapter/module already exists; this harness only works on a clean VM (nothing was changed)"
+  exit 1
+fi
+
 WORK="$(mktemp -d /tmp/lto-scen.XXXXXX)"
 chmod 755 "$WORK"
 log() { printf '[%s] %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$EVIDENCE/run.log"; }
 fail() { log "FAIL: $*"; exit 1; }
 
-VTLTAPE_PID=""; EXPORTER_PID=""; SG=""
+# Everything cleanup may touch is recorded here when THIS run creates it.
+VTLTAPE_PID=""; EXPORTER_PID=""; SG=""; INSERTED_MODULE=0
 wait_gone() { local pid=$1 n=${2:-20}; while [ "$n" -gt 0 ] && kill -0 "$pid" 2>/dev/null; do sleep 1; n=$((n-1)); done; ! kill -0 "$pid" 2>/dev/null; }
 
+# Descendants of a pid (children first-level and below), never by user name:
+# an ltoexp account may pre-exist and run things that aren't ours.
+descendants() { local c; for c in $(pgrep -P "$1"); do echo "$c"; descendants "$c"; done; }
+
 stop_exporter() {
-  pkill -TERM -u "$EXPORTER_USER" 2>/dev/null
-  if [ -n "$EXPORTER_PID" ]; then
-    wait_gone "$EXPORTER_PID" 15 || { pkill -KILL -u "$EXPORTER_USER"; kill -KILL "$EXPORTER_PID"; wait_gone "$EXPORTER_PID" 5; }
+  [ -n "$EXPORTER_PID" ] || return 0
+  # SIGTERM the exporter (strace's child), let strace flush and exit.
+  local kids; kids="$(pgrep -P "$EXPORTER_PID" || true)"
+  [ -z "$kids" ] || kill -TERM $kids 2>/dev/null
+  if ! wait_gone "$EXPORTER_PID" 15; then
+    kids="$(descendants "$EXPORTER_PID")"
+    [ -z "$kids" ] || kill -KILL $kids 2>/dev/null
+    kill -KILL "$EXPORTER_PID" 2>/dev/null
+    wait_gone "$EXPORTER_PID" 5
   fi
   EXPORTER_PID=""
 }
@@ -71,7 +90,7 @@ cleanup() {
     wait_gone "$VTLTAPE_PID" 5 || log "vtltape did not exit"
   fi
   ps -eo pid,user,stat,wchan:32,args | grep -E "vtltape|lto-exporter|sg_logs|sg_raw|strace" | grep -v grep > "$EVIDENCE/ps_at_cleanup.txt"
-  if grep -q '^mhvtl ' /proc/modules; then
+  if [ "$INSERTED_MODULE" = 1 ] && grep -q '^mhvtl ' /proc/modules; then
     timeout -k 5 20 rmmod mhvtl && log "mhvtl module removed" || log "rmmod mhvtl failed/timed out (VM is discarded)"
   fi
   chmod -R a+rX "$EVIDENCE" 2>/dev/null
@@ -90,13 +109,10 @@ trap cleanup EXIT
 } > "$EVIDENCE/environment.txt"
 cat "$EVIDENCE/environment.txt"
 
-if grep -qs '^mhvtl$' /sys/class/scsi_host/*/proc_name || grep -q '^mhvtl ' /proc/modules; then
-  fail "an mhvtl adapter already exists; this harness only works on a clean VM"
-fi
-
 # ---- 1. module, ONE drive, no media yet ----------------------------------
 modprobe sg
 insmod "$MHVTL_SRC/kernel/mhvtl.ko" || fail "insmod mhvtl.ko refused (preflight said it should work)"
+INSERTED_MODULE=1
 mkdir -p "$WORK/conf" "$WORK/home" /var/lock/mhvtl
 sed -e "s#@HOME@#$WORK/home#" -e "s#@SERIAL@#$SERIAL#" "$HERE/device.conf.in" > "$WORK/conf/device.conf"
 printf 'MHVTL_HOME_PATH=%s\nCAPACITY=500\nVERBOSE=1\nVTL_DEBUG=0\n' "$WORK/home" > "$WORK/conf/mhvtl.conf"

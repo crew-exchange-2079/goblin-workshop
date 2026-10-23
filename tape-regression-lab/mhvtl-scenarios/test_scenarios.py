@@ -332,6 +332,29 @@ class RigCommandTests(unittest.TestCase):
                 self.assertEqual(fh.read(), "offline\n")
 
 
+class RunShSafetyTests(unittest.TestCase):
+    """run.sh can't be run here (it loads a kernel module); pin its cleanup
+    ownership rules so a refusal never tears down someone else's mhvtl."""
+
+    def setUp(self):
+        with open(os.path.join(HERE, "run.sh")) as fh:
+            self.src = fh.read()
+
+    def test_dirty_host_refused_before_trap_and_before_creating_anything(self):
+        refuse = self.src.index("already exists")
+        self.assertLess(refuse, self.src.index("trap cleanup EXIT"))
+        self.assertLess(refuse, self.src.index("mktemp -d"))
+        self.assertLess(refuse, self.src.index("insmod "))
+
+    def test_rmmod_only_for_a_module_this_run_inserted(self):
+        self.assertIn('[ "$INSERTED_MODULE" = 1 ] && grep -q \'^mhvtl \' /proc/modules', self.src)
+        self.assertLess(self.src.index('insmod "$MHVTL_SRC'), self.src.index("INSERTED_MODULE=1"))
+
+    def test_processes_killed_by_pid_tree_not_by_user(self):
+        self.assertNotIn("pkill", self.src)
+        self.assertNotIn("killall", self.src)
+
+
 class ClassifyTests(unittest.TestCase):
     def test_outcomes(self):
         cases = [
