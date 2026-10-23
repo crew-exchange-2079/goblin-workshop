@@ -236,7 +236,7 @@ def run(base, user, auth_header, dash, art, instances):
     views = [
         ("all", dashboard_url(base, smoke.DS_OK), {"max_no_data": 0}),
         ("failing-instance", dashboard_url(base, smoke.DS_OK, [instances["failing"]]),
-         {"min_no_data": 5}),
+         {"min_no_data": 7}),
         ("device-drive1", dashboard_url(base, smoke.DS_OK, "All", ["drive1"]), {"device": "drive1"}),
         ("unreachable-datasource", dashboard_url(base, smoke.DS_BROKEN), {"errors": True}),
     ]

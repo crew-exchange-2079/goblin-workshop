@@ -1,12 +1,13 @@
 """Fixed, read-only command construction and a bounded subprocess runner.
 
-No shell is used. The only command this module will run is
+No shell is used. The only commands this module will run are
 
     <sg_logs_path> --readonly --page=0x2|0x3 /dev/sgN
+    <sg_logs_path> --readonly --verbose --page=0xc /dev/sgN
 
-`_check()` enforces that exact shape on every argument, including the last
-one, and `run_command()` calls it itself, so a caller that builds its own
-argv can't bypass it. Options that would modify device state (sg_logs
+`_check()` enforces one of those exact shapes on every argument, including
+the last one, and `run_command()` calls it itself, so a caller that builds
+its own argv can't bypass it. Options that would modify device state (sg_logs
 --reset/--select, any mt/sg_* motion or write tool) are never constructed.
 
 The runner is bounded: per-command timeout, output cap, and a bounded wait
@@ -27,8 +28,13 @@ from dataclasses import dataclass
 
 # sg_logs(8): --page=PG selects the log page; --readonly opens the device
 # O_RDONLY (default is to try read-write first). Page 0x2 = write error
-# counters, 0x3 = read error counters.
-SG_LOGS_PAGES = {"write": "0x2", "read": "0x3"}
+# counters, 0x3 = read error counters, 0xc = SSC Sequential-Access Device
+# (host/media byte counters, cleaning required). 0xc needs --verbose: without
+# it sg_logs prints only truncated decimal GB, not the exact byte count.
+# --verbose adds diagnostics (to stderr, which is discarded) and changes no
+# SCSI command.
+SG_LOGS_PAGES = {"write": "0x2", "read": "0x3", "sequential_access": "0xc"}
+VERBOSE_PAGES = frozenset({"0xc"})
 ALLOWED_PAGE_ARGS = frozenset(f"--page={p}" for p in SG_LOGS_PAGES.values())
 
 # Defence in depth only; the exact-shape check below is what enforces safety.
@@ -53,12 +59,22 @@ class UnsafeCommand(ValueError):
     pass
 
 
+_SHAPES = ("[sg_logs, --readonly, --page=0x2|0x3, /dev/sgN] or "
+           "[sg_logs, --readonly, --verbose, --page=0xc, /dev/sgN]")
+
+
 def _check(argv):
     """Return argv as a list if it is exactly an allowed sg_logs command."""
-    if (not isinstance(argv, (list, tuple)) or len(argv) != 4
+    if (not isinstance(argv, (list, tuple)) or len(argv) not in (4, 5)
             or not all(isinstance(t, str) for t in argv)):
-        raise UnsafeCommand("argv must be exactly [sg_logs, --readonly, --page=0x2|0x3, /dev/sgN]")
-    exe, readonly, page, device = argv
+        raise UnsafeCommand(f"argv must be exactly {_SHAPES}")
+    if len(argv) == 5:
+        exe, readonly, verbose, page, device = argv
+        if verbose != "--verbose":
+            raise UnsafeCommand(f"argv must be exactly {_SHAPES}")
+    else:
+        exe, readonly, page, device = argv
+        verbose = None
     if (not os.path.isabs(exe) or _CTRL_RE.search(exe)
             or os.path.basename(exe) != "sg_logs"):
         raise UnsafeCommand(f"only an absolute path to sg_logs may be executed, got {exe!r}")
@@ -69,14 +85,17 @@ def _check(argv):
         raise UnsafeCommand("second argument must be --readonly")
     if page not in ALLOWED_PAGE_ARGS:
         raise UnsafeCommand(f"page must be one of {sorted(ALLOWED_PAGE_ARGS)}")
+    if (verbose is not None) != (page.split("=", 1)[1] in VERBOSE_PAGES):
+        raise UnsafeCommand(f"argv must be exactly {_SHAPES}")
     if not SG_DEVICE_RE.fullmatch(device):
         raise UnsafeCommand("last argument must be a /dev/sgN path")
     return list(argv)
 
 
-def sg_logs_argv(exe, direction, device_path):
-    page = SG_LOGS_PAGES[direction]
-    return _check([exe, "--readonly", f"--page={page}", device_path])
+def sg_logs_argv(exe, page_name, device_path):
+    page = SG_LOGS_PAGES[page_name]
+    verbose = ["--verbose"] if page in VERBOSE_PAGES else []
+    return _check([exe, "--readonly", *verbose, f"--page={page}", device_path])
 
 
 @dataclass
