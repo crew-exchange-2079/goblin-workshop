@@ -66,6 +66,17 @@ test("offsets that move any label off the page are refused", () => {
   assert.equal(L.sheetSvgs(lab, L.STOCKS["letter-2x15"], { offsetX: 24.95, offsetY: -12.95 }).length, 1);
 });
 
+test("sheetPages is plain data the page builds with DOM calls; markup never reaches it", () => {
+  const [pg] = L.sheetPages(["TAP001L9"], L.STOCKS.single, { outline: true });
+  assert.equal(pg.width, 78);
+  assert.deepEqual(pg.nodes.map((n) => n.tag), ["rect", ...Array(50).fill("rect"), "text"]);
+  assert.equal(pg.nodes.at(-1).text, "TAP001L9");
+  // Anything outside A-Z 0-9 cannot be encoded, so it is refused before any node exists.
+  for (const bad of ["<img src=x>", "TAP\"01L9", "TAP&01L9"]) {
+    assert.throws(() => L.sheetPages([bad], L.STOCKS.single), /not encodable/, bad);
+  }
+});
+
 test("bar geometry matches what the PDF draws for the same label", () => {
   // Same x positions relative to the label's left edge as tapelabel.label_ops.
   const s = L.STOCKS.single;

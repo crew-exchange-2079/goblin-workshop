@@ -39,7 +39,25 @@
 <div id="msg"></div>
 <div id="pages"></div>
 <script type="module">
-import { MEDIA, STOCKS, check, looksChecked, volserRange, sheetSvgs } from "./label.js";
+import { MEDIA, STOCKS, check, looksChecked, volserRange, sheetPages } from "./label.js";
+
+const SVG = "http://www.w3.org/2000/svg";
+
+// Build each page with DOM calls (no markup parsing): attributes and text are set, never interpreted.
+function pageElement(pg) {
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  const svg = el("svg", { width: `${pg.width}mm`, height: `${pg.height}mm`, viewBox: `0 0 ${pg.width} ${pg.height}` });
+  svg.append(el("rect", { width: "100%", height: "100%", fill: "#fff" }));
+  const g = el("g", { fill: "#000" });
+  g.append(...pg.nodes.map((n) => el(n.tag, n.attrs, n.text)));
+  svg.append(g);
+  return svg;
+}
 
 const $ = (id) => document.getElementById(id);
 for (const [k, v] of Object.entries(MEDIA)) $("media").add(new Option(`${k} — ${v}`, k, k === "L9", k === "L9"));
@@ -55,17 +73,17 @@ function render() {
     if (lookalikes.length) warns.push(`note: ${lookalikes.length} label(s), e.g. ${lookalikes[0]}, end in the ` +
       "Code 39 mod-43 check of their first 7 chars; make sure readers are not set to strip check characters.");
     const s = STOCKS[$("stock").value];
-    const pages = sheetSvgs(labels, s, {
+    const pages = sheetPages(labels, s, {
       skip: Number($("skip").value), offsetX: Number($("ox").value),
       offsetY: Number($("oy").value), outline: $("outline").checked,
     });
-    $("pages").innerHTML = pages.join("");
+    $("pages").replaceChildren(...pages.map(pageElement));
     $("page-size").textContent = `@page { size: ${s.page_w}mm ${s.page_h}mm; margin: 0; }`;
     msg.className = "";
     msg.textContent = `${labels.length} labels, ${labels[0]}–${labels.at(-1)}, ${pages.length} page(s). ` +
       "Print at 100% / actual size, no margins." + (warns.length ? "\n" + warns.join("\n") : "");
   } catch (e) {
-    $("pages").innerHTML = "";
+    $("pages").replaceChildren();
     msg.className = "err";
     msg.textContent = e.message;
   }

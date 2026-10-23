@@ -103,18 +103,24 @@ export function volserRange(first, count) {
 
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
-function labelSvg(label, x0, y0, s, outline) {
-  const quiet = (s.label_w - symbolWidthMm(label)) / 2;
+// SVG is described as plain data ({tag, attrs, text}) so the page can build it
+// with DOM calls instead of parsing markup; sheetSvgs serialises the same data.
+function labelNodes(label, x0, y0, s, outline) {
+  const quiet = (s.label_w - symbolWidthMm(label)) / 2; // throws on anything but A-Z 0-9 *
   const barTop = y0 + PAD_MM + TEXT_BAND_MM;
   const barH = s.label_h - TEXT_BAND_MM - 2 * PAD_MM;
-  const rects = barsMm(label).map(([bx, bw]) =>
-    `<rect x="${r3(x0 + quiet + bx)}" y="${r3(barTop)}" width="${r3(bw)}" height="${r3(barH)}"/>`).join("");
-  const box = outline
-    ? `<rect x="${r3(x0)}" y="${r3(y0)}" width="${s.label_w}" height="${s.label_h}" fill="none" stroke="#999" stroke-width="0.07"/>`
-    : "";
-  const text = `<text x="${r3(x0 + s.label_w / 2)}" y="${r3(barTop - 0.7)}" text-anchor="middle" ` +
-    `font-family="Courier New, Courier, monospace" font-weight="bold" font-size="${TEXT_SIZE_MM}">${label}</text>`;
-  return box + rects + text;
+  const out = [];
+  if (outline) {
+    out.push({ tag: "rect", attrs: { x: r3(x0), y: r3(y0), width: s.label_w, height: s.label_h,
+      fill: "none", stroke: "#999", "stroke-width": 0.07 } });
+  }
+  for (const [bx, bw] of barsMm(label)) {
+    out.push({ tag: "rect", attrs: { x: r3(x0 + quiet + bx), y: r3(barTop), width: r3(bw), height: r3(barH) } });
+  }
+  out.push({ tag: "text", text: label, attrs: { x: r3(x0 + s.label_w / 2), y: r3(barTop - 0.7),
+    "text-anchor": "middle", "font-family": "Courier New, Courier, monospace", "font-weight": "bold",
+    "font-size": TEXT_SIZE_MM } });
+  return out;
 }
 
 // Every label position, shifted, must still lie wholly on the page; the label
@@ -131,8 +137,8 @@ export function checkOffsets(s, offsetX, offsetY) {
   }
 }
 
-// One SVG string per page, sized in mm so a 100% print matches the stock.
-export function sheetSvgs(labels, s, { skip = 0, offsetX = 0, offsetY = 0, outline = false } = {}) {
+// One page description per sheet, sized in mm so a 100% print matches the stock.
+export function sheetPages(labels, s, { skip = 0, offsetX = 0, offsetY = 0, outline = false } = {}) {
   checkOffsets(s, offsetX, offsetY);
   const per = s.cols * s.rows;
   if (!labels.length) throw new Error("no labels");
@@ -140,14 +146,27 @@ export function sheetSvgs(labels, s, { skip = 0, offsetX = 0, offsetY = 0, outli
   const slots = Array(skip).fill(null).concat(labels);
   const pages = [];
   for (let p = 0; p < slots.length; p += per) {
-    const body = slots.slice(p, p + per).map((lab, i) => {
-      if (lab === null) return "";
+    const nodes = slots.slice(p, p + per).flatMap((lab, i) => {
+      if (lab === null) return [];
       const r = Math.floor(i / s.cols), c = i % s.cols;
-      return labelSvg(lab, s.left + c * s.pitch_x + offsetX, s.top + r * s.pitch_y + offsetY, s, outline);
-    }).join("");
-    pages.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${s.page_w}mm" height="${s.page_h}mm" ` +
-      `viewBox="0 0 ${s.page_w} ${s.page_h}"><rect width="100%" height="100%" fill="#fff"/>` +
-      `<g fill="#000">${body}</g></svg>`);
+      return labelNodes(lab, s.left + c * s.pitch_x + offsetX, s.top + r * s.pitch_y + offsetY, s, outline);
+    });
+    pages.push({ width: s.page_w, height: s.page_h, nodes });
   }
   return pages;
+}
+
+const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function nodeSvg({ tag, attrs, text }) {
+  const a = Object.entries(attrs).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
+  return text === undefined ? `<${tag}${a}/>` : `<${tag}${a}>${esc(text)}</${tag}>`;
+}
+
+// The same pages as SVG strings (tests, or saving to a file).
+export function sheetSvgs(labels, s, opts) {
+  return sheetPages(labels, s, opts).map((pg) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${pg.width}mm" height="${pg.height}mm" ` +
+    `viewBox="0 0 ${pg.width} ${pg.height}"><rect width="100%" height="100%" fill="#fff"/>` +
+    `<g fill="#000">${pg.nodes.map(nodeSvg).join("")}</g></svg>`);
 }
