@@ -14,7 +14,7 @@ The tape tools here are open and vendor-agnostic, aimed at tape administrators. 
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs. A newer push to the same branch or PR cancels the superseded run. [`codeql.yml`](.github/workflows/codeql.yml) scans the Python and JavaScript code, and [Dependabot](.github/dependabot.yml) proposes Action, pip and npm updates. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
 
 To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-requirements.txt` provides pytest):
 
