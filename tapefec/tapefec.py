@@ -765,7 +765,10 @@ def decode_stream(fin, fout, report_foreign=True):
         if ftype == FT_TRAILER:
             if not seen_header:
                 raise TapefecError("trailer frame before the stream header")
-            if payload is not None and len(payload) == TRAILER_SIZE:
+            if payload is not None and len(payload) == TRAILER_SIZE and \
+                    TRAILER_FMT.unpack(payload)[0] <= \
+                    max(head["frame_index"], reader.stats["frames"]) \
+                    * dec.block_size:
                 rep.total_length, rep.sha256_expected = \
                     TRAILER_FMT.unpack(payload)
                 rep.trailer_seen = True
@@ -780,6 +783,11 @@ def decode_stream(fin, fout, report_foreign=True):
         if head["stream_id"] != stream_id:
             foreign += 1
             continue      # a wrong-stream frame must never fill a real slot
+
+        if head["block_id"] >= head["frame_index"]:
+            continue      # every block occupies a frame, so this id is impossible
+        if not 0 < head["group_data_len"] <= dec.k:
+            head["group_data_len"] = 0      # out of range: assume a full group
 
         if ftype == FT_DATA:
             ordinal = head["block_id"]

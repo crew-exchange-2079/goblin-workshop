@@ -9,6 +9,7 @@ opinion when available.
 """
 
 import hashlib
+import math
 import re
 import shutil
 import struct
@@ -74,6 +75,8 @@ def analyse(tris):
     for t in tris:
         faces.append(tuple(index.setdefault(v, len(index)) for v in t))
     verts = list(index)
+    if not all(math.isfinite(c) for v in verts for c in v):
+        raise MeshError("non-finite vertex coordinate")
     rep["vertices"] = len(verts)
 
     lo = [min(v[i] for v in verts) for i in range(3)]
