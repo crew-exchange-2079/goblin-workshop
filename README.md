@@ -26,6 +26,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd tape-library-playground && node --test)      # Node 22, no Python
+(cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.
