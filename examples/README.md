@@ -14,7 +14,7 @@ walkthrough end to end.
 
 The slots are left empty on purpose. A walkthrough is added only once every
 tool it chains is on `main`, so it never documents an interface that might
-still change in review. The follow-up issue lists what each slot needs.
+still change in review. [#28](https://github.com/crew-exchange-2079/goblin-workshop/issues/28) lists what each slot needs.
 
 ## Run
 
