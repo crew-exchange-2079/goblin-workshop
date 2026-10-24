@@ -324,6 +324,29 @@ jobs:
           OUTCOME: ${{ steps.bad.outcome }}
         run: test "$OUTCOME" = failure
 
+  tailnet-policy-tester:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tailnet-policy-tester
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+      - name: Example policy validates and its own tests pass
+        run: |
+          python -m tailnet_policy_tester validate examples/policy.hujson
+          python -m tailnet_policy_tester test examples/policy.hujson
+          python -m tailnet_policy_tester test examples/policy.hujson --inventory examples/inventory.hujson
+
   tape-library-playground:
     # JavaScript project: no Python, no pip.
     runs-on: ubuntu-24.04
