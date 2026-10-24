@@ -1,0 +1,12 @@
+# Weekday business hours in an explicit zone.
+# expect: clean
+name: sample
+queue: reports
+schedule: "CRON_TZ=America/New_York */15 8-18 * * MON-FRI"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

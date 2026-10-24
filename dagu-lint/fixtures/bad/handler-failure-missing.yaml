@@ -1,0 +1,12 @@
+# Only a success handler.
+# expect: DL302
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  success:
+    run: ./ok.sh
+steps:
+  - id: hello
+    run: echo hello

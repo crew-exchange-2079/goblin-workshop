@@ -1,0 +1,15 @@
+# One-off at is only for start.
+# expect: DL201
+name: sample
+queue: default
+schedule: 
+  start: "0 8 * * *"
+  stop:
+    - at: "2027-01-01T18:00:00Z"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

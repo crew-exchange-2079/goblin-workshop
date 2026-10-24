@@ -1,0 +1,15 @@
+# A deliberate non-secret random-looking value, suppressed inline.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+params:
+  # dagu-lint: disable=DL403 (public test vector, not a credential)
+  - TEST_VECTOR: Qm9vS2xHq7Zp4WxT2vN8rL5yC1dF6jE3
+steps:
+  - id: hello
+    run: echo hello

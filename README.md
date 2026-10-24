@@ -10,6 +10,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`lto-capacity-planner/`](lto-capacity-planner/): static, dependency-free calculator for LTO-7…LTO-10 cartridges, library slots and media cost over a retention period; shareable URL state (MIT).
 - [`tailnet-policy-tester/`](tailnet-policy-tester/): offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own `tests`/`sshTests`, and policy diffs; stdlib-only Python, not affiliated with Tailscale (MIT).
 - [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
+- [`dagu-lint/`](dagu-lint/): policy linter and GitHub Action for [Dagu](https://github.com/dagu-org/dagu) DAG YAML — queue allowlist, schedules with next runs, required handlers, inline secrets, bounded timeouts and retries, exec steps (MIT).
 - [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
 - [`quadlet-lint/`](quadlet-lint/): linter for Podman Quadlet `.container`/`.volume`/`.network`/`.pod` units, with a pre-commit hook and a GitHub Action (MIT).
 - [`rack-parts/`](rack-parts/): parametric OpenSCAD generator for twelve printable rack accessories (brackets, cradles, panels, keystone patch panel, shelf, drawer, PDU mount, label holder, cable comb, SFP/tape cartridge holder) with validation, per-part spec checks and STL/3MF/PNG output; synthetic examples only, no load or fit rating (MIT).
@@ -45,6 +46,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd quadlet-lint && python -m pytest -q tests)   # stdlib only
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
+(cd dagu-lint && pip install --require-hashes --only-binary=:all: -r requirements.txt && python -m pytest -q tests)   # needs PyYAML; schema tests skip without DAGU_SCHEMA
 (cd timer2dagu && python -m pytest -q tests)
 python -m pytest -q .github/release              # release tooling (from the repo root)
 python .github/release/release.py check --base origin/main   # changelog/version check, as in changelog.yml

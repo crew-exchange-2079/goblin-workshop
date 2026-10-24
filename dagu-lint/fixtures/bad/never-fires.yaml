@@ -1,0 +1,12 @@
+# February 30th.
+# expect: DL202
+name: sample
+queue: default
+schedule: "0 0 30 2 *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

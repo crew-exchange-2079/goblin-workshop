@@ -1,0 +1,12 @@
+# Queue not on the list.
+# expect: DL101
+name: sample
+queue: adhoc
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

@@ -1,0 +1,13 @@
+# at without an offset.
+# expect: DL201
+name: sample
+queue: default
+schedule: 
+  - at: "2027-01-01T18:00:00"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

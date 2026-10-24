@@ -1,0 +1,14 @@
+# Several cron entries in a list.
+# expect: clean
+name: sample
+queue: default
+schedule: 
+  - "0 6 * * *"
+  - "30 18 * * 1-5"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

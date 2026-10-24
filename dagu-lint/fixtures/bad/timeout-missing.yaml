@@ -1,0 +1,11 @@
+# No DAG timeout.
+# expect: DL501
+name: sample
+queue: default
+schedule: "0 2 * * *"
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

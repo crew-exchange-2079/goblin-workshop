@@ -1,0 +1,16 @@
+# foreach body steps.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: per-region
+    foreach:
+      items: [eu, us, ap]
+      steps:
+        - id: sync
+          run: ./sync.sh "${foreach.item}"

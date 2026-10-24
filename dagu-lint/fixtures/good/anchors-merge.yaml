@@ -1,0 +1,20 @@
+# Anchors and merge keys share a retry policy.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: a
+    run: ./a.sh
+    retry_policy: &retry
+      limit: 2
+      interval_sec: 60
+  - id: b
+    run: ./b.sh
+    retry_policy:
+      <<: *retry
+      limit: 1

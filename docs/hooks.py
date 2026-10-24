@@ -43,6 +43,7 @@ TOOLS = {
     "quadlet-lint": (OTHER, "Linter for Podman Quadlet .container/.volume/.network/.pod unit files: key validity per Podman release, pinning, health checks, risky options."),
     "tailnet-policy-tester": (OTHER, "Offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own tests, and policy diffs; not affiliated with Tailscale."),
     "timer2dagu": (OTHER, "Converts systemd .timer + .service pairs into Dagu DAG YAML and reports what could not be translated."),
+    "dagu-lint": (OTHER, "Policy linter and GitHub Action for Dagu DAG YAML: queue allowlist, schedules with next runs, required handlers, inline secrets, bounded timeouts and retries, exec steps."),
     "examples": (EXAMPLES, "End-to-end walkthroughs that chain the workshop's tools on synthetic data; CI runs each one."),
 }
 

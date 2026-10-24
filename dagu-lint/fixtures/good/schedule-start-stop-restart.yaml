@@ -1,0 +1,15 @@
+# Long-running service window.
+# expect: clean
+name: sample
+queue: default
+schedule: 
+  start: "0 8 * * MON-FRI"
+  stop: "0 18 * * MON-FRI"
+  restart: "0 12 * * MON-FRI"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

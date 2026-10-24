@@ -1,0 +1,82 @@
+name: dagu-lint
+description: Policy linter for Dagu DAG YAML (queues, schedules, handlers, secrets, timeouts, retries, exec steps)
+author: goblin-workshop contributors
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  paths:
+    description: Files or directories to lint, one per line.
+    required: false
+    default: dags
+  config:
+    description: Path to a dagu-lint.toml policy file. Empty uses ./dagu-lint.toml when present.
+    required: false
+    default: ""
+  queues:
+    description: Allowed queue names, separated by commas or newlines (added to the config's list).
+    required: false
+    default: ""
+  format:
+    description: "Output format: github (annotations), text or json."
+    required: false
+    default: github
+  strict:
+    description: "\"true\" makes warnings fail the step as well."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # update-environment: false keeps this Python off the caller's PATH, so
+    # the action does not change which interpreter later workflow steps get.
+    - id: python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.12"
+        update-environment: false
+
+    - name: Install dagu-lint dependencies (hash-pinned)
+      shell: bash
+      env:
+        PYTHON: ${{ steps.python.outputs.python-path }}
+      run: |
+        set -euo pipefail
+        venv="$RUNNER_TEMP/dagu-lint-venv"
+        "$PYTHON" -m venv "$venv"
+        "$venv/bin/python" -m pip install --disable-pip-version-check --quiet \
+          --require-hashes --only-binary=:all: -r "$GITHUB_ACTION_PATH/requirements.txt"
+
+    - name: Run dagu-lint
+      shell: bash
+      # Inputs reach the script only through the environment, never through
+      # ${{ }} expansion inside `run`, so they cannot inject shell.
+      env:
+        DL_PATHS: ${{ inputs.paths }}
+        DL_CONFIG: ${{ inputs.config }}
+        DL_QUEUES: ${{ inputs.queues }}
+        DL_FORMAT: ${{ inputs.format }}
+        DL_STRICT: ${{ inputs.strict }}
+      run: |
+        set -euo pipefail
+        args=(--format "$DL_FORMAT")
+        case "$DL_STRICT" in
+          true) args+=(--strict) ;;
+          false|"") ;;
+          *) echo "::error title=dagu-lint::strict must be true or false"; exit 2 ;;
+        esac
+        if [ -n "$DL_CONFIG" ]; then args+=(--config "$DL_CONFIG"); fi
+        while IFS= read -r q; do
+          q="${q#"${q%%[![:space:]]*}"}"; q="${q%"${q##*[![:space:]]}"}"
+          if [ -n "$q" ]; then args+=(--queue "$q"); fi
+        done < <(printf '%s\n' "$DL_QUEUES" | tr ',' '\n')
+        args+=(--)
+        n=0
+        while IFS= read -r p; do
+          p="${p#"${p%%[![:space:]]*}"}"; p="${p%"${p##*[![:space:]]}"}"
+          if [ -n "$p" ]; then args+=("$p"); n=$((n + 1)); fi
+        done <<< "$DL_PATHS"
+        if [ "$n" -eq 0 ]; then echo "::error title=dagu-lint::no paths given"; exit 2; fi
+        PYTHONPATH="$GITHUB_ACTION_PATH" "$RUNNER_TEMP/dagu-lint-venv/bin/python" -m dagu_lint "${args[@]}"

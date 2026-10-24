@@ -1,0 +1,12 @@
+# Not 'first Monday': fires on days 1-7 OR any Monday.
+# expect: DL204
+name: sample
+queue: default
+schedule: "0 9 1-7 * MON"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

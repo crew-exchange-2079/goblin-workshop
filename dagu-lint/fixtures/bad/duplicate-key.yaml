@@ -1,0 +1,16 @@
+# env given twice; the first would be silently dropped.
+# expect: DL002
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+env:
+  - A=1
+env:
+  - B=2
+steps:
+  - id: hello
+    run: echo hello

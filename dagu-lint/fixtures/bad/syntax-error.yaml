@@ -1,0 +1,6 @@
+# Broken indentation.
+# expect: DL001
+name: x
+steps:
+  - id: a
+   run: echo

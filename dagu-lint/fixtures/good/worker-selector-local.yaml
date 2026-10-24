@@ -1,0 +1,13 @@
+# worker_selector: local at DAG level.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+worker_selector: local
+steps:
+  - id: hello
+    run: echo hello

@@ -1,0 +1,14 @@
+# limit 0 disables retries; no interval needed.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: once
+    run: ./once.sh
+    retry_policy:
+      limit: 0

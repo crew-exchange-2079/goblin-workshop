@@ -1,0 +1,14 @@
+# Policy used by the fixture tests (tests/test_fixtures.py) and the CI action self-test.
+[queues]
+allow = ["default", "etl", "reports", "ml-gpu"]
+
+[handler_on]
+require = ["failure"]
+
+[timeouts]
+max_dag_sec = 86400
+max_step_sec = 86400
+
+[retry]
+max_limit = 5
+max_interval_sec = 3600

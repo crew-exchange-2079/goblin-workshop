@@ -1,0 +1,12 @@
+# Unknown timezone.
+# expect: DL201
+name: sample
+queue: default
+schedule: "CRON_TZ=Mars/Olympus 0 1 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

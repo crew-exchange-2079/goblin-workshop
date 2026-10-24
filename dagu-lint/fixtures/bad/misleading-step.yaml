@@ -1,0 +1,12 @@
+# */7 resets at the top of the hour.
+# expect: DL203
+name: sample
+queue: default
+schedule: "*/7 * * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

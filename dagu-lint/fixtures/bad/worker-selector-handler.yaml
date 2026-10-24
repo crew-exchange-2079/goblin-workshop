@@ -1,0 +1,14 @@
+# worker_selector on a handler step.
+# expect: DL701
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh
+    worker_selector:
+      zone: eu
+steps:
+  - id: hello
+    run: echo hello

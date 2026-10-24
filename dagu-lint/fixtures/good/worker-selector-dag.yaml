@@ -1,0 +1,15 @@
+# worker_selector at DAG level.
+# expect: clean
+name: sample
+queue: ml-gpu
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+worker_selector:
+  gpu: true
+  memory: 64G
+steps:
+  - id: train
+    run: python train.py

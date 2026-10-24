@@ -1,0 +1,13 @@
+# One-off time already passed.
+# expect: DL205
+name: sample
+queue: default
+schedule: 
+  - at: "2025-01-01T09:00:00Z"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

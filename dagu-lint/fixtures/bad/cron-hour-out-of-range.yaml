@@ -1,0 +1,12 @@
+# Hour 24 does not exist.
+# expect: DL201
+name: sample
+queue: default
+schedule: "0 24 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: hello
+    run: echo hello

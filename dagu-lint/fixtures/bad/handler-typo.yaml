@@ -1,0 +1,12 @@
+# `failed` is not an event, so failure is still missing.
+# expect: DL302,DL303
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failed:
+    run: ./notify.sh
+steps:
+  - id: hello
+    run: echo hello

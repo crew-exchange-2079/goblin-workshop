@@ -1,0 +1,11 @@
+# handler_on must be a mapping.
+# expect: DL303
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  - run: ./notify.sh
+steps:
+  - id: hello
+    run: echo hello

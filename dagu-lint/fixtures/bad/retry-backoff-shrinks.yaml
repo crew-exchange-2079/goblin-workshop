@@ -1,0 +1,17 @@
+# A multiplier below 1 shrinks the interval.
+# expect: DL604
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  - id: flaky
+    run: ./flaky.sh
+    retry_policy:
+      limit: 3
+      interval_sec: 60
+      backoff: 0.5
+      max_interval_sec: 60

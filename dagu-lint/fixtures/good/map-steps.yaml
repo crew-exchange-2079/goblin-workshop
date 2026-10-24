@@ -1,0 +1,15 @@
+# Steps as a map of name -> step.
+# expect: clean
+name: sample
+queue: default
+schedule: "0 2 * * *"
+timeout_sec: 3600
+handler_on:
+  failure:
+    run: ./notify.sh "${DAG_NAME}" failed
+steps:
+  extract:
+    run: ./extract.sh
+  load:
+    run: ./load.sh
+    depends: [extract]
