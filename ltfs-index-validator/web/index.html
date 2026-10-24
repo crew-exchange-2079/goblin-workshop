@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>LTFS index viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>LTFS index viewer</h1>
+    <p class="sub">LTFS 2.4.0 full index XML · read in this tab, never uploaded · <code>validate.py</code> is the schema authority</p>
+  </div>
+  <div class="actions">
+    <label class="blocksize" for="blocksize">block size
+      <input id="blocksize" type="number" min="1" step="1" value="524288" inputmode="numeric">
+    </label>
+    <button id="sample" type="button">Load synthetic sample</button>
+    <button id="clear" type="button" disabled>Clear</button>
+  </div>
+</header>
+
+<main>
+  <section id="drop" class="drop" tabindex="0" aria-label="Drop LTFS index XML files here">
+    <p><strong>Drop one or more LTFS index XML files</strong> anywhere on the page, or
+      <label class="pick" for="file">choose files<input id="file" type="file" accept=".xml,.schema,application/xml,text/xml" multiple></label>.</p>
+    <p class="dim">Several indexes from one volume are read as generations and compared. Files stay in this browser: the page has no network permission (see its Content-Security-Policy).</p>
+  </section>
+
+  <section id="loaded" class="panel" hidden aria-label="Loaded indexes">
+    <h2>Generations</h2>
+    <ol id="gens" class="gens"></ol>
+  </section>
+
+  <div id="workspace" class="workspace" hidden>
+    <section class="panel summary" aria-label="Index summary">
+      <h2>Index</h2>
+      <dl id="summary" class="kv"></dl>
+    </section>
+
+    <section class="panel findings" aria-label="Findings">
+      <div class="panel-head">
+        <h2>Findings</h2>
+        <div id="sevfilter" class="sevfilter" role="group" aria-label="Filter by severity"></div>
+      </div>
+      <p id="verdict" class="verdict"></p>
+      <ul id="findings" class="findinglist"></ul>
+    </section>
+
+    <section class="panel tree" aria-label="Directory tree">
+      <div class="panel-head">
+        <h2>Tree</h2>
+        <input id="filter" type="search" placeholder="filter by name" aria-label="Filter tree by name">
+      </div>
+      <ul id="tree" class="treeroot" role="tree"></ul>
+    </section>
+
+    <section class="panel detail" aria-label="Selected entry">
+      <h2>Entry</h2>
+      <div id="detail" class="detailbody"><p class="dim">Select an entry in the tree.</p></div>
+    </section>
+
+    <section id="diffpanel" class="panel diff" hidden aria-label="Generation diff">
+      <h2>Changes from previous generation</h2>
+      <div id="diff"></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <p><strong>What this is not:</strong> the <code>STRUCT_*</code> checks are a hand-written mirror of the Annex B schema, not XSD validation; <code>SEM_*</code>/<code>GEN_*</code> checks are heuristics. Passing here is not LTFS compliance. Payload checksums, tape layout and recovery are not checked.</p>
+  </footer>
+</main>
+
+<script src="ltfs.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>
