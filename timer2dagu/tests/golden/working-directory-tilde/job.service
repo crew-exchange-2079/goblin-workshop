@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+WorkingDirectory=~
+ExecStart=/usr/local/bin/job

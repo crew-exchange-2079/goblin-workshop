@@ -1,0 +1,4 @@
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/job
+TimeoutStartSec=5min

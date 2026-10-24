@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+ignored (1):
+  job.service: Dagu also loads a .env file from the working directory if one exists; systemd would not

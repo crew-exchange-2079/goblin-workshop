@@ -501,6 +501,9 @@ the dashboard into a real Grafana OSS container with synthetic data; it has
   cleaning line; parameter meanings are from T10 SSC "Sequential-Access
   Device log page".
   `tests/fixtures/sg3_utils_1.46/` holds real 1.46 output for synthetic pages.
+  [`../tape-regression-lab/fixtures/`](../tape-regression-lab/fixtures/)
+  runs every parser over real 1.46 and 1.49 output for synthetic
+  0x02, 0x03, 0x0c, 0x2e, 0x31 and 0x17 pages.
 * The offline-only tapeinfo parser cites
   [tapeinfo(1)](https://manpages.debian.org/stable/mtx/tapeinfo.1.en.html)
   and `tapeinfo.c` in [mtx 1.3.12](https://sourceforge.net/projects/mtx/).

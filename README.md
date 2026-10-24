@@ -9,6 +9,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 - [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
 - [`dagu-lint/`](dagu-lint/): policy linter and GitHub Action for [Dagu](https://github.com/dagu-org/dagu) DAG YAML — queue allowlist, schedules with next runs, required handlers, inline secrets, bounded timeouts and retries, exec steps (MIT).
+- [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
 
 ## Examples
 
@@ -30,9 +31,11 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
+(cd tape-regression-lab/fixtures && python -m pytest -q test_corpus.py)   # every tape-exporter parser vs the sg_logs corpus
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
 (cd dagu-lint && pip install --require-hashes --only-binary=:all: -r requirements.txt && python -m pytest -q tests)   # needs PyYAML; schema tests skip without DAGU_SCHEMA
+(cd timer2dagu && python -m pytest -q tests)
 (cd tape-library-playground && node --test)      # Node 22, no Python
 (cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
 python -m pytest -q examples/tests               # examples/: static checks (from the repo root)

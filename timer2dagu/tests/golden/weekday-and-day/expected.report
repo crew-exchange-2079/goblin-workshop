@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.timer: no schedule could be translated: the DAG runs only when started by hand
+  job.timer:5 OnCalendar=: 'Mon *-*-1..7 03:00': both weekday and day-of-month are restricted; systemd requires both to match, cron fires when either matches

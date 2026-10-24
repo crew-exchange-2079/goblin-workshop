@@ -1,0 +1,13 @@
+[Unit]
+Description=Job that needs the network
+Wants=network-online.target
+After=network-online.target
+OnFailure=notify@%n.service
+Documentation=man:job(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/job
+
+[Install]
+WantedBy=multi-user.target

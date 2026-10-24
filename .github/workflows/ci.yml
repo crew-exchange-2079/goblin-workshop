@@ -118,6 +118,58 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
       - run: timeout --kill-after=5s 120s python -m pytest -q test_runner.py
 
+  sg-logs-fixtures:
+    # Every tape-exporter parser against every fixture in the sg_logs corpus.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-regression-lab/fixtures
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
+      - run: python -m pytest -q test_corpus.py
+
+  sg-logs-fixtures-reproduce:
+    # The committed fixtures must be exactly what the real sg_logs 1.46
+    # (Ubuntu 24.04 package) and 1.49 (pinned upstream commit) print today.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tape-regression-lab/fixtures
+    env:
+      SG3_UTILS_TAG: release-1.49
+      SG3_UTILS_COMMIT: b1f5e2eee8f91cda2926dbcc71f7734ec9fac358
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install sg3-utils 1.46 and build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends sg3-utils autoconf automake libtool
+      - name: Build sg_logs from sg3_utils ${{ env.SG3_UTILS_TAG }}
+        run: |
+          git clone -q --depth 1 --branch "$SG3_UTILS_TAG" https://github.com/doug-gilbert/sg3_utils "$RUNNER_TEMP/sg3_utils"
+          cd "$RUNNER_TEMP/sg3_utils"
+          test "$(git rev-parse HEAD)" = "$SG3_UTILS_COMMIT"
+          ./autogen.sh >/dev/null
+          ./configure -q --disable-shared
+          make -s -j"$(nproc)" -C lib
+          make -s -C src sg_logs
+      - run: python generate.py --check --sg-logs 1.46=/usr/bin/sg_logs --sg-logs "1.49=$RUNNER_TEMP/sg3_utils/src/sg_logs"
+
   sweep:
     # Regression tests for the input-handling bugs fixed in the 2026-10-22 sweep
     # (see FINDINGS.md). They span tapefec and rack-parts, so they run from the root.
@@ -134,6 +186,24 @@ jobs:
           cache-dependency-path: .github/ci-requirements.txt
       - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
       - run: python -m pytest -q tests/sweep
+
+  timer2dagu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: timer2dagu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
 
   hsm-sim:
     runs-on: ubuntu-24.04

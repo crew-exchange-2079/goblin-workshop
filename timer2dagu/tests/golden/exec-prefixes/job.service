@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+ExecStartPre=+/usr/bin/chown job /var/lib/job
+ExecStartPre=!!/usr/bin/setup
+ExecStart=@/usr/local/bin/job job-renamed --verbose

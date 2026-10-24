@@ -1,0 +1,2 @@
+Sequential access device page (ssc-3)
+  Data bytes written to media by WRITE commands: 42 GB [42000000000 bytes]

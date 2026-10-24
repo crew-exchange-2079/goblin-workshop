@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+WorkingDirectory=%h/src
+ExecStart=%h/bin/sync-notes --to "%h/My Notes"

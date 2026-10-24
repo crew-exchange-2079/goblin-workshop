@@ -1,0 +1,8 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:4 EnvironmentFile=: '-' (optional file) dropped: check how your Dagu version treats a missing dotenv file
+
+ignored (2):
+  job.service: Dagu also loads a .env file from the working directory if one exists; systemd would not
+  job.service:7 RuntimeMaxSec=: RuntimeMaxSec= has no effect on Type=oneshot services (systemd bounds them with TimeoutStartSec=)

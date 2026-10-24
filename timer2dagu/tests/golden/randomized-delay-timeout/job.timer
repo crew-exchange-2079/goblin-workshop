@@ -1,0 +1,7 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30min
+Persistent=true

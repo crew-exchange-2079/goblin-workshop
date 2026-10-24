@@ -1,0 +1,12 @@
+# leading comment
+[Unit]
+Description=Weekly report
+
+[Timer]
+; semicolon comment
+OnCalendar=Mon \
+  *-*-* 06:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

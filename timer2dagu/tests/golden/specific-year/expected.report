@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.timer: no schedule could be translated: the DAG runs only when started by hand
+  job.timer:5 OnCalendar=: '2027-01-01 00:00': a specific year (2027) has no 5-field cron equivalent

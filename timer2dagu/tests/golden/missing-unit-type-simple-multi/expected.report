@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:3 ExecStart=: systemd accepts several ExecStart= only for Type=oneshot; they were translated as sequential steps
