@@ -1,0 +1,45 @@
+name: Changelog
+
+# Every pull request that changes a tool's files must add to that tool's
+# CHANGELOG.md, and no tool's version may go backwards. On main it re-checks
+# that every tool's version, changelog and tags agree. The skip-changelog
+# label waives the CHANGELOG.md requirement (not the version checks) for
+# changes users cannot notice, such as a typo fix in a test. See RELEASING.md.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # history for the PR diff, and tags for the tag checks
+      - name: version and changelog consistency (main)
+        if: github.event_name == 'push'
+        run: python3 .github/release/release.py check
+      - name: changelog updated for every changed tool (pull request)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        run: |
+          flags=()
+          if [ "$SKIP" = true ]; then
+            echo "::notice::skip-changelog label set: CHANGELOG.md updates not required"
+            flags+=(--skip-changelog)
+          fi
+          python3 .github/release/release.py check --base "$BASE_SHA" "${flags[@]}"

@@ -1,0 +1,4 @@
+# expect: QL003
+[Volume]
+VolumeName=v
+Size=10G

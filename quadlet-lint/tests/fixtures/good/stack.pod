@@ -1,0 +1,9 @@
+[Pod]
+PodName=stack
+PublishPort=127.0.0.1:9000:9000
+
+[Service]
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

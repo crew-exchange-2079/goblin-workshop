@@ -1,0 +1,9 @@
+# expect: QL101
+[Container]
+Image=quay.io/example/app:1.4.2
+ReadOnly=true
+HealthCmd=/bin/true
+
+[Service]
+Restart=on-failure
+RestartSec=5s

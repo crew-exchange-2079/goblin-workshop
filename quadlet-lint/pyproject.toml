@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quadlet-lint"
+dynamic = ["version"]
+description = "Linter for Podman Quadlet .container/.volume/.network/.pod unit files"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{name = "goblin-workshop contributors"}]
+keywords = ["podman", "quadlet", "systemd", "lint", "containers"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.scripts]
+quadlet-lint = "quadlet_lint.cli:main"
+
+[tool.setuptools]
+packages = ["quadlet_lint"]
+
+[tool.setuptools.package-data]
+quadlet_lint = ["keydb.json"]
+
+[tool.setuptools.dynamic]
+version = {attr = "quadlet_lint.__version__"}
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
