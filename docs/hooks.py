@@ -41,6 +41,7 @@ TOOLS = {
     "hsm-sim": (TAPE, "Deterministic command-line teaching simulator of a disk cache in front of a tape archive, driven by YAML scenarios; models no product."),
     "rack-parts": (OTHER, "Parametric OpenSCAD generator for printable rack parts (brackets, shelves, panels, PDU mounts)."),
     "quadlet-lint": (OTHER, "Linter for Podman Quadlet .container/.volume/.network/.pod unit files: key validity per Podman release, pinning, health checks, risky options."),
+    "tailnet-policy-tester": (OTHER, "Offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own tests, and policy diffs; not affiliated with Tailscale."),
     "timer2dagu": (OTHER, "Converts systemd .timer + .service pairs into Dagu DAG YAML and reports what could not be translated."),
     "examples": (EXAMPLES, "End-to-end walkthroughs that chain the workshop's tools on synthetic data; CI runs each one."),
 }
