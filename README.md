@@ -43,3 +43,12 @@ python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, 
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.
 [`mhvtl-scenarios.yml`](.github/workflows/mhvtl-scenarios.yml) loads the mhvtl kernel module and runs the [tape-regression-lab scenarios](tape-regression-lab/mhvtl-scenarios/) (load/unload, full tape, cleaning cartridge, drive offline, WORM) against lto-exporter; on a runner that can't load modules it reports SKIPPED.
+
+## Docs site
+
+[`mkdocs.yml`](mkdocs.yml) builds a MkDocs (Material) site: a landing page ([`docs/index.md`](docs/index.md)) and one page per tool, generated at build time from each tool's README by [`docs/hooks.py`](docs/hooks.py). Edit the READMEs, not generated pages. `TOOLS` in the hook is the one list of tools: it drives the pages, the nav and the landing-page tables; a listed tool whose directory is not on the branch is left out, and a top-level directory with a README that is not listed fails the build. The `docs` job in `ci.yml` runs `mkdocs build --strict` on every PR; [`.github/workflows/pages.yml`](.github/workflows/pages.yml) deploys to GitHub Pages only on pushes to `main`. Versions are hash-locked in [`docs/requirements.txt`](docs/requirements.txt) (compiled from `docs/requirements.in`).
+
+```sh
+python -m pip install --require-hashes --only-binary=:all: -r docs/requirements.txt
+python -m mkdocs serve        # or: python -m mkdocs build --strict
+```
