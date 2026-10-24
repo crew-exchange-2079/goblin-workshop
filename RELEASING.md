@@ -10,6 +10,7 @@ no repository-wide version.
 | `rack-parts` | `rackparts/__init__.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
 | `ltfs-index-validator` | `validate.py` (`TOOL_VERSION`) | source bundle (`.tar.gz`, `.zip`) |
 | `hsm-sim` | `hsm_sim.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
+| `timer2dagu` | `timer2dagu.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
 | `tape-library-playground` | `package.json` (`version`) | static bundle (`.tar.gz`, `.zip`) |
 
 Every release also carries `SHA256SUMS` and `<tool>-<version>.intoto.jsonl`

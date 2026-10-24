@@ -29,6 +29,11 @@
       "kind": "source",
       "version": {"file": "hsm_sim.py", "regex": "^__version__ = \"([^\"]+)\"$"}
     },
+    "timer2dagu": {
+      "path": "timer2dagu",
+      "kind": "source",
+      "version": {"file": "timer2dagu.py", "regex": "^__version__ = \"([^\"]+)\"$"}
+    },
     "tape-library-playground": {
       "path": "tape-library-playground",
       "kind": "static",
@@ -38,6 +43,7 @@
   },
   "not_released": {
     "tape-regression-lab": "regression evidence kit for an upstream project, not a tool",
-    "tests": "cross-project regression tests"
+    "tests": "cross-project regression tests",
+    "examples": "walkthroughs across tools, not a tool"
   }
 }
