@@ -399,7 +399,7 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
             del buf[:]
             if len(group) == k:
                 _flush_group(fout, g, k, m, block_size, stream_id, group,
-                             frame_index, block_id, parity_id, zeros)
+                             frame_index, block_id, parity_id, zeros, version)
                 frame_index += k + m
                 block_id += k
                 parity_id += m
@@ -409,7 +409,7 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
         del buf[:]
     if group:
         _flush_group(fout, g, k, m, block_size, stream_id, group,
-                     frame_index, block_id, parity_id, zeros)
+                     frame_index, block_id, parity_id, zeros, version)
         frame_index += len(group) + m
         block_id += len(group)
         parity_id += m
@@ -424,7 +424,7 @@ def encode_stream(fin, fout, k=DEFAULT_K, m=DEFAULT_M,
 
 
 def _flush_group(fout, g, k, m, block_size, stream_id, group, frame_index,
-                 block_id, parity_id, zeros):
+                 block_id, parity_id, zeros, version=FORMAT_VERSION):
     n = len(group)
     # Zero-pad every data block to block_size at the END before encoding
     # parity (only the final block of the stream can be short).  The short
@@ -437,12 +437,12 @@ def _flush_group(fout, g, k, m, block_size, stream_id, group, frame_index,
     for pos, payload in enumerate(group):
         fout.write(pack_header(FT_DATA, stream_id, frame_index + pos,
                                block_id + pos, len(payload), crc32(payload),
-                               n))
+                               n, version=version))
         fout.write(payload)
     for pos, payload in enumerate(parity):
         fout.write(pack_header(FT_PARITY, stream_id, frame_index + n + pos,
                                parity_id + pos, len(payload), crc32(payload),
-                               n))
+                               n, version=version))
         fout.write(payload)
 
 
@@ -494,6 +494,7 @@ class DecodeReport:
                    blocks_repaired=self.blocks_repaired,
                    blocks_unrecoverable=self.blocks_unrecoverable,
                    foreign_frames=getattr(self, "foreign_frames", 0),
+                   implausible_frames=getattr(self, "implausible_frames", 0),
                    groups=self.groups,
                    unrecoverable_ranges=self.unrecoverable_ranges,
                    notes=self.notes)
@@ -720,6 +721,47 @@ class _GroupDecoder:
         return trimmed
 
 
+def _frame_slot(head, k, m, block_size):
+    """(group, position) of a data/parity frame, or None if its header does
+    not fit the layout the encoder writes for this (k, m, block_size):
+
+      data   block_id b:  group b//k, position p=b%k,
+                          frame_index = 1 + group*(k+m) + p,
+                          payload_len = block_size, or 1..block_size for
+                          the last block of the group (only the stream's
+                          final block is ever short)
+      parity block_id q:  group q//m, position p=q%m,
+                          frame_index = 1 + group*(k+m) + gdl + p,
+                          payload_len = block_size
+      both:               group_data_len gdl in 1..k, data position < gdl
+    """
+    gdl = head["group_data_len"]
+    if not 1 <= gdl <= k:
+        return None
+    n = head["payload_len"]
+    if head["ftype"] == FT_DATA:
+        group, pos = divmod(head["block_id"], k)
+        want_index = 1 + group * (k + m) + pos
+        if pos >= gdl or not 1 <= n <= block_size or \
+                (n < block_size and pos != gdl - 1):
+            return None
+    else:
+        group, pos = divmod(head["block_id"], m)
+        want_index = 1 + group * (k + m) + gdl + pos
+        if n != block_size:
+            return None
+    if head["frame_index"] != want_index:
+        return None
+    return group, pos
+
+
+def _trailer_index(total_length, k, m, block_size):
+    """The frame_index the encoder gives the trailer of a stream of
+    `total_length` bytes."""
+    blocks = -(-total_length // block_size)
+    return 1 + blocks + -(-blocks // k) * m
+
+
 def decode_stream(fin, fout, report_foreign=True):
     """Decode the FEC stream in `fin` into `fout`; returns a DecodeReport.
 
@@ -732,6 +774,8 @@ def decode_stream(fin, fout, report_foreign=True):
     dec = None
     stream_id = None
     foreign = 0
+    implausible = 0
+    last_index = 0
     seen_header = False
 
     for head, payload in reader.frames():
@@ -762,13 +806,33 @@ def decode_stream(fin, fout, report_foreign=True):
                                 version=head["version"])
             continue
 
+        if ftype == FT_TRAILER and not seen_header:
+            raise TapefecError("trailer frame before the stream header")
+
+        if not seen_header:
+            continue      # leading junk before the stream header
+
+        # The per-frame version is not compared with the header's: until
+        # this release encode_stream(version=1) stamped data/parity frames
+        # as version 2, and such streams must stay readable.
+        if head["stream_id"] != stream_id:
+            foreign += 1
+            continue      # a wrong-stream frame must never fill a real slot
+
         if ftype == FT_TRAILER:
-            if not seen_header:
-                raise TapefecError("trailer frame before the stream header")
-            if payload is not None and len(payload) == TRAILER_SIZE and \
-                    TRAILER_FMT.unpack(payload)[0] <= \
-                    max(head["frame_index"], reader.stats["frames"]) \
-                    * dec.block_size:
+            # Ours must come after every frame read so far, and the encoder
+            # gives it exactly the frame_index its total_length implies.
+            # A CRC-valid trailer that fails either is a stray: skip it and
+            # keep reading rather than end the stream on it.
+            if payload is not None and (
+                    head["frame_index"] <= last_index
+                    or len(payload) != TRAILER_SIZE
+                    or _trailer_index(TRAILER_FMT.unpack(payload)[0], dec.k,
+                                      dec.m, dec.block_size)
+                    != head["frame_index"]):
+                implausible += 1
+                continue
+            if payload is not None:
                 rep.total_length, rep.sha256_expected = \
                     TRAILER_FMT.unpack(payload)
                 rep.trailer_seen = True
@@ -777,24 +841,17 @@ def decode_stream(fin, fout, report_foreign=True):
                                  "length and digest cannot be checked")
             break
 
-        if not seen_header:
-            continue      # leading junk before the stream header
-
-        if head["stream_id"] != stream_id:
-            foreign += 1
-            continue      # a wrong-stream frame must never fill a real slot
-
-        if head["block_id"] >= head["frame_index"]:
-            continue      # every block occupies a frame, so this id is impossible
-        if not 0 < head["group_data_len"] <= dec.k:
-            head["group_data_len"] = 0      # out of range: assume a full group
-
-        if ftype == FT_DATA:
-            ordinal = head["block_id"]
-            gidx = ordinal // dec.k
-        else:
-            ordinal = head["block_id"]
-            gidx = ordinal // dec.m
+        # CRC-valid is not the same as ours.  The encoder's layout fixes
+        # every data/parity frame's frame_index, payload_len and
+        # group_data_len from its block_id, so a frame that disagrees is a
+        # stray (another stream with the same id, undetected damage) and
+        # must never fill a slot or move the group cursor.
+        slot = _frame_slot(head, dec.k, dec.m, dec.block_size)
+        if slot is None:
+            implausible += 1
+            continue
+        gidx, pos = slot
+        last_index = max(last_index, head["frame_index"])
 
         if gidx < dec.group_index:
             rep.notes.append("ignoring frame for group %d, already past it"
@@ -804,14 +861,14 @@ def decode_stream(fin, fout, report_foreign=True):
         if dec.cur_group is None:
             while dec.group_index < gidx:
                 dec.zero_group()
-            dec.start_group(gidx, head["group_data_len"] or dec.k)
+            dec.start_group(gidx, head["group_data_len"])
         elif gidx != dec.cur_group:
             dec.finalize_group()
             while dec.group_index < gidx:
                 dec.zero_group()
-            dec.start_group(gidx, head["group_data_len"] or dec.k)
+            dec.start_group(gidx, head["group_data_len"])
 
-        gdl = head["group_data_len"] or dec.k
+        gdl = head["group_data_len"]
         if gdl != dec.cur_gdl and not dec.cur_data and not dec.cur_parity:
             dec.cur_gdl = gdl
         elif gdl != dec.cur_gdl:
@@ -820,9 +877,9 @@ def decode_stream(fin, fout, report_foreign=True):
                                                   dec.cur_gdl))
 
         if ftype == FT_DATA:
-            dec.add_data(ordinal - gidx * dec.k, payload)
+            dec.add_data(pos, payload)
         else:
-            dec.add_parity(ordinal - gidx * dec.m, payload)
+            dec.add_parity(pos, payload)
 
     rep.read_stats = dict(reader.stats)
 
@@ -853,9 +910,14 @@ def decode_stream(fin, fout, report_foreign=True):
 
     rep.bytes_written = dec.total
     rep.foreign_frames = foreign
+    rep.implausible_frames = implausible
     if report_foreign and foreign:
         rep.notes.append("%d frame(s) carried a different stream id and were "
                          "ignored" % foreign)
+    if implausible:
+        rep.notes.append("%d frame(s) had a valid CRC but a header that does "
+                         "not fit this stream's layout, and were ignored"
+                         % implausible)
     if rep.sha256_expected is not None:
         rep.sha256_match = (dec.digest.digest() == rep.sha256_expected)
     return rep

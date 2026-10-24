@@ -35,13 +35,30 @@ little-endian.
 Frame size on the wire is `40 + payload_len`.
 
 `frame_index` exists for humans and for gap visualisation. It is **not** used to
-place data: a dropped span breaks it, so `block_id` is what the decoder uses for
-recovery. The decoder does use it as a plausibility bound on other header fields,
-because every block occupies its own frame: a data or parity frame whose
-`block_id` is not below its `frame_index` is impossible and is skipped, and a
-trailer whose `total_length` exceeds `max(frame_index, frames read) * block_size`
-is treated as damaged. These checks reject only internally inconsistent headers;
-a stream that consistently declares a huge `frame_index` is not bounded by them.
+place data: a dropped span breaks the sequence, so `block_id` is what the decoder
+uses for recovery. But the encoder's layout fixes every frame's `frame_index` from
+its `block_id` (with `gdl = group_data_len`, group `g`, position `p`):
+
+| frame | `frame_index` | `payload_len` | other |
+|---|---|---|---|
+| data   | `1 + g·(k+m) + p`       | `block_size`; `1..block_size` only at `p = gdl−1` | `1 ≤ gdl ≤ k`, `p < gdl` |
+| parity | `1 + g·(k+m) + gdl + p` | `block_size` | `1 ≤ gdl ≤ k` |
+| trailer | `1 + B + ⌈B/k⌉·m`, `B = ⌈total_length / block_size⌉` | 40 | after every frame accepted so far |
+
+The decoder checks each CRC-valid data, parity and trailer frame against this
+table and ignores those that do not fit, counting them as `implausible_frames`.
+A CRC says a frame is intact, not that it belongs to this stream: such a frame is
+a stray (another stream with the same `stream_id`, a re-sealed corruption) and
+must not fill a slot, move the group cursor or end the stream. The checks reject
+only inconsistent headers. A stream that consistently declares a huge
+`frame_index` still makes the decoder pad zeros, up to `2³²` frames' worth, and a
+foreign stream with the same `stream_id` *and* the same `(k, m, block_size)` is
+indistinguishable frame by frame: only the trailer SHA-256 catches it. Give
+streams that share a tape distinct `--stream-id` values.
+
+The frame `version` byte is not compared with the stream header's: before the
+fuzz fixes, `encode_stream(version=1)` stamped data and parity frames as version
+2, and those streams must stay readable.
 
 ### 1.2 CRC choice
 
@@ -324,8 +341,11 @@ These are deliberate, not oversights. Stating them is part of the design.
    does not reorder across groups and there is no mechanism to seek backwards.
    This is a streaming framer, not a random-access index.
 6. **Hostile input.** `payload_len` is validated against a cap derived from the
-   header frame before allocation, but this is a prototype: there is no fuzzing
-   campaign and no resource limits. Do not point it at untrusted data yet.
+   header frame before allocation, and every frame header is checked against
+   the layout in §1.1. `test_properties.py` and `fuzz.py` exercise the erasure
+   contract and random byte-level damage, but this is a prototype: the fuzzing
+   is random rather than coverage-guided, on small streams, and there are no
+   resource limits beyond §1.1. Do not point it at untrusted data yet.
 7. **Encryption, compression, authentication.** None. Pipe `zstd`/`age` in or
    out as you like; that is the unix way.
 8. **Physical tape semantics.** It does not write filemarks, does not know about

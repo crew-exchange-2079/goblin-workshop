@@ -573,8 +573,8 @@ class TestDamage(unittest.TestCase):
         """A wrong SHA-256 in the trailer must be reported as a failure."""
         tl = T.TRAILER_FMT.pack(len(self.data), b"\x00" * 32)
         broken = (self.enc[:self.offs[-1][0]]
-                  + T.pack_header(T.FT_TRAILER, self.info["total_length"] & 0
-                                  or 0, 0, 0, T.TRAILER_SIZE, T.crc32(tl), 0)
+                  + T.pack_header(T.FT_TRAILER, 0, self.offs[-1][2]["index"],
+                                  0, T.TRAILER_SIZE, T.crc32(tl), 0)
                   + tl)
         rep, out = decode(broken)
         self.assertEqual(out, self.data)
@@ -1052,7 +1052,8 @@ class TestVerifiedFindings(unittest.TestCase):
         offsets, _ = frame_offsets(enc)
         payload = T.TRAILER_FMT.pack(len(data), bytes(32))
         enc = (enc[:offsets[-1][0]] + T.pack_header(
-            T.FT_TRAILER, 0, 0, 0, len(payload), T.crc32(payload), 0) + payload)
+            T.FT_TRAILER, 0, offsets[-1][2]["index"], 0, len(payload),
+            T.crc32(payload), 0) + payload)
         broken = self.drop(enc, lambda f: f['ftype'] == T.FT_DATA
                            and f['block_id'] == 0)
         p = self.cli(['decode', '--quiet', '--strict'], broken)
@@ -1122,6 +1123,120 @@ class TestVerifiedFindings(unittest.TestCase):
             with self.assertRaises(RuntimeError) as caught:
                 T.encode_stream(object(), object(), block_size=2**32 - 1)
         self.assertIs(caught.exception, sentinel)
+
+
+class TestFuzzFindings(unittest.TestCase):
+    """Regressions for what fuzz.py and test_properties.py found.  Each
+    stream here is a real stream plus frames that carry a VALID CRC but
+    do not belong to it -- the case CRCs cannot catch."""
+
+    @staticmethod
+    def spans(enc):
+        offs, _ = frame_offsets(enc)
+        return [(s, e, T.unpack_header(enc[s:s + T.HEADER_SIZE]))
+                for s, e, _fr in offs]
+
+    def test_oversized_frame_from_another_stream_is_not_ours(self):
+        # Two archives on one tape, both written with the CLI's default
+        # --stream-id 0, the first with blocks 0 and 1 lost: block 1 of the
+        # second (block_size 32, not 16) used to fill the slot.  With
+        # nothing else lost it was emitted as data (wrong bytes, wrong
+        # length); with a repair to do, rs_repair died with OverflowError.
+        data = rnd(100, seed=40)
+        enc = encode(data, k=4, m=2, block_size=16)
+        other = encode(rnd(300, seed=41), k=4, m=2, block_size=32)
+        sp, osp = self.spans(enc), self.spans(other)
+        os_, oe, _oh = osp[2]
+        for lose_block_0 in (False, True):
+            with self.subTest(lose_block_0=lose_block_0):
+                start = sp[1][0] if lose_block_0 else sp[2][0]
+                spliced = enc[:start] + other[os_:oe] + enc[sp[2][1]:]
+                rep, out = decode(spliced)
+                self.assertEqual(out, data)
+                self.assertTrue(rep.verified)
+                self.assertEqual(rep.implausible_frames, 1)
+
+    def test_stray_far_future_frame_does_not_zero_fill(self):
+        # A CRC-valid frame whose block_id says group 1000 but whose
+        # frame_index says it is the second frame used to make the decoder
+        # emit 999 groups of zeros, then drop every real frame as "already
+        # past it" and write far beyond the trailer length.
+        data = rnd(200, seed=42)
+        enc = encode(data, k=4, m=2, block_size=16)
+        sp = self.spans(enc)
+        payload = bytes(16)
+        stray = T.pack_header(T.FT_DATA, 0, 2, 4000, 16, T.crc32(payload),
+                              4) + payload
+        cut = sp[1][0]
+        rep, out = decode(enc[:cut] + stray + enc[cut:])
+        self.assertEqual(out, data)
+        self.assertTrue(rep.verified)
+        self.assertEqual(rep.implausible_frames, 1)
+
+    def test_trailer_with_another_stream_id_is_not_ours(self):
+        data = rnd(100, seed=43)
+        enc = encode(data, k=4, m=2, block_size=16, stream_id=7)
+        other = encode(rnd(100, seed=44), k=4, m=2, block_size=16,
+                       stream_id=8)
+        osp = self.spans(other)
+        cut = self.spans(enc)[3][0]
+        rep, out = decode(enc[:cut] + other[osp[-1][0]:] + enc[cut:])
+        self.assertEqual(out, data)
+        self.assertTrue(rep.verified)
+        self.assertEqual(rep.foreign_frames, 1)
+
+    def test_trailer_must_match_the_frame_count(self):
+        # Same stream id, consistent header, but the trailer's frame_index
+        # does not fit total_length under this stream's (k, m, block_size).
+        data = rnd(100, seed=45)
+        enc = encode(data, k=4, m=2, block_size=16)
+        sp = self.spans(enc)
+        last = sp[-1]
+        tl = T.TRAILER_FMT.pack(len(data) + 16 * 40, bytes(32))
+        bad = T.pack_header(T.FT_TRAILER, 0, last[2]["frame_index"], 0,
+                            len(tl), T.crc32(tl), 0) + tl
+        rep, out = decode(enc[:last[0]] + bad)
+        self.assertFalse(rep.trailer_seen)
+        self.assertEqual(out[:len(data)], data)
+        self.assertLessEqual(len(out), len(data) + 16)
+
+    def test_layout_check_accepts_every_encoder_frame(self):
+        for k, m, bs, n in [(1, 1, 1, 0), (1, 1, 1, 5), (4, 2, 16, 87),
+                            (20, 4, 64, 64 * 20 * 3), (3, 7, 5, 101)]:
+            for version in T.SUPPORTED_VERSIONS:
+                enc = encode(rnd(n, seed=n), k=k, m=m, block_size=bs,
+                             version=version)
+                for _s, _e, h in self.spans(enc):
+                    self.assertEqual(h["version"], version)
+                    if h["ftype"] in (T.FT_DATA, T.FT_PARITY):
+                        self.assertIsNotNone(T._frame_slot(h, k, m, bs), h)
+                    elif h["ftype"] == T.FT_TRAILER:
+                        self.assertEqual(
+                            T._trailer_index(n, k, m, bs), h["frame_index"])
+
+    def test_v1_stream_with_v2_stamped_frames_still_decodes(self):
+        # What encode_stream(version=1) wrote before it stamped every frame.
+        data = rnd(150, seed=46)
+        enc = bytearray(encode(data, k=4, m=2, block_size=16, version=1))
+        for s, _e, h in self.spans(bytes(enc)):
+            if h["ftype"] in (T.FT_DATA, T.FT_PARITY):
+                h = dict(h, version=2)
+                enc[s:s + T.HEADER_SIZE] = T.pack_header(
+                    h["ftype"], h["stream_id"], h["frame_index"],
+                    h["block_id"], h["payload_len"], h["payload_crc"],
+                    h["group_data_len"], version=2)
+        sp = self.spans(bytes(enc))
+        rep, out = decode(bytes(enc[:sp[1][0]] + enc[sp[1][1]:]))
+        self.assertEqual(out, data)
+        self.assertTrue(rep.verified)
+        self.assertEqual(rep.blocks_repaired, 1)
+
+    def test_fuzz_harness_smoke(self):
+        import fuzz
+        for seed in range(1500):
+            self.assertIsNone(fuzz.run_case(seed))
+        for seed in range(300):
+            self.assertIsNone(fuzz.run_case(seed, forge=True))
 
 
 if __name__ == "__main__":
