@@ -31,6 +31,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 (cd tape-regression-lab/fixtures && python -m pytest -q test_corpus.py)   # every tape-exporter parser vs the sg_logs corpus
+(cd tape-regression-lab/mhvtl-scenarios && python -m pytest -q test_scenarios.py)   # fake drive; the kernel-module run is below
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
 (cd timer2dagu && python -m pytest -q tests)
@@ -41,6 +42,7 @@ python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, 
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.
+[`mhvtl-scenarios.yml`](.github/workflows/mhvtl-scenarios.yml) loads the mhvtl kernel module and runs the [tape-regression-lab scenarios](tape-regression-lab/mhvtl-scenarios/) (load/unload, full tape, cleaning cartridge, drive offline, WORM) against lto-exporter; on a runner that can't load modules it reports SKIPPED.
 
 ## Docs site
 

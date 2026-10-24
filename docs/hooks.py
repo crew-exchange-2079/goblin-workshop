@@ -37,6 +37,7 @@ TOOLS = {
     "tape-regression-lab/mhvtl-status": (TAPE, "Regression kit for mhvtl's optional log pages, run against a fresh upstream checkout."),
     "lto-capacity-planner": (TAPE, "Static calculator for LTO cartridges, library slots and media cost per generation; arithmetic, not a vendor sizing tool."),
     "tape-label-gen": (TAPE, "Code 39 LTO cartridge barcode labels as print-ready PDF sheets (CLI) or a static web page."),
+    "tape-regression-lab/mhvtl-scenarios": (TAPE, "Scripted mhvtl scenarios that drive an emulated LTO-8 drive through media states and assert on tape-exporter metrics."),
     "hsm-sim": (TAPE, "Deterministic command-line teaching simulator of a disk cache in front of a tape archive, driven by YAML scenarios; models no product."),
     "rack-parts": (OTHER, "Parametric OpenSCAD generator for printable rack parts (brackets, shelves, panels, PDU mounts)."),
     "timer2dagu": (OTHER, "Converts systemd .timer + .service pairs into Dagu DAG YAML and reports what could not be translated."),

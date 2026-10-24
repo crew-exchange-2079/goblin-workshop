@@ -170,6 +170,26 @@ jobs:
           make -s -C src sg_logs
       - run: python generate.py --check --sg-logs 1.46=/usr/bin/sg_logs --sg-logs "1.49=$RUNNER_TEMP/sg3_utils/src/sg_logs"
 
+  mhvtl-scenarios:
+    # Scenario driver and assertions against a fake drive + the real exporter
+    # collector. The kernel-module run is mhvtl-scenarios.yml.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-regression-lab/mhvtl-scenarios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
+      - run: python -m pytest -q test_scenarios.py
+
   sweep:
     # Regression tests for the input-handling bugs fixed in the 2026-10-22 sweep
     # (see FINDINGS.md). They span tapefec and rack-parts, so they run from the root.
