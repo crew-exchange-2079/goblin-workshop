@@ -42,7 +42,8 @@ has `connect-src 'none'`, so it cannot send the file anywhere. It shows:
   - `STRUCT_*` is a hand-written mirror of the Annex B rules. It is **not** XSD validation; `validate.py` stays the
     authority. The Playwright suite checks that the two agree on every case it covers (when `LTFS_PYTHON` is set).
     Annex B as printed declares `xattr/value` empty, so text values get `STRUCT_XATTR_VALUE_CONTENT`, matching the CLI.
-  - `SEM_*` covers what the schema cannot: duplicate or out-of-range `fileuid`, duplicate/invalid names, extent
+  - `SEM_*` covers what the schema cannot: duplicate or out-of-range `fileuid` (`highestfileuid` 0 is the
+    exhausted-UID sentinel, not a bound), duplicate/invalid names, extent
     order, overlap, past-`length` and sparse coverage, and cross-file tape overlap (uses the block-size box, default
     524288, because the block size lives in the label, not the index).
   - `GEN_*`: mixed volumes, broken back pointers, same-generation copies vs. conflicts, time/UID regressions.

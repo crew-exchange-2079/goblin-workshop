@@ -128,6 +128,23 @@ test("flags broken generation chains and mixed volumes", async ({ page }) => {
   await expect(f.locator('li[data-code="GEN_CHAIN_BROKEN"]')).toContainText("across generations");
 });
 
+test("treats highestfileuid 0 as the exhausted-UID sentinel, not a bound", async ({ page }) => {
+  const root = S.dir(1, "root", [S.file(7, "a", 0)]);
+  const g1 = S.index({ gen: 1, loc: 10, hi: 7, root });
+  const g2 = S.index({ gen: 2, loc: 20, prev: 10, hi: 0, root });
+  await load(page, xmlFile("g1.xml", g1), xmlFile("g2.xml", g2));
+  const f = page.locator("#findings");
+  await expect(f.locator('li[data-code="SEM_UID_SPACE_EXHAUSTED"]')).toHaveCount(1);
+  await expect(f.locator('li[data-code="SEM_UID_ABOVE_HIGHEST"]')).toHaveCount(0);
+  await expect(f.locator('li[data-code="SEM_HIGHEST_UID_UNUSED"]')).toHaveCount(0);
+  await expect(f.locator('li[data-code="GEN_UID_REGRESSION"]')).toHaveCount(0);
+  // A real decrease is still flagged.
+  await page.locator("#clear").click();
+  await load(page, xmlFile("g1.xml", g1), xmlFile("g2.xml", S.index({ gen: 2, loc: 20, prev: 10, hi: 8, root: S.dir(1, "root", [S.file(8, "a", 0)]) })),
+    xmlFile("g3.xml", S.index({ gen: 3, loc: 30, prev: 20, hi: 7, root })));
+  await expect(f.locator('li[data-code="GEN_UID_REGRESSION"]')).toHaveCount(1);
+});
+
 test("treats same-generation copies on two partitions as copies", async ({ page }) => {
   const a = S.index({ gen: 4, loc: 100, prev: 50 }).replace("<partition>b</partition><startblock>100", "<partition>a</partition><startblock>100");
   const b = S.index({ gen: 4, loc: 100, prev: 50 });

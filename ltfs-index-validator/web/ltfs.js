@@ -410,6 +410,11 @@
     if (idx.root.uid !== null && idx.root.uid !== 1n) {
       ctx.add("warning", "SEM_ROOT_UID", "Root directory fileuid is " + idx.root.uid + "; LTFS assigns 1 to the root.", "/");
     }
+    // highestfileuid 0 is the "UIDs exhausted" sentinel (LTFS 2.4 \u00a79.2.2), not an upper bound.
+    var exhausted = idx.highestfileuid === 0n;
+    if (exhausted) {
+      ctx.add("info", "SEM_UID_SPACE_EXHAUSTED", "highestfileuid is 0: the volume's UID space is marked exhausted, so fileuid values are not checked against it.", "/");
+    }
     var uids = new Map();
     var bytsz = BigInt(blocksize);
     var tape = []; // [partition, start, end, path]
@@ -421,7 +426,7 @@
         if (uids.has(n.uid)) {
           ctx.add("error", "SEM_UID_DUPLICATE", "fileuid " + n.uid + " is also used by " + uids.get(n.uid) + ".", n.path);
         } else uids.set(n.uid, n.path);
-        if (idx.highestfileuid !== null && n.uid > idx.highestfileuid) {
+        if (idx.highestfileuid !== null && !exhausted && n.uid > idx.highestfileuid) {
           ctx.add("error", "SEM_UID_ABOVE_HIGHEST", "fileuid " + n.uid + " exceeds highestfileuid " + idx.highestfileuid + ".", n.path);
         }
       }
@@ -441,7 +446,7 @@
       if (n.length !== null) stats.bytes += n.length;
       checkExtents(ctx, n, stats, tape, bytsz);
     });
-    if (idx.highestfileuid !== null && uids.size && !uids.has(idx.highestfileuid)) {
+    if (idx.highestfileuid !== null && !exhausted && uids.size && !uids.has(idx.highestfileuid)) {
       ctx.add("info", "SEM_HIGHEST_UID_UNUSED", "No entry uses highestfileuid " + idx.highestfileuid + " (normal after deletions).", "/");
     }
     tape.sort(function (a, b) {
@@ -542,7 +547,8 @@
       if (prev.updatetime && cur.updatetime && cur.updatetime < prev.updatetime) {
         ctx.add("warning", "GEN_TIME_REGRESSION", tag + " has an updatetime earlier than generation " + prev.generation + ".", "/");
       }
-      if (prev.highestfileuid !== null && cur.highestfileuid !== null && cur.highestfileuid < prev.highestfileuid) {
+      if (prev.highestfileuid !== null && cur.highestfileuid !== null &&
+          cur.highestfileuid !== 0n && cur.highestfileuid < prev.highestfileuid) {
         ctx.add("warning", "GEN_UID_REGRESSION", tag + " lowers highestfileuid from " + prev.highestfileuid + " to " + cur.highestfileuid + ".", "/");
       }
     }
