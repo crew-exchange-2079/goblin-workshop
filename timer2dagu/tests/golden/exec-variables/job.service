@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+Environment="OPTS=-a -b" DIR=/srv bogus
+ExecStart=/usr/local/bin/job $OPTS ${DIR}/in prefix$OPTS $$HOME

@@ -1,0 +1,37 @@
+# Dependency update PRs. Actions are pinned to commit SHAs; Dependabot bumps the
+# SHA and the "# vX.Y.Z" comment together. A 7-day cooldown keeps freshly
+# published (and possibly compromised) releases out until they have aged.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directories:
+      - /.github                 # ci-requirements.txt (pytest for the CI jobs)
+      - /ltfs-index-validator    # requirements.txt, hash-pinned
+      - /tape-exporter           # pyproject.toml
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      pip:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /tape-library-playground
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]

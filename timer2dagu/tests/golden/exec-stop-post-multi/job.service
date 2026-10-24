@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/job
+ExecStopPost=/usr/bin/rm -f /run/job.lock
+ExecStopPost=-/usr/bin/curl -fsS https://hc.example/ping/abc

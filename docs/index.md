@@ -20,6 +20,10 @@ has not been tested against.
 
 <!-- tools: Other tools -->
 
+## Examples
+
+<!-- tools: Examples -->
+
 ## Licensing
 
 Licensing is per tool and stated on each tool's page.

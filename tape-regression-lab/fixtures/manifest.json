@@ -1,0 +1,2064 @@
+{
+ "about": "Synthetic sg_logs outputs for SSC log pages; see README.md. Not captured from any device.",
+ "parsers": [
+  "error_counters.write",
+  "error_counters.read",
+  "sequential_access"
+ ],
+ "sg_logs_versions": {
+  "1.46": {
+   "version_string": "Version string: 1.81 20200110",
+   "source": "Ubuntu 24.04 package sg3-utils 1.46-3ubuntu4.1 (/usr/bin/sg_logs)"
+  },
+  "1.49": {
+   "version_string": "Version string: 2.37 20231026",
+   "source": "upstream https://github.com/doug-gilbert/sg3_utils tag release-1.49 (commit b1f5e2eee8f91cda2926dbcc71f7734ec9fac358), built from source"
+  }
+ },
+ "fixtures": [
+  {
+   "id": "p02-typical",
+   "page": "0x02",
+   "subpage": "0x00",
+   "description": "Write error counters, all seven SPC parameters",
+   "read_may_clear": false,
+   "page_hex": "pages/p02-typical.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-typical.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-typical.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "57dbf8f538d4711663573c0361233cc2216a4a5c80587801fd53938a20be23b6",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 3,
+        "rewrites_or_rereads": 17,
+        "total_corrected": 3,
+        "correction_algorithm_processed": 21,
+        "bytes_processed": 2199023255553,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-typical.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-typical.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "57dbf8f538d4711663573c0361233cc2216a4a5c80587801fd53938a20be23b6",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 3,
+        "rewrites_or_rereads": 17,
+        "total_corrected": 3,
+        "correction_algorithm_processed": 21,
+        "bytes_processed": 2199023255553,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-typical.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-typical.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "8d53c5b908cbcae88818c21259d1d493bbe809978515c3ef6ebe60ce364fe3f8",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 3,
+        "rewrites_or_rereads": 17,
+        "total_corrected": 3,
+        "correction_algorithm_processed": 21,
+        "bytes_processed": 2199023255553,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-typical.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-typical.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "8d53c5b908cbcae88818c21259d1d493bbe809978515c3ef6ebe60ce364fe3f8",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 3,
+        "rewrites_or_rereads": 17,
+        "total_corrected": 3,
+        "correction_algorithm_processed": 21,
+        "bytes_processed": 2199023255553,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p02-zero",
+   "page": "0x02",
+   "subpage": "0x00",
+   "description": "Write error counters, all zero (fresh cartridge)",
+   "read_may_clear": false,
+   "page_hex": "pages/p02-zero.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "45bb1a2dea731d7dd76387c095ee15decc3c70a934c436edcb4ebb708c658c76",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "45bb1a2dea731d7dd76387c095ee15decc3c70a934c436edcb4ebb708c658c76",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "c5d4d11781c54deec56fb6a085a3f8746d08389a1d0f5d954cdb20f425b2d4fd",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "c5d4d11781c54deec56fb6a085a3f8746d08389a1d0f5d954cdb20f425b2d4fd",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p02-u64max",
+   "page": "0x02",
+   "subpage": "0x00",
+   "description": "Write error counters at the uint64 edge",
+   "read_may_clear": false,
+   "page_hex": "pages/p02-u64max.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-u64max.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-u64max.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "b7a07b53065a34847a15dcd6f0336916088cfa4c022a64ca2678670960bd5f66",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 18446744073709551615,
+        "corrected_with_delay": 18446744073709551614,
+        "rewrites_or_rereads": 9223372036854775808,
+        "total_corrected": 4294967296,
+        "correction_algorithm_processed": 4294967295,
+        "bytes_processed": 1000000000000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-u64max.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-u64max.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "b7a07b53065a34847a15dcd6f0336916088cfa4c022a64ca2678670960bd5f66",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 18446744073709551615,
+        "corrected_with_delay": 18446744073709551614,
+        "rewrites_or_rereads": 9223372036854775808,
+        "total_corrected": 4294967296,
+        "correction_algorithm_processed": 4294967295,
+        "bytes_processed": 1000000000000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-u64max.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-u64max.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "a914c75aaa24b3aa9e90f3451fd818b674885736e7b0011e1e318052b6dccd08",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 18446744073709551615,
+        "corrected_with_delay": 18446744073709551614,
+        "rewrites_or_rereads": 9223372036854775808,
+        "total_corrected": 4294967296,
+        "correction_algorithm_processed": 4294967295,
+        "bytes_processed": 1000000000000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-u64max.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-u64max.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "a914c75aaa24b3aa9e90f3451fd818b674885736e7b0011e1e318052b6dccd08",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 18446744073709551615,
+        "corrected_with_delay": 18446744073709551614,
+        "rewrites_or_rereads": 9223372036854775808,
+        "total_corrected": 4294967296,
+        "correction_algorithm_processed": 4294967295,
+        "bytes_processed": 1000000000000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p02-partial-vendor",
+   "page": "0x02",
+   "subpage": "0x00",
+   "description": "Write error counters: only codes 0, 5, 6 plus a vendor parameter 0x8000",
+   "read_may_clear": false,
+   "page_hex": "pages/p02-partial-vendor.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-partial-vendor.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-partial-vendor.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "5ab609c32c12eb7a63d395e07675fe709d4b9b9de183d0e4155ed1beab0a7b8b",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 5,
+        "bytes_processed": 1073741825,
+        "total_uncorrected": 2
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p02-partial-vendor.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-partial-vendor.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "5ab609c32c12eb7a63d395e07675fe709d4b9b9de183d0e4155ed1beab0a7b8b",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 5,
+        "bytes_processed": 1073741825,
+        "total_uncorrected": 2
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-partial-vendor.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p02-partial-vendor.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9ec750b6bde3e4168b503c7c4ecb40172ffae14f83f5760edbdbc54a3ef31b32",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 5,
+        "bytes_processed": 1073741825,
+        "total_uncorrected": 2
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p02-partial-vendor.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p02-partial-vendor.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9ec750b6bde3e4168b503c7c4ecb40172ffae14f83f5760edbdbc54a3ef31b32",
+     "expect": {
+      "error_counters.write": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 5,
+        "bytes_processed": 1073741825,
+        "total_uncorrected": 2
+       }
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p03-typical",
+   "page": "0x03",
+   "subpage": "0x00",
+   "description": "Read error counters, all seven SPC parameters",
+   "read_may_clear": false,
+   "page_hex": "pages/p03-typical.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-typical.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-typical.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "16fc573e2e09703eb1a20437c9f36947cad16cef9cbbc4b87e60e81331d45698",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 12,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 4,
+        "total_corrected": 12,
+        "correction_algorithm_processed": 40,
+        "bytes_processed": 1500000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-typical.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-typical.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "16fc573e2e09703eb1a20437c9f36947cad16cef9cbbc4b87e60e81331d45698",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 12,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 4,
+        "total_corrected": 12,
+        "correction_algorithm_processed": 40,
+        "bytes_processed": 1500000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-typical.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-typical.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "0afedb99f428bfdffabc7594e24ab83caa293ff888e21030743b519f07840b64",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 12,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 4,
+        "total_corrected": 12,
+        "correction_algorithm_processed": 40,
+        "bytes_processed": 1500000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-typical.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-typical.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "0afedb99f428bfdffabc7594e24ab83caa293ff888e21030743b519f07840b64",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 12,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 4,
+        "total_corrected": 12,
+        "correction_algorithm_processed": 40,
+        "bytes_processed": 1500000000000,
+        "total_uncorrected": 1
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p03-zero",
+   "page": "0x03",
+   "subpage": "0x00",
+   "description": "Read error counters, all zero",
+   "read_may_clear": false,
+   "page_hex": "pages/p03-zero.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "6ba0f5539d9384b8b92701f3ebaf865ddd740c887e7280af2cc759dcdb8c3f87",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "6ba0f5539d9384b8b92701f3ebaf865ddd740c887e7280af2cc759dcdb8c3f87",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "deeca30c1cdc0d6d8fbc16abe03c359bd9c0f06beae1d08407d7912096bf753e",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "deeca30c1cdc0d6d8fbc16abe03c359bd9c0f06beae1d08407d7912096bf753e",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "corrected_without_delay": 0,
+        "corrected_with_delay": 0,
+        "rewrites_or_rereads": 0,
+        "total_corrected": 0,
+        "correction_algorithm_processed": 0,
+        "bytes_processed": 0,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p03-partial-vendor",
+   "page": "0x03",
+   "subpage": "0x00",
+   "description": "Read error counters: codes 2 and 6 plus vendor parameters 0x8001, 0x8002",
+   "read_may_clear": false,
+   "page_hex": "pages/p03-partial-vendor.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-partial-vendor.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-partial-vendor.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "0171e0a3dd475a7a336af7fad3074d4dcba3ab34710ed9f8d763699de4d2a7df",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "rewrites_or_rereads": 7,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p03-partial-vendor.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-partial-vendor.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "0171e0a3dd475a7a336af7fad3074d4dcba3ab34710ed9f8d763699de4d2a7df",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "rewrites_or_rereads": 7,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-partial-vendor.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p03-partial-vendor.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "b42f421834148287f6b3b187ad5685e45c4a5983a1c55df4f774b4d3014cf543",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "rewrites_or_rereads": 7,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p03-partial-vendor.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p03-partial-vendor.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "b42f421834148287f6b3b187ad5685e45c4a5983a1c55df4f774b4d3014cf543",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "ok",
+       "values": {
+        "rewrites_or_rereads": 7,
+        "total_uncorrected": 0
+       }
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p0c-cleaning-required",
+   "page": "0x0c",
+   "subpage": "0x00",
+   "description": "Sequential access: small byte counts, cleaning required",
+   "read_may_clear": false,
+   "page_hex": "pages/p0c-cleaning-required.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-cleaning-required.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-cleaning-required.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "dcd093b550e71f2ce7b8cace6776af8bd75ee3b4ae0e6a8b32f23244763612b9",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 1
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-cleaning-required.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-cleaning-required.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "6657be65711b7f7e0f17d7ceb0e92740542d14ec08d076ab7b22e948f8114358",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 2500000,
+        "bytes_written_media": 1250000,
+        "bytes_read_media": 3100000,
+        "bytes_transferred_read": 6200000,
+        "cleaning_action_required": 1
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-cleaning-required.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-cleaning-required.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9099768f00c68ffd6f33b02fc473e533d909fbbc32e069c34a71a42a52f82312",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 1
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-cleaning-required.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-cleaning-required.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "451c16123ae3c04496e0b5bb4de60c77048713ee6a5ec0a726b229970c661a19",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 2500000,
+        "bytes_written_media": 1250000,
+        "bytes_read_media": 3100000,
+        "bytes_transferred_read": 6200000,
+        "cleaning_action_required": 1
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p0c-cleaning-not-required",
+   "page": "0x0c",
+   "subpage": "0x00",
+   "description": "Sequential access: TB-scale counts, no cleaning",
+   "read_may_clear": false,
+   "page_hex": "pages/p0c-cleaning-not-required.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-cleaning-not-required.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-cleaning-not-required.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "6d4085e35dd686936301c725ec41e1d73e8761ae4710c651ab9133d32d1ab7d3",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-cleaning-not-required.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-cleaning-not-required.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "f9ecbea1312d4cb4d3708982eda58202cd1ee588c25a856004322fdf98e95510",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 12000000000000,
+        "bytes_written_media": 6000000000001,
+        "bytes_read_media": 999999999999,
+        "bytes_transferred_read": 1000000000000,
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-cleaning-not-required.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-cleaning-not-required.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "91ba1d3101789013e6e249397b6cb74df6a8062389f2cf2b0621dc6db1a25276",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-cleaning-not-required.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-cleaning-not-required.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "7f376e337bcef788ce0683fbfde81ecc537f6d81dbe31cd2ef42bb8a58818ff5",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 12000000000000,
+        "bytes_written_media": 6000000000001,
+        "bytes_read_media": 999999999999,
+        "bytes_transferred_read": 1000000000000,
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p0c-zero",
+   "page": "0x0c",
+   "subpage": "0x00",
+   "description": "Sequential access: all counters zero, no cleaning",
+   "read_may_clear": false,
+   "page_hex": "pages/p0c-zero.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "246d6c530c4c7d3444d067039dc9cb1cadb5f01175814abca0ed2237b9ac3875",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "86d2fb50544514de24184027c4e0fe13c6fbe52e3a040c8c9888c3127110e429",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 0,
+        "bytes_written_media": 0,
+        "bytes_read_media": 0,
+        "bytes_transferred_read": 0,
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-zero.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-zero.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9b646a86b98724cd03e0356c1ac66748a3299e39620b9a6457ccb74941ddb086",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-zero.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-zero.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "f54c3e071d03fe27bfa4693fb9ddc515e460054ca1e8a62b81bab59e92c71d0c",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_received_write": 0,
+        "bytes_written_media": 0,
+        "bytes_read_media": 0,
+        "bytes_transferred_read": 0,
+        "cleaning_action_required": 0
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p0c-partial",
+   "page": "0x0c",
+   "subpage": "0x00",
+   "description": "Sequential access: only parameter 1, no cleaning parameter",
+   "read_may_clear": false,
+   "page_hex": "pages/p0c-partial.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-partial.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-partial.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "89f16f59bcb851809dc22171875cb30407009a8f6d00914342041e0a6f30386b",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p0c-partial.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-partial.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "8c134dea1726440cde1867f6cc930b71b3cc14d51cf883759b07280544fc516a",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_written_media": 42000000000
+       }
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-partial.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p0c-partial.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "7a47c62a36e10d3ec6041d9aee1bcdb786cdcec85531df110cbcd45d8fd6ce72",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p0c-partial.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p0c-partial.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "612cff947c26f8eece1bdd1da305aa4c4f99bd6c7a1ad4c187fdf720563d9ef6",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "ok",
+       "values": {
+        "bytes_written_media": 42000000000
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p2e-clear",
+   "page": "0x2e",
+   "subpage": "0x00",
+   "description": "TapeAlert, all 64 flags clear (READ-MAY-CLEAR page)",
+   "read_may_clear": true,
+   "page_hex": "pages/p2e-clear.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p2e-clear.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p2e-clear.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "944e0acb3a71639b763bbdf7f759ceddad5652af3d876c96ab8e6ea30d8be321",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p2e-clear.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p2e-clear.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "944e0acb3a71639b763bbdf7f759ceddad5652af3d876c96ab8e6ea30d8be321",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p2e-clear.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p2e-clear.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "5125852ef0447701bba195fe3af32ed685b4a77ffd68bb95fe480bc9283a048c",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p2e-clear.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p2e-clear.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "5125852ef0447701bba195fe3af32ed685b4a77ffd68bb95fe480bc9283a048c",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p2e-flags-set",
+   "page": "0x2e",
+   "subpage": "0x00",
+   "description": "TapeAlert, flags 3, 4, 0x14 (clean now), 0x1e set (READ-MAY-CLEAR page)",
+   "read_may_clear": true,
+   "page_hex": "pages/p2e-flags-set.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p2e-flags-set.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p2e-flags-set.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "c7534bcfdbad8614d1aec3b767661cb9fb545e1325991c861474ee2dd9f86612",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p2e-flags-set.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p2e-flags-set.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "539ef4f5c184dbd9660303e1d7b08916be78e0024460c64472cc7005bc850ccc",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p2e-flags-set.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p2e-flags-set.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9aaf7593dc578ff3fcfcac4396a1633a282347f02689275354314c9e3e41b2b6",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p2e-flags-set.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p2e-flags-set.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "930b950a1400b3667e5c620bb7b83678270f557612efeba306e7f6b02098319d",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p31-lto",
+   "page": "0x31",
+   "subpage": "0x00",
+   "description": "LTO tape capacity (vendor page, --vendor=lto5), MB units",
+   "read_may_clear": false,
+   "page_hex": "pages/p31-lto.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p31-lto.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--vendor=lto5",
+      "--in=pages/p31-lto.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "229fe17b967cf977e92bab6153f5667e2d54b98d50361333b460de4dd7fb9730",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p31-lto.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--vendor=lto5",
+      "-v",
+      "--in=pages/p31-lto.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "229fe17b967cf977e92bab6153f5667e2d54b98d50361333b460de4dd7fb9730",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p31-lto.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--vendor=lto5",
+      "--in=pages/p31-lto.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "176d81efd911e16ea4384fdff6a88bb5a0a467f61873ec95a7769e2dc0e68994",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p31-lto.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--vendor=lto5",
+      "-v",
+      "--in=pages/p31-lto.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "176d81efd911e16ea4384fdff6a88bb5a0a467f61873ec95a7769e2dc0e68994",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "p17-volume-stats",
+   "page": "0x17",
+   "subpage": "0x00",
+   "description": "Volume statistics subpage 0 (SSC-4): page valid, counts, volume serial",
+   "read_may_clear": false,
+   "page_hex": "pages/p17-volume-stats.hex",
+   "outputs": [
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p17-volume-stats.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p17-volume-stats.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9a4e3675029801ce44e7e0c2ab6ade70440c16a8e495735a1972d50aa224339c",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.46",
+     "file": "sg3_utils-1.46/p17-volume-stats.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p17-volume-stats.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "9a4e3675029801ce44e7e0c2ab6ade70440c16a8e495735a1972d50aa224339c",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p17-volume-stats.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "--in=pages/p17-volume-stats.hex"
+     ],
+     "verbose": false,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "913b0da93b5aa0a8c1ba0dcd7a2727dd85eb98a3ed1a630cdbf01d8735ffe25a",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    },
+    {
+     "sg3_utils": "1.49",
+     "file": "sg3_utils-1.49/p17-volume-stats.v.txt",
+     "argv": [
+      "sg_logs",
+      "--pdt=1",
+      "-v",
+      "--in=pages/p17-volume-stats.hex"
+     ],
+     "verbose": true,
+     "exit_status": 0,
+     "stderr": "",
+     "sha256": "913b0da93b5aa0a8c1ba0dcd7a2727dd85eb98a3ed1a630cdbf01d8735ffe25a",
+     "expect": {
+      "error_counters.write": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "error_counters.read": {
+       "status": "parse_error",
+       "values": {}
+      },
+      "sequential_access": {
+       "status": "parse_error",
+       "values": {}
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

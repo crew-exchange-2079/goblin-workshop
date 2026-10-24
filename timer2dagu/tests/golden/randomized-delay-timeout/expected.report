@@ -1,0 +1,6 @@
+timer2dagu report: job.timer + job.service
+
+approximated (3):
+  job.timer RandomizedDelaySec=: became a first step sleeping 0..1800s; the delay shows as a step and counts towards the DAG's run time
+  job.timer RandomizedDelaySec=: timeout_sec includes the 1800s maximum random delay, which systemd does not count
+  job.timer Persistent=: catch-up is limited to a 7d window (systemd has no limit) and Dagu may queue more than one missed run; overlap_policy=latest keeps the newest

@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+WorkingDirectory=%h/src
+EnvironmentFile=%h/.config/job.env
+ExecStart=%h/bin/sync-notes

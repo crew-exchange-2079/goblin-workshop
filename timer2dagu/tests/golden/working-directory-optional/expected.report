@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:3 WorkingDirectory=: '-' (ignore a missing directory) has no Dagu equivalent; a missing directory fails the run

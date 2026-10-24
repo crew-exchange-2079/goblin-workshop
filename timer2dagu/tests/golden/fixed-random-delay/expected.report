@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (1):
+  job.timer:7 FixedRandomDelay=: the delay is drawn afresh on every run instead of being fixed per host
+
+approximated (1):
+  job.timer RandomizedDelaySec=: became a first step sleeping 0..600s; the delay shows as a step and counts towards the DAG's run time

@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:4 ExecStopPost=: ExecStopPost= became handler_on.exit; $SERVICE_RESULT, $EXIT_CODE and $EXIT_STATUS are not set, and TimeoutStopSec does not bound it

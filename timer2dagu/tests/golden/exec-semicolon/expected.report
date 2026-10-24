@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:3 ExecStart=: ';'-separated commands were joined with '&&' in one step

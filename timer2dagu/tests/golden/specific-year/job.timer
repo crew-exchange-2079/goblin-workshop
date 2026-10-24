@@ -1,0 +1,5 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=2027-01-01 00:00

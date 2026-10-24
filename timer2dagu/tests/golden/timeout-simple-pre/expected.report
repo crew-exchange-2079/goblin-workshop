@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:5 TimeoutStartSec=: for Type=simple the start timeout bounds only the start-up phase: each ExecStartPre step got timeout_sec=90 instead of one shared budget

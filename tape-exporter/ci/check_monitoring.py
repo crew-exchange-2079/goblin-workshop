@@ -19,8 +19,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 from lto_exporter.exporter import (COLLECTOR_STATUSES, COLLECTORS,  # noqa: E402
-                                   DIRECTIONS, HELP, METRIC_LABELS)
-from lto_exporter.parsers import PARAM_LABELS  # noqa: E402
+                                   DIRECTIONS, HELP, METRIC_LABELS, SIDES)
+from lto_exporter.parsers import PARAM_LABELS, SA_FIELDS  # noqa: E402
 
 DASHBOARD = os.path.join(ROOT, "monitoring", "grafana", "lto-exporter-dashboard.json")
 RULES = os.path.join(ROOT, "monitoring", "prometheus", "lto-exporter-alerts.yml")
@@ -30,6 +30,8 @@ KNOWN_VALUES = {
     "collector": set(COLLECTORS),
     "direction": set(DIRECTIONS),
     "parameter": set(PARAM_LABELS) - {"bytes_processed"},
+    "field": set(SA_FIELDS),
+    "side": set(SIDES),
 }
 # Grafana variables -> something PromQL accepts, for syntax checking.
 GRAFANA_VARS = {"$__rate_interval": "5m", "$instance": ".*", "$device": ".*"}

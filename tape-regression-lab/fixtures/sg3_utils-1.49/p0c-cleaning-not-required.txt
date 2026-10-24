@@ -1,0 +1,7 @@
+
+Sequential access device log page (ssc-3)
+  Data bytes received with WRITE operations: 12000 GB
+  Data bytes written to media by WRITE operations: 6000 GB
+  Data bytes read from media by READ operations: 999 GB
+  Data bytes transferred by READ operations: 1000 GB
+  Cleaning action not required (or completed)
