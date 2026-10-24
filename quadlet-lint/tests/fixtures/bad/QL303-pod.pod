@@ -1,0 +1,6 @@
+# expect: QL303
+[Pod]
+Network=host
+
+[Service]
+RestartSec=5

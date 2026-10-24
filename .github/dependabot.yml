@@ -19,6 +19,7 @@ updates:
       - /.github/release         # requirements.txt, hash-pinned release build toolchain
       - /ltfs-index-validator    # requirements.txt, hash-pinned
       - /tape-exporter           # pyproject.toml
+      - /quadlet-lint/ci         # pre-commit-requirements.txt, hash-pinned (CI hook test)
     schedule:
       interval: weekly
     cooldown:

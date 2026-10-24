@@ -1,0 +1,5 @@
+# Docs site build. Compile the hash-locked requirements.txt from this file with
+#   uv pip compile --generate-hashes --python-version 3.12 --exclude-newer <date two weeks ago> \
+#     docs/requirements.in -o docs/requirements.txt
+mkdocs==1.6.1
+mkdocs-material==9.7.7
