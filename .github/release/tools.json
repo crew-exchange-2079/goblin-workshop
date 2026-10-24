@@ -14,6 +14,12 @@
       "version": {"file": "tapefec.py", "regex": "^__version__ = \"([^\"]+)\"$"},
       "smoke": [["tapefec", "--version"]]
     },
+    "quadlet-lint": {
+      "path": "quadlet-lint",
+      "kind": "python",
+      "version": {"file": "quadlet_lint/__init__.py", "regex": "^__version__ = \"([^\"]+)\"$"},
+      "smoke": [["quadlet-lint", "--version"]]
+    },
     "rack-parts": {
       "path": "rack-parts",
       "kind": "source",

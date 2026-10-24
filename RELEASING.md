@@ -7,6 +7,7 @@ no repository-wide version.
 | --- | --- | --- |
 | `tape-exporter` | `lto_exporter/__init__.py` (`__version__`) | sdist + wheel (`lto_exporter-X.Y.Z…`) |
 | `tapefec` | `tapefec.py` (`__version__`) | sdist + wheel |
+| `quadlet-lint` | `quadlet_lint/__init__.py` (`__version__`) | sdist + wheel |
 | `rack-parts` | `rackparts/__init__.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
 | `ltfs-index-validator` | `validate.py` (`TOOL_VERSION`) | source bundle (`.tar.gz`, `.zip`) |
 | `hsm-sim` | `hsm_sim.py` (`__version__`) | source bundle (`.tar.gz`, `.zip`) |
@@ -36,7 +37,7 @@ a major bump (a minor bump while the major version is `0`).
 
 Versions are written in SemVer everywhere: in the source, the changelog and
 the tag. Python packaging uses [PEP 440](https://packaging.python.org/en/latest/specifications/version-specifiers/#normalization)
-instead, so the Python tools (`tape-exporter`, `tapefec`) may only use the
+instead, so the Python tools (`tape-exporter`, `tapefec`, `quadlet-lint`) may only use the
 pre-releases that map onto it with the same ordering, and their sdist/wheel
 file names and metadata carry the PEP 440 form:
 
