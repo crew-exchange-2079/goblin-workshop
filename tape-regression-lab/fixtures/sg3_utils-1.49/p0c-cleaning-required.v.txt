@@ -1,0 +1,8 @@
+
+Sequential access device log page (ssc-3)
+  Data bytes received with WRITE operations: 0 GB [2500000 bytes]
+  Data bytes written to media by WRITE operations: 0 GB [1250000 bytes]
+  Data bytes read from media by READ operations: 0 GB [3100000 bytes]
+  Data bytes transferred by READ operations: 0 GB [6200000 bytes]
+  Cleaning action required (or in progress)
+    cleaning value: 1

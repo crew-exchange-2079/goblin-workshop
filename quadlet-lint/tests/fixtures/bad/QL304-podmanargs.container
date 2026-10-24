@@ -1,0 +1,10 @@
+# expect: QL304
+[Container]
+Image=quay.io/example/app@sha256:4f9c2b6e1a7d3c8b5e0f9a2d6c4b1e8f7a3d5c9b2e6f1a4d8c7b3e5f0a9d2c6b
+ReadOnly=true
+HealthCmd=/bin/true
+PodmanArgs=-v /run/podman/podman.sock:/run/podman/podman.sock
+
+[Service]
+Restart=on-failure
+RestartSec=5s

@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service (user unit)
+
+approximated (2):
+  job.service:3 WorkingDirectory=: %h became ${HOME}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager (pass --home to fix it)
+  job.service:4 ExecStart=: %h became ${HOME}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager (pass --home to fix it)

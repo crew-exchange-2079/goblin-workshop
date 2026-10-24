@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service (user unit)
+
+approximated (4):
+  job.service:3 ExecStart=: %t became ${XDG_RUNTIME_DIR}, which Dagu or the shell reads from the Dagu process environment at run time, not from the user manager
+  job.service:3 ExecStart=: %S used systemd's default ~/.local/state; $XDG_* overrides are not consulted
+  job.service:3 ExecStart=: %C used systemd's default ~/.cache; $XDG_* overrides are not consulted
+  job.service:3 ExecStart=: %E used systemd's default ~/.config; $XDG_* overrides are not consulted

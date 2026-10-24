@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tapefec"
+dynamic = ["version"]
+description = "Streaming Reed-Solomon forward-error-correction framer for tar-to-tape pipelines (educational prototype)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{name = "goblin-workshop contributors"}]
+keywords = ["tape", "reed-solomon", "fec", "tar"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Archiving :: Backup",
+]
+dependencies = []
+
+[project.scripts]
+tapefec = "tapefec:main"
+
+[tool.setuptools]
+# The wheel installs the single tapefec module; tests, torture and bench
+# scripts ship in the sdist only (MANIFEST.in).
+py-modules = ["tapefec"]
+
+[tool.setuptools.dynamic]
+version = {attr = "tapefec.__version__"}

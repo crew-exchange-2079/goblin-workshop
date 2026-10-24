@@ -1,0 +1,9 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (3):
+  job.service:3 Wants=: unit dependencies have no Dagu equivalent
+  job.service:4 After=: unit dependencies have no Dagu equivalent
+  job.service:5 OnFailure=: unit dependencies have no Dagu equivalent
+
+ignored (1):
+  job.service:13 WantedBy=: [Install] does not apply: the timer starts the job

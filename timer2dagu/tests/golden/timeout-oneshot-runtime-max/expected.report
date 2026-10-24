@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+ignored (1):
+  job.service:5 RuntimeMaxSec=: RuntimeMaxSec= has no effect on Type=oneshot services (systemd bounds them with TimeoutStartSec=)

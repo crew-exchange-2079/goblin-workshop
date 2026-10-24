@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service (user unit)
+
+approximated (1):
+  job.service:3 WorkingDirectory=: '~' became ${HOME}, read from the Dagu process environment (pass --home to fix it)

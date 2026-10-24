@@ -1,0 +1,4 @@
+# The sdist carries the tests and design notes; the wheel installs only tapefec.py.
+include README.md LICENSE DESIGN.md CHANGELOG.md
+include test_tapefec.py torture.py bench.py torture-output.txt
+global-exclude __pycache__ *.py[cod]

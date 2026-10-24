@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.timer Persistent=: catch-up is limited to a 7d window (systemd has no limit) and Dagu may queue more than one missed run; overlap_policy=latest keeps the newest

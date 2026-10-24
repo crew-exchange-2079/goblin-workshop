@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.timer:5 OnUnitActiveSec=: '90min' became '@every 1h30m': systemd counts from the service's last activation, Dagu from its scheduler's own clock
