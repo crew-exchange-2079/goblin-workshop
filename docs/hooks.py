@@ -40,6 +40,7 @@ TOOLS = {
     "tape-regression-lab/mhvtl-scenarios": (TAPE, "Scripted mhvtl scenarios that drive an emulated LTO-8 drive through media states and assert on tape-exporter metrics."),
     "hsm-sim": (TAPE, "Deterministic command-line teaching simulator of a disk cache in front of a tape archive, driven by YAML scenarios; models no product."),
     "rack-parts": (OTHER, "Parametric OpenSCAD generator for printable rack parts (brackets, shelves, panels, PDU mounts)."),
+    "quadlet-lint": (OTHER, "Linter for Podman Quadlet .container/.volume/.network/.pod unit files: key validity per Podman release, pinning, health checks, risky options."),
     "timer2dagu": (OTHER, "Converts systemd .timer + .service pairs into Dagu DAG YAML and reports what could not be translated."),
     "examples": (EXAMPLES, "End-to-end walkthroughs that chain the workshop's tools on synthetic data; CI runs each one."),
 }
