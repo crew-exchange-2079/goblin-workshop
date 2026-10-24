@@ -1,0 +1,9 @@
+# Loads tape-exporter/monitoring/grafana/*.json unmodified (mounted read-only).
+apiVersion: 1
+providers:
+  - name: lto-exporter
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/lto-dashboards

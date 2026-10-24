@@ -236,3 +236,44 @@ jobs:
         with:
           node-version: "22"
       - run: node --test
+
+  examples:
+    # End-to-end walkthroughs in examples/ (synthetic data, real containers).
+    # Static checks first, then each live walkthrough is run, checked and torn
+    # down by run_walkthrough.py; a fresh recording is kept as evidence.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
+      - name: static checks (no Docker)
+        run: python -m pytest -q examples/tests
+      - name: tool versions
+        run: docker version --format 'docker {{.Server.Version}}' && docker compose version
+      - name: exporter -> Grafana
+        timeout-minutes: 12
+        run: |
+          mkdir -p "$RUNNER_TEMP/examples"
+          python examples/run_walkthrough.py exporter-to-grafana \
+            --cast "$RUNNER_TEMP/examples/exporter-to-grafana.cast"
+      - name: nothing left behind
+        if: always()
+        run: |
+          left="$(docker ps -aq --filter label=com.docker.compose.project)"
+          if [ -n "$left" ]; then docker ps -a; exit 1; fi
+          echo "no walkthrough containers remain"
+      - name: upload recordings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: examples-recordings
+          path: ${{ runner.temp }}/examples
+          retention-days: 14
+          if-no-files-found: warn
