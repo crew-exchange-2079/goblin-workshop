@@ -1,0 +1,8 @@
+[Service]
+Type=oneshot
+User=backup
+Group=backup
+Nice=10
+ProtectSystem=strict
+ExecStart=/usr/local/bin/job
+StandardOutput=journal

@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.timer: no schedule could be translated: the DAG runs only when started by hand
+  job.timer:5 OnCalendar=: '*-*~01 23:00': '~' (counting days from the end of the month) has no cron equivalent

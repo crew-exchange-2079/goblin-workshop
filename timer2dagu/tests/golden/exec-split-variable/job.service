@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/cleanup
+ExecStart=/usr/bin/rm -f $TARGETS
+ExecStopPost=-/usr/bin/logger $MSG

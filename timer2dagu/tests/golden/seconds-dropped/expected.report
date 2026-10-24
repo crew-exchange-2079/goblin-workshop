@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.timer:5 OnCalendar=: '*-*-* 03:00:30': seconds 30 dropped: cron fires at second 0 of the minute

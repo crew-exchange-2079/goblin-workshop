@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+Environment="PRICE=$5" "QUOTE=it's" 'PATHS=/a:/b'
+Environment=OVERRIDE=1 OVERRIDE=2
+ExecStart=/usr/local/bin/job
