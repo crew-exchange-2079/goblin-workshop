@@ -1,6 +1,6 @@
 # rack-parts
 
-Parametric OpenSCAD generator for seven printable rack parts:
+Parametric OpenSCAD generator for a small product line of twelve printable rack parts. A page with a preview of every example is in the docs site: [rack-parts catalog](../docs/rack-parts/index.md).
 
 - **`rack_bracket`** – an L-shaped rack ear: a front flange that screws to the rack rails and a side flange that screws to a device's side. One bracket per run (`hand: right|left`).
 - **`sff_cradle`** – a U-shaped cradle that holds a small-form-factor PC (or any box) flat or on its side, with a retention lip, and screws down to a shelf/panel through counterbored holes.
@@ -9,8 +9,13 @@ Parametric OpenSCAD generator for seven printable rack parts:
 - **`cable_panel`** – the same panel with horizontal stadium-shaped cable pass-throughs whose edges are rounded (quarter-round) on both faces.
 - **`rack_shelf`** – a shallow ventilated **10-inch** shelf: a front plate on your measured rail holes, a floor cantilevered behind it with side walls, an optional rear lip and rounded vent slots. The measured device must fit on it. 19-inch shelves are **refused (deferred)**, see [Rack shelf](#rack-shelf).
 - **`pdu_mount`** – an external, strap-retained bracket for a power strip / PDU body: the strip rests between two side walls and a strap over its top loops around a bar in each wall; screw ears fix the bracket to a surface. You print 2–4 identical brackets. Non-electrical accessory only, see [PDU mount](#pdu-mount).
+- **`keystone_panel`** – a 1U (or taller) 10-inch or 19-inch patch panel with rows of rectangular snap-in keystone cutouts. Behind each cutout the panel is pocketed down to the thickness your jack's latch grips. See [Keystone patch panel](#keystone-patch-panel).
+- **`rack_drawer`** – a **10-inch** drawer in two parts from one file: a housing (front plate on your rail holes, closed sleeve behind it) and a drawer box with a stop front, finger pull and optional dividers. 19-inch is refused (deferred). See [Rack drawer](#rack-drawer).
+- **`label_holder`** – a slide-in holder for a label card: back plate, pocket open at the top, front lips around a window, optional screw ears. See [Label holder](#label-holder).
+- **`cable_comb`** – a bar of round cable seats, each entered through a throat between two fingers (drop-in, or snap-in when the throat is narrower than the cable), optional screw holes. See [Cable comb](#cable-comb).
+- **`cartridge_holder`** – a grid of upright pockets sized from an item you measure (an SFP transceiver, a tape cartridge, ...), with optional push-out holes and finger notches. See [Cartridge holder](#cartridge-holder).
 
-You describe the part in a JSON file. The CLI validates it, writes a self-contained `.scad`, renders an STL with headless OpenSCAD, checks the mesh, and writes a `manifest.json`. Geometry and validation are deterministic, stdlib-only Python; no network or model/API service is used. The JSON schema is meant to be fillable by a person or an agent, but **every dimension must come from your own measurements**.
+You describe the part in a JSON file. The CLI validates it, writes a self-contained `.scad`, renders an STL with headless OpenSCAD, checks the mesh, runs the part's **spec check** (probes the mesh for every feature the numbers describe, see [Spec checks](#spec-checks)), exports a 3MF, optionally renders a PNG preview, and writes a `manifest.json`. Geometry and validation are deterministic, stdlib-only Python; no network or model/API service is used. The JSON schema is meant to be fillable by a person or an agent, but **every dimension must come from your own measurements**.
 
 > **What this is not.** Nothing here has been printed, load-tested or installed in a rack. There is no strength, load or fit rating, and none is implied. Example files are **synthetic** fixtures and do not describe any real rack or device.
 
@@ -32,9 +37,21 @@ python3 -m rackparts generate examples/shelf-10in-1u-synthetic.json   --out buil
 python3 -m rackparts generate examples/shelf-10in-2u-synthetic.json   --out build/shelf-10in-2u
 python3 -m rackparts generate examples/pdu-strip-synthetic.json       --out build/pdu-strip
 python3 -m rackparts generate examples/pdu-compact-synthetic.json     --out build/pdu-compact
+python3 -m rackparts generate examples/keystone-10in-1u-synthetic.json --out build/keystone-10in-1u
+python3 -m rackparts generate examples/keystone-19in-1u-synthetic.json --out build/keystone-19in-1u
+python3 -m rackparts generate examples/drawer-10in-2u-housing-synthetic.json --out build/drawer-housing
+python3 -m rackparts generate examples/drawer-10in-2u-drawer-synthetic.json  --out build/drawer-drawer
+python3 -m rackparts generate examples/label-card-ears-synthetic.json      --out build/label-card-ears
+python3 -m rackparts generate examples/label-strip-adhesive-synthetic.json --out build/label-strip
+python3 -m rackparts generate examples/comb-8x6mm-snap-synthetic.json   --out build/comb-8x6mm-snap
+python3 -m rackparts generate examples/comb-12x3mm-open-synthetic.json  --out build/comb-12x3mm-open
+python3 -m rackparts generate examples/cartridge-tape-5-synthetic.json  --out build/cartridge-tape-5
+python3 -m rackparts generate examples/cartridge-sfp-12-synthetic.json  --out build/cartridge-sfp-12
 ```
 
-The 19-inch panel examples are 482.6 mm wide and **do not fit a typical 220–256 mm build plate**; they set `allow_oversize_print: true` so the geometry can still be inspected. See [Build plate and full-width panels](#build-plate-and-full-width-panels).
+Add `--png` to any `generate` to also write a preview image.
+
+The 19-inch panel examples (blanking, cable and keystone) are 482.6 mm wide and **do not fit a typical 220–256 mm build plate**; they set `allow_oversize_print: true` so the geometry can still be inspected. See [Build plate and full-width panels](#build-plate-and-full-width-panels).
 
 Other commands:
 
@@ -43,11 +60,14 @@ python3 -m rackparts schema > my-schema.json          # JSON Schema (same as sch
 python3 -m rackparts validate my-part.json            # checks only, prints derived dimensions
 python3 -m rackparts generate my-part.json --out build/x --scad-only   # skip rendering
 python3 -m rackparts check-stl build/x/x.stl          # mesh checks on any STL
+python3 -m rackparts spec-check build/x               # re-run the part's spec probes on a generate output
+python3 -m rackparts generate my-part.json --out build/x --png       # also write an orthographic PNG preview
+python3 -m rackparts catalog --out build/catalog      # render every example; writes the docs catalog page + images
 python3 -m unittest discover -s tests -t .            # test suite (render tests skip without openscad)
-RACKPARTS_REQUIRE_RENDER=1 python3 -m unittest discover -s tests -t .   # as in CI: shelf/PDU render tests fail, not skip, without openscad+admesh
+RACKPARTS_REQUIRE_RENDER=1 python3 -m unittest discover -s tests -t .   # as in CI: shelf/PDU and product-line render tests fail, not skip, without openscad+admesh
 ```
 
-Exit codes: `0` ok, `2` input refused (including an `--out` path containing a newline or other control character), `3` output directory already exists / tool failure, `4` rendered mesh rejected.
+Exit codes: `0` ok, `2` input refused (including an `--out` path containing a newline or other control character), `3` output directory already exists / tool failure, `4` rendered mesh rejected (including a failed spec check, and `spec-check` on an output without an STL).
 
 ### Outputs
 
@@ -57,9 +77,11 @@ Exit codes: `0` ok, `2` input refused (including an `--out` path containing a ne
 |---|---|
 | `<name>.scad` | self-contained OpenSCAD source: module copied from `scad/` plus one call with the validated numbers |
 | `<name>.stl` | binary STL from `openscad --export-format binstl` |
-| `manifest.json` | input parameters and their sha256, derived dimensions, expected bounding box, tool versions (Python, OpenSCAD, ADMesh), file sha256s, mesh report (facets, measured bbox, volume, shells, open edges, admesh counters), and an *unvalidated* print-orientation suggestion. `rack_shelf` and `pdu_mount` manifests also carry `physical_use`: an `UNVALIDATED` status and the fit-coupon / owner-inspection steps required before use |
+| `<name>.3mf` | the same checked mesh as a 3MF package (unit millimetre, one object), written by rackparts itself (stdlib `zipfile`); it is read back and must reproduce the STL's `geometry_sha256` |
+| `<name>.png` | only with `--png`: 640 × 480 orthographic, flat-shaded preview of the checked mesh (stdlib rasteriser). A picture, not a measurement |
+| `manifest.json` | input parameters and their sha256, derived dimensions, expected bounding box, tool versions (Python, OpenSCAD, ADMesh), file sha256s, mesh report (facets, measured bbox, volume, shells, open edges, admesh counters), the `spec_check` report (every probe, its point, expected and found), and an *unvalidated* print-orientation suggestion. `rack_shelf`, `pdu_mount`, `keystone_panel` and `rack_drawer` manifests also carry `physical_use`: an `UNVALIDATED` status and the fit-coupon / owner-inspection steps required before use |
 
-OpenSCAD 2021.01 can write the same facets in a different order on different runs, so the STL file hash may change between identical runs; `mesh.geometry_sha256` is order-independent and stays the same.
+OpenSCAD 2021.01 can write the same facets in a different order on different runs, so the STL file hash may change between identical runs; `mesh.geometry_sha256` is order-independent and stays the same. The 3MF and PNG are written from the facets in that same canonical order, so their bytes are identical for identical geometry.
 
 ## What gets validated
 
@@ -75,8 +97,14 @@ Refusals happen before any file is written:
   - cable panel: the opening neck must be at least `cable_bundle_diameter_mm` tall (*obstructed cable path* otherwise); the edge radius is > 0.4 mm and at most half the panel thickness; height ≤ width; every opening, measured at its flared face size, stays inside the rail opening minus `rail_side_clearance_mm`, `min_wall_mm` clear of rail-screw heads, panel edges and ribs, and `min_wall_mm` from every other opening.
   - rack shelf: `19in` is refused outright (deferred); rail holes are checked as for panels; floor and side walls stay inside the rail opening minus `rail_side_clearance_mm` and clear of the rail screw shanks; floor/wall ≥ `min_wall_mm`; walls (and the device) may not rise above the front plate into the rack space above; the rear lip is no taller than the walls; the shelf must fit `rack_clear_depth_mm`; the measured device plus `fit_clearance_mm` must fit between the walls and in front of the lip (no overhang); vent slots keep `min_wall_mm` to each other, the walls, the front plate and the rear edge; the part must fit the build volume front-face-down or floor-down (refused otherwise, no oversize option).
   - PDU mount: base, walls and strap bar ≥ `min_wall_mm`; the strap slot (strap width/thickness + clearance) leaves `min_wall_mm` at the bracket ends and its bottom sits at the strip top + `fit_clearance_mm`, so the strap only touches the top face; every bracket span (with `keepout_margin_mm`) is clear of every declared top/side/base keepout rectangle along the strip (*keepout violated*), and at least `end_clearance_mm` from both strip ends (*cord/end clearance*); brackets do not overlap; at least two brackets; keepout rectangles must lie on their face; the screw head bears on the ear clear of the wall and the hole keeps `min_wall_mm`; width and height (including the strap looped over the bar) fit the stated space; the bracket fits the build volume base-down.
+  - keystone panel: rail holes, ribs and build plate as for panels; jack body ≥ cutout; latch thickness ≤ panel thickness; where the panel is pocketed, the pocket reaches ≥ 0.5 mm past the cutout's top/bottom edge (else the latch would hook full-thickness panel); pockets (or cutouts) keep `min_wall_mm` to each other, rows keep `min_wall_mm` vertically, and the row stays inside the rail opening minus `rail_side_clearance_mm`, `min_wall_mm` clear of screw heads, panel edges and ribs.
+  - rack drawer: `19in` is refused outright (deferred); rail holes as for panels; the sleeve stays inside the rail opening minus clearance, clear of the rail screw shanks, no taller than the front plate and within `rack_clear_depth_mm`; walls ≥ `min_wall_mm`; the drawer box is the opening minus `slide_clearance_mm` (sides, top, back) and must leave usable interior; the drawer front may not cover the rail screw heads or rise above the panel; the finger pull fits the front with `min_wall_mm` and is not blocked by a divider; compartments ≥ 2 × `min_wall_mm`; **both** the housing and the drawer must fit the build volume, whichever component is generated.
+  - label holder: the lips must still cover the card edge by ≥ `min_wall_mm` after it shifts by `card_clearance_mm` (*missing retention*); a window must remain; frame, back and front ≥ `min_wall_mm`; with ears, the screw head bears on the ear and the hole keeps `min_wall_mm`; size fits the stated space and the build plate.
+  - cable comb: throat ≤ seat; fingers between seats ≥ `min_wall_mm`; end margin and base ≥ `min_wall_mm`; screw holes keep `min_wall_mm` to the seats and the comb ends, and the head bears on the base bar; size fits the stated space and the plate. A throat narrower than the cable is allowed and reported as `snap_in_squeeze_mm`.
+  - cartridge holder: the pocket must be shallower than the item (*buried item*); floor, walls, dividers ≥ `min_wall_mm`; push-out holes leave a `min_wall_mm` ledge; finger notches leave `min_wall_mm` of the dividers and are no deeper than the pocket; outer size (and loaded height, items standing proud) fits the stated space; the build volume fits base-down.
   - Holes are modelled slightly larger than the stated diameter so the `facets`-sided polygon still clears it.
 - **Rendered mesh.** OpenSCAD warnings/errors are fatal. The STL must be non-empty, have no zero-area facets, be a closed and consistently oriented manifold (every edge used exactly twice, in opposite directions), have positive volume, be a single connected shell, and its measured bounding box must equal the validator's prediction within 0.01 mm. ADMesh (read-only run) must report one part and zero repairs.
+- **Spec check (every part).** See [Spec checks](#spec-checks): the rendered mesh must have every hole, slot, pocket, ledge, wall and open device/cable/card space where the validated numbers put it; a failure rejects the mesh (exit 4).
 - **Rounded edges (cable panel).** A test reads the rendered STL and confirms the opening is `cut_h + 2 × radius` tall at both faces, `cut_h` at the neck, and on the quarter circle in between (each of the 6 straight steps per edge ends exactly on the arc; between the ends the chord removes slightly more material than a true round).
 - **Not checked:** general triangle-triangle self-intersection (CSG through CGAL is not expected to produce it, and ADMesh is a second opinion, but no dedicated test exists), wall thickness of the printed result, strength, and real-world fit.
 
@@ -124,6 +152,10 @@ Tolerances (`*_clearance_*`, `fit_clearance_mm`, `rail_side_clearance_mm`, `devi
 | mesh is closed, oriented, one shell, bbox as designed | yes (own checker + ADMesh) | – |
 | shelf: device footprint fits between walls, in front of the lip, inside the shelf's own panel height | yes, against the device size you enter | the real device, its cables and airflow |
 | PDU mount: brackets/straps clear of outlets, switch, vents, cord exit | yes, along the strip, against the keepouts and end clearance you enter | every outlet, plug body, switch, vent and cord on the real strip |
+| keystone panel: cutout and latch thickness match the jack | consistency with the sizes you enter | your jack's real cutout and latch grip: print a one-cutout coupon |
+| drawer: box fits the housing with `slide_clearance_mm`, front clear of screw heads | yes (in the model, and probed in a test against the rendered housing) | whether it slides on your printer; nothing stops it being pulled right out |
+| label, comb, cartridge holder: card retained, cable seat size, item stands proud | yes, against the card/cable/item sizes you enter | the real card, cable jacket (snap-in deforms it) and items |
+| rendered mesh has the features the numbers describe (spec check) | yes, by point probes | – |
 | strength, load, stiffness, heat, fire, creep, electrical safety | **no** – no rating of any kind | whether a printed part is appropriate at all |
 
 ## Switch cradle and panels: measuring
@@ -214,6 +246,69 @@ A 19-inch panel is 482.6 mm wide. Few hobby printers can print that in one piece
 - Mounting surface, screws and orientation (e.g. upside down under a desk) are your choice and responsibility; no holding force is rated, and straps creep.
 - **Fit coupon:** print one bracket, seat the unplugged strip and strap it, check nothing is covered, squeezed or bent, then print the rest.
 
+## Keystone patch panel
+
+```
+ front view (one jack)                    section through a jack (y grows into the rack)
+ +-----------------------------------+    front face        back face
+ |        .---------------.          |      |  seat_t  |  pocket (jack body + clearance)
+ |        |   cutout      |  pocket  |      |==========|<---- latch hooks behind this ledge
+ |        |  w x h        |  (back)  |      |  cutout  |
+ |        '---------------'          |      |==========|
+ +-----------------------------------+      |          |  full panel_thickness_mm elsewhere
+```
+
+- The jack's latch needs a specific panel thickness (`jack_latch_panel_thickness_mm`); a stiff panel is usually thicker. Where the latch thickness is less than `panel_thickness_mm`, a pocket the size of the jack body (`jack_body_*_mm` + `jack_clearance_mm`) is cut from the back down to it. Set the latch thickness equal to the panel thickness for no pockets.
+- Keystone jacks differ by maker. There is no dimension built in: the examples use invented values near commonly quoted sizes. Measure your jack or take its datasheet cutout, then print a **fit coupon** (cut one cutout out in your slicer) and adjust before printing a full panel.
+- Rows: `keystone_row_z_mm` lists row centre heights (1U usually one row; two rows need a 2U panel). Jacks in a row are centred across the rack at `keystone_pitch_mm`.
+- 19-inch panels are generated only with `allow_oversize_print: true`, as for the blanking panel.
+
+## Rack drawer
+
+```
+ side view (housing, section)                 drawer (separate print, base down)
+   front plate                                   front  +----------------------+
+   |   sleeve roof                               |  ( )  |  dividers  |        | <- open top
+   |==========================|  back wall      |  pull |            |        |
+   |  opening -> drawer space ||                 |       +----------------------+ floor
+   |==========================|                  front_overlap_mm past the opening sides/top
+   |   sleeve floor                              stops it against the housing front plate
+```
+
+- **10-inch only**, for the same reason as the shelf: a 19-inch housing is refused (deferred).
+- One input file, two prints: set `component` to `housing`, generate, then set it to `drawer` (and change `name`), generate again. Every run validates both against each other, so the drawer always matches that housing.
+- The drawer box is the sleeve opening minus `slide_clearance_mm` on each side, on top and at the back; the drawer front stops against the housing's front plate. There is **no pull-out stop**: the drawer comes right out. The housing hangs from the front rail screws only, like the shelf; there is no load rating.
+- Printing: the drawer prints base down. The housing is a closed tube: floor down, its roof is a long bridge; front face down, its back wall is. **Either way it needs supports** (or reliable long bridging); `derived.housing_printable_orientations` lists what fits your build volume.
+- **Fit coupon:** a `blanking_panel` with the same `rail_*`/`panel_*` values first, then check the drawer slides.
+
+## Label holder
+
+- Measure the card (or folded label strip) you will insert: width, height, thickness. The pocket adds `card_clearance_mm`; the front lips cover `lip_overlap_mm` of the card's left, right and bottom edges, and must still cover at least `min_wall_mm` when the card shifts by the clearance. The card slides in from the open top.
+- `ear_width_mm: 0` gives a plain holder for adhesive; otherwise a screw ear on each side, hole centred.
+- Print back face down; the lips overhang the pocket by `card_clearance_mm + lip_overlap_mm`.
+
+## Cable comb
+
+- `cable_diameter_mm` is the largest jacket you will seat; each seat is that plus `cable_clearance_mm`. With `entry_throat_mm` ≥ the cable diameter cables drop in; narrower, they are pressed past the throat (`derived.snap_in_squeeze_mm`) and the jacket deforms. Do not snap-in fibre, thin coax or anything with a minimum bend/crush spec.
+- Screw holes (optional) run through the base bar at `±mount_hole_spacing_mm / 2`; measure the holes you will screw into.
+- Prints back face down with no overhangs.
+
+## Cartridge holder
+
+- Measure the item as it will stand: width across the holder, thickness front to back, height. `pocket_depth_mm` must be less than the height so part of each item stands proud to grip; `finger_notch_*` cut a notch into the wall in front of each pocket; `floor_hole_diameter_mm` adds a hole under each pocket to push the item up.
+- The examples (an LTO-sized cartridge and an SFP-sized module) use **synthetic** sizes; they are not taken from the LTO or SFP MSA documents. Measure yours.
+- Prints base down with no overhangs.
+
+## Spec checks
+
+After the mesh checks pass, `generate` runs the part's spec checker (`rackparts/speccheck.py`, one per part; `rack_drawer` has one per component). It turns the validated geometry into probes: points that must be **material** (a stop tab, a latch ledge, a strap bar, a divider, a lip) or **empty** (every rail/screw hole, slot, vent, cutout, pocket, the device/switch/strip/drawer/card/cable/item space). Each probe is answered by ray casting against the rendered STL (three axis rays, majority vote, points set 0.3 mm inside the feature), so a SCAD module that drops a cut or a feature is caught even when the mesh is closed and its bounding box is right. The report (probe count, each point, expected and found) is in `manifest.json` as `spec_check`; any failed probe rejects the output (exit 4). `python3 -m rackparts spec-check DIR` re-runs it on an existing output.
+
+The tests also run every checker against a mesh rendered *without* one feature (keystone pockets, drawer pull) and require exactly those probes to fail. A spec check shows that the features exist where specified. It does not show fit or strength.
+
+## Catalog (docs site)
+
+[`docs/rack-parts/index.md`](../docs/rack-parts/index.md) is the catalog page of the repository's docs site (MkDocs, see the root README; the page is listed in `mkdocs.yml`'s nav). `python3 -m rackparts catalog --out build/catalog` renders every example and writes the page plus `img/<example>.png`; copy `build/catalog/` to `docs/rack-parts/` when parts or examples change. A unit test requires the committed page to match `catalog.markdown()`, and CI runs `python3 -m rackparts catalog --check ../docs/rack-parts`, which rebuilds it and fails if the page text or any preview's pixels differ (pixels, not file bytes: zlib builds may compress identical pixels differently).
+
 ## Slicer starting settings (untested)
 
 > These are **starting points only. None of them has been tried on a printer.** Print a fit coupon first: e.g. in your slicer, cut the model to a thin strip that contains one rail hole and one pass-through (panel) or one stop tab and one shelf hole (cradle), check it against the real rack/switch/screws, then adjust the `tolerance` parameters. There is no load, heat or fire certification.
@@ -239,6 +334,9 @@ The manifest includes a suggestion; none of it has been tested on a printer.
 - Panels: front face down; stiffeners point up and need no supports.
 - Rack shelf: floor down or front face down, whichever fits your stated build volume (the manifest lists both and their overhangs). Front face down turns a rear lip into a long unsupported bridge; see [Rack shelf](#rack-shelf).
 - PDU mount: base down as modelled; strap-slot tops are short bridges.
+- Keystone panel: front face down, as for panels; the back pockets open upward.
+- Rack drawer: drawer base down; housing floor down or front face down, both with a long bridge that needs supports (see [Rack drawer](#rack-drawer)).
+- Label holder and cable comb: back face down. Cartridge holder: base down. None of these three has more than a short overhang.
 
 Practical starting slicer settings for all parts are in [Slicer starting settings (untested)](#slicer-starting-settings-untested).
 
@@ -430,6 +528,108 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
 | `build_plate_z_mm` | measured | 20 – 1000 | Usable build height. |
 
+**`keystone_panel`: the sixteen panel fields from `rack_width_class` to `allow_oversize_print` in the panel table above, plus**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `keystone_panel` | Selects a rack patch panel with rows of snap-in keystone jack cutouts, thinned from the back to the thickness the jack latch grips. |
+| `keystone_count` | chosen | 1 – 24 | Jacks per row, centred across the rack. |
+| `keystone_pitch_mm` | chosen | 10 – 60 | Centre-to-centre spacing of jacks in a row. |
+| `keystone_row_z_mm` | chosen | 1–8 values, each 0 – 400 | Centre height of each row of jacks above the panel bottom edge. 1-8 values. |
+| `keystone_cutout_width_mm` | measured | 8 – 30 | Width of the opening the jack snaps into (from your jack's datasheet or a test print); across the rack. |
+| `keystone_cutout_height_mm` | measured | 8 – 30 | Height of that opening, in the direction the latch flexes. |
+| `jack_latch_panel_thickness_mm` | measured | >0.4 – 6 | Panel thickness the jack's latch is made to grip. Where it is less than panel_thickness_mm the panel is pocketed from the back around each cutout to this thickness. |
+| `jack_body_width_mm` | measured | 8 – 40 | Width of the jack body behind the panel (including the latch), at least the cutout width. |
+| `jack_body_height_mm` | measured | 8 – 50 | Height of the jack body behind the panel (including the latch), at least the cutout height. |
+| `jack_clearance_mm` | tolerance | 0 – 3 | Gap added on every side of the jack body to size the back pocket. |
+
+**`rack_drawer`: the eleven fields from `rack_width_class` to `rail_side_clearance_mm` in the panel table above, plus**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `rack_drawer` | Selects a rack drawer: a housing (front plate on measured rail holes with a closed sleeve behind it) and a drawer box that slides in. Only 10-inch is generated; 19-inch is refused (deferred). |
+| `component` | chosen | `housing` \| `drawer` | Which of the two parts this run writes. Both are validated against each other on every run: keep the rest of the file identical for the housing and the drawer. |
+| `rack_clear_depth_mm` | measured | 20 – 1000 | Free depth behind the panel front face (to rear rails, door, wall or cables) at the drawer's height. |
+| `sleeve_depth_mm` | chosen | 40 – 250 | Depth of the housing sleeve behind the front plate, including its back wall. The housing hangs only from the front rail screws; keep it shallow. |
+| `sleeve_height_mm` | chosen | 15 – 400 | Outer height of the sleeve, from the front plate's bottom edge. At most panel_height_mm. |
+| `housing_wall_thickness_mm` | chosen | >1 – 10 | Thickness of the sleeve floor, side walls, roof and back wall. |
+| `drawer_wall_thickness_mm` | chosen | >1 – 10 | Thickness of the drawer floor, side and back walls and dividers. |
+| `drawer_front_thickness_mm` | chosen | >1 – 10 | Thickness of the drawer front. |
+| `slide_clearance_mm` | tolerance | >0.1 – 3 | Gap between drawer and sleeve on each side, above the drawer, and between the drawer back and the sleeve back wall. |
+| `front_overlap_mm` | chosen | 0 – 30 | How far the drawer front reaches past the opening to the sides and above it; it stops against the housing front plate (0 = flush front, the sleeve back wall is the only stop). |
+| `pull_width_mm` | chosen | 0 – 150 | Width of the finger-pull slot through the drawer front (0 = none). |
+| `pull_height_mm` | chosen | 4 – 40 | Height of the finger-pull slot (its round ends' diameter); ignored when pull_width_mm is 0, but still required. |
+| `divider_count` | chosen | 0 – 8 | Dividers splitting the drawer into equal compartments across its width. |
+| `build_plate_z_mm` | measured | 20 – 1000 | Usable build height. |
+
+**`label_holder`**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `label_holder` | Selects a slide-in label holder: a back plate, a card pocket open at the top and a front frame whose lips hold the card's sides and bottom edge, with optional screw ears. |
+| `card_width_mm` | measured | 10 – 300 | Width of the label card or strip you will insert. |
+| `card_height_mm` | measured | 5 – 150 | Height of the card. |
+| `card_thickness_mm` | measured | >0.05 – 5 | Thickness of the card (several sheets if laminated). |
+| `card_clearance_mm` | tolerance | 0 – 2 | Gap added on each side of the card, above its thickness and below its bottom edge. |
+| `lip_overlap_mm` | chosen | 0.5 – 20 | How far the front frame covers the card's side and bottom edges. Must exceed card_clearance_mm by at least min_wall_mm so the card cannot fall out of the window. |
+| `frame_border_mm` | chosen | >0.4 – 20 | Frame material outside the card pocket on the left, right and bottom (at least min_wall_mm). |
+| `back_thickness_mm` | chosen | >0.4 – 10 | Back plate (and ear) thickness. |
+| `front_thickness_mm` | chosen | >0.4 – 5 | Front frame (lip) thickness. |
+| `ear_width_mm` | chosen | 0 – 40 | Width of a screw ear on each side (0 = no ears, e.g. for adhesive). |
+| `mount_screw_clearance_diameter_mm` | tolerance | >1 – 10 | Through-hole diameter for the mounting screw, one per ear (ignored without ears, but still required). |
+| `mount_screw_head_diameter_mm` | measured | >1 – 20 | Mounting screw head diameter; it must bear on the ear. |
+| `max_overall_width_mm` | measured | 10 – 600 | Available width where the holder goes. |
+| `max_overall_height_mm` | measured | 5 – 300 | Available height where the holder goes. |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+
+**`cable_comb`**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `cable_comb` | Selects a cable comb: a base bar with a row of round cable seats, each reached through an entry throat between two fingers, and optional screw holes through the bar. |
+| `cable_diameter_mm` | measured | 1 – 30 | Outer diameter of the cables (largest one, over the jacket). |
+| `cable_clearance_mm` | tolerance | 0 – 3 | Added to cable_diameter_mm to size each round seat. |
+| `slot_count` | chosen | 1 – 48 | Number of cable seats. |
+| `slot_pitch_mm` | chosen | 3 – 60 | Centre-to-centre spacing of the seats. |
+| `entry_throat_mm` | chosen | >0.4 – 30 | Width of the entry above each seat. At least cable_diameter_mm: cables drop in freely. Narrower: cables are pressed in and the jacket deforms (avoid for fibre and thin coax). |
+| `finger_length_mm` | chosen | 0 – 40 | Height of the fingers above the top of the seats. |
+| `base_height_mm` | chosen | 2 – 60 | Height of the solid bar below the seats. |
+| `comb_thickness_mm` | chosen | >1 – 30 | Thickness of the comb (along the cables). |
+| `end_margin_mm` | chosen | 0 – 100 | Material beyond the outermost seats at each end (at least min_wall_mm). |
+| `mount_hole_spacing_mm` | measured | 0 – 600 | Centre distance of the two screw holes through the base bar, matching holes you measured (0 = no holes). |
+| `mount_screw_clearance_diameter_mm` | tolerance | >1 – 10 | Through-hole diameter for the mounting screws (ignored without holes, but still required). |
+| `mount_screw_head_diameter_mm` | measured | >1 – 20 | Mounting screw head diameter; it must bear on the base bar. |
+| `max_overall_width_mm` | measured | 10 – 600 | Available length for the comb. |
+| `max_overall_height_mm` | measured | 5 – 300 | Available height for the comb. |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+
+**`cartridge_holder`**
+
+| parameter | kind | allowed | meaning |
+|---|---|---|---|
+| `part` | label | `cartridge_holder` | Selects a holder with a grid of upright pockets for small modules or media (SFP transceivers, tape cartridges, ...), sized from your measurements, with optional push-out holes and finger notches. |
+| `item_width_mm` | measured | 3 – 200 | Item width across the holder (x). |
+| `item_thickness_mm` | measured | 3 – 200 | Item thickness front to back (y). |
+| `item_height_mm` | measured | 10 – 300 | Item height as it stands in the pocket. |
+| `item_clearance_mm` | tolerance | 0 – 3 | Gap added on each side of the item in its pocket. |
+| `columns` | chosen | 1 – 20 | Pockets across (x). |
+| `rows` | chosen | 1 – 10 | Pockets front to back (y). |
+| `pocket_depth_mm` | chosen | 3 – 300 | How deep each item sits. Must be less than item_height_mm so part of each item stands proud to grip. |
+| `floor_thickness_mm` | chosen | >1 – 15 | Floor thickness under the pockets. |
+| `wall_thickness_mm` | chosen | >1 – 15 | Outer wall thickness. |
+| `divider_thickness_mm` | chosen | >0.4 – 15 | Thickness of the walls between pockets. |
+| `floor_hole_diameter_mm` | chosen | 0 – 100 | Push-out hole through the floor under each pocket (0 = none). |
+| `finger_notch_width_mm` | chosen | 0 – 100 | Width of a notch cut down into the wall in front of each pocket (0 = none). |
+| `finger_notch_depth_mm` | chosen | 0 – 300 | Depth of that notch from the top; at most pocket_depth_mm (ignored when the width is 0, but still required). |
+| `max_overall_width_mm` | measured | 10 – 700 | Available width. |
+| `max_overall_depth_mm` | measured | 10 – 700 | Available depth. |
+| `max_overall_height_mm` | measured | 5 – 600 | Available height, including the items standing in it. |
+| `build_plate_x_mm` | measured | 50 – 1000 | Usable build plate size, first axis (measure your printer). |
+| `build_plate_y_mm` | measured | 50 – 1000 | Usable build plate size, second axis. |
+| `build_plate_z_mm` | measured | 20 – 1000 | Usable build height. |
+
 ## Example fixtures (synthetic)
 
 | file | what it is |
@@ -446,7 +646,17 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 | `examples/shelf-10in-2u-synthetic.json` | 10-inch 2U shelf, 220 mm deep, no rear lip, 10 wider vent slots, made-up 150 × 210 × 70 mm device, 300 mm build volume |
 | `examples/pdu-strip-synthetic.json` | two brackets for a made-up 300 × 55 × 40 mm strip with two outlet groups and a switch on top, a side vent, feet underneath; brackets sit at the left end and between the outlet groups |
 | `examples/pdu-compact-synthetic.json` | two brackets at the ends of a made-up 160 × 40 × 30 mm strip with one outlet block; thinner strap, smaller screws |
-| `tests/fixtures/*.json` | inputs that must be refused (19-inch shelf (deferred), shelf larger than the build volume, device taller than the shelf's panel, PDU bracket over an outlet keepout, PDU bracket too close to the cord end, zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN, stop tab over a port, missing retention, vent window against a strap slot, oversize panel without the flag, overlapping rail holes, overlapping pass-throughs, edge radius over half the thickness, cable bundle larger than the opening) |
+| `examples/keystone-10in-1u-synthetic.json` | 10-inch 1U panel, 10 jacks at 20 mm pitch, invented 14.9 × 19.4 mm cutout and 1.6 mm latch thickness (pocketed from a 4 mm panel); same invented rack values as the 10-inch panels |
+| `examples/keystone-19in-1u-synthetic.json` | 19-inch 1U panel, 20 jacks; **does not fit** the stated plate (`allow_oversize_print: true`) |
+| `examples/drawer-10in-2u-housing-synthetic.json` | 10-inch 2U drawer housing, 160 mm sleeve; same invented rack values |
+| `examples/drawer-10in-2u-drawer-synthetic.json` | the drawer for that housing (identical file except `component` and `name`): 0.6 mm slide clearance, 60 mm finger pull, 2 dividers |
+| `examples/label-card-ears-synthetic.json` | holder for a made-up 60 × 20 × 0.5 mm card with M3-sized screw ears |
+| `examples/label-strip-adhesive-synthetic.json` | 200 mm long holder for a made-up 12 mm label strip, no ears (adhesive) |
+| `examples/comb-8x6mm-snap-synthetic.json` | 8 seats for made-up 6.2 mm cables, 5.6 mm snap-in throat, two screw holes |
+| `examples/comb-12x3mm-open-synthetic.json` | 12 drop-in seats for made-up 3 mm cables, no holes |
+| `examples/cartridge-tape-5-synthetic.json` | 5 pockets for a made-up 102 × 21.5 × 105.4 mm (LTO-sized) cartridge with finger notches |
+| `examples/cartridge-sfp-12-synthetic.json` | 6 × 2 pockets for a made-up 14 × 9 × 57 mm (SFP-sized) module, push-out holes and notches |
+| `tests/fixtures/*.json` | inputs that must be refused (19-inch shelf (deferred), shelf larger than the build volume, device taller than the shelf's panel, PDU bracket over an outlet keepout, PDU bracket too close to the cord end, keystone pockets overlapping, latch thicker than the panel, 19-inch drawer (deferred), drawer front over the rail screws, label without retention, comb fingers too thin, cartridge buried in its pocket, zero thickness / out-of-range size, bracket too wide for the rail opening, counterbore too deep, lip pressing on the device, NaN, stop tab over a port, missing retention, vent window against a strap slot, oversize panel without the flag, overlapping rail holes, overlapping pass-throughs, edge radius over half the thickness, cable bundle larger than the opening) |
 
 "Synthetic" means the numbers were made up (or, for 19-inch rails, taken from standard summaries) to exercise the generator. A **real fit** needs your own measurements of your rack, switch, screws, straps and printer, plus a printed fit coupon.
 
@@ -454,15 +664,21 @@ Bracket frame: x = 0 at the device-side face of the side flange (+x toward the r
 
 - No strength, load, temperature or fire rating; no claim that a printed part can safely carry any device. Rack-mounted equipment can be heavy; use the device's own rack kit or a proper shelf when in doubt.
 - No physical print, rack installation, or hardware test has been done. Fit depends on your measurements, printer, material and slicer.
-- Seven part shapes. No cage-nut, threaded-insert or rear-support features. Panels are single pieces: there is no split/joint option, so 19-inch panels need a large printer or another process (see above).
+- Twelve part shapes. No cage-nut, threaded-insert or rear-support features. Panels are single pieces: there is no split/joint option, so 19-inch panels need a large printer or another process (see above).
 - Switch cradle: port/vent clearance is checked only against the rectangles you enter, not against cable bend radius or plug bodies; the strap is your own hardware; insertion is from above.
 - Cable panel: the rounded edge is a 6-step polygonal approximation of a quarter round (each step ends on the arc); there are no brush strips or covers.
 - Rack shelf: 10-inch only; 19-inch is deferred (no bolt-together joint). Cantilevered from the front rail screws only, with no rear support, no load rating and no deflection estimate. Vent slots are not an airflow or thermal design; the device's own cooling requirements are yours to check.
 - PDU mount: keepout and cord clearance are checked only along the strip against what you enter; the tool cannot know where your outlets, plug bodies or cords really are. Holding force, strap creep, vibration and fire behaviour of the printed part are unknown. Not an electrical product; it must not be used to modify, cover or support a strip in a way its maker does not allow.
+- Keystone panel: the cutout, latch thickness and body size are yours to measure; no keystone standard is built in and nothing is claimed about any jack. Not a cabling or electrical product.
+- Rack drawer: 10-inch only (19-inch deferred). Cantilevered from the front rail screws, no load rating, no pull-out stop; the housing needs supports to print.
+- Cable comb: snap-in throats deform the cable jacket; no bend-radius or crush check.
+- Cartridge holder: holds items by gravity in pockets; no ESD, dust or media-storage claim (tape media has its own storage conditions).
+- Spec checks probe points; they prove features exist where specified, not that they are the right size for your hardware.
+- PNG previews are pictures only; use the STL/3MF and manifest for dimensions.
 - Starting slicer settings are untested suggestions.
 - Self-intersection is not tested directly (see above).
 - Not every bad idea is detectable: the validator checks the relationships listed above, nothing more.
 
 ## License and provenance
 
-MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above. The switch cradle, blanking panel, cable panel, rack shelf and PDU mount are generic CAD written for this repository under the same MIT license; they are not derived from any vendor's design, and no switch, power-strip or rack vendor's dimensions are included.
+MIT — see [`LICENSE`](LICENSE). All code, SCAD modules and example data in this directory were written for this repository (with AI assistance via Claude Code) and contain no third-party geometry, vendor drawings, or measurements of any real rack or device. Standard dimensions are cited from public summaries of EIA/ECIA-310-E and IEC 60297-3-100 as noted above. The switch cradle, blanking panel, cable panel, rack shelf, PDU mount, keystone panel, rack drawer, label holder, cable comb and cartridge holder are generic CAD written for this repository under the same MIT license; they are not derived from any vendor's design, and no switch, power-strip, keystone-jack, transceiver, tape-media or rack vendor's dimensions are included.
