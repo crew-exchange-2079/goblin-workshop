@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.timer RandomizedDelaySec=: became a first step sleeping 0..3600s; the delay shows as a step and counts towards the DAG's run time

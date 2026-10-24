@@ -1,0 +1,8 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=daily
+AccuracySec=1s
+WakeSystem=true
+RemainAfterElapse=no

@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+Environment=LANG=C.UTF-8 "GREETING=hello world"
+Environment=MODE=fast
+ExecStart=/usr/local/bin/job --mode ${MODE}

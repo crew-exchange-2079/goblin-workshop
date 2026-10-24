@@ -1,0 +1,7 @@
+Sequential access device page (ssc-3)
+  Data bytes received with WRITE commands: 12000 GB [12000000000000 bytes]
+  Data bytes written to media by WRITE commands: 6000 GB [6000000000001 bytes]
+  Data bytes read from media by READ commands: 999 GB [999999999999 bytes]
+  Data bytes transferred by READ commands: 1000 GB [1000000000000 bytes]
+  Cleaning action not required (or completed)
+    cleaning value: 0

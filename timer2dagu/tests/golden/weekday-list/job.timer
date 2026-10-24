@@ -1,0 +1,5 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=Mon,Wed,Fri *-*-* 18:30:00

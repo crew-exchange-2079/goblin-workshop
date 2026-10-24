@@ -1,0 +1,10 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (4):
+  job.service:3 User=: Dagu runs steps as the Dagu process user; run the DAG under that account or wrap the commands (e.g. with runuser)
+  job.service:4 Group=: Dagu runs steps as the Dagu process user; run the DAG under that account or wrap the commands (e.g. with runuser)
+  job.service:5 Nice=: no Dagu equivalent
+  job.service:6 ProtectSystem=: no Dagu equivalent
+
+ignored (1):
+  job.service:8 StandardOutput=: Dagu captures step output in its own logs

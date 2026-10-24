@@ -8,6 +8,11 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 - [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
+- [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
+
+## Examples
+
+[`examples/`](examples/) has end-to-end walkthroughs that chain these tools on synthetic data. Each one runs in containers, comes with a short recording, and is run in CI. The first is [exporter → Prometheus → Grafana](examples/exporter-to-grafana/).
 
 ## Tape tools
 
@@ -29,12 +34,16 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
 (cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
+(cd tape-regression-lab/fixtures && python -m pytest -q test_corpus.py)   # every tape-exporter parser vs the sg_logs corpus
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
+(cd timer2dagu && python -m pytest -q tests)
 python -m pytest -q .github/release              # release tooling (from the repo root)
 python .github/release/release.py check --base origin/main   # changelog/version check, as in changelog.yml
 (cd tape-library-playground && node --test)      # Node 22, no Python
 (cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
+python -m pytest -q examples/tests               # examples/: static checks (from the repo root)
+python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, needs Docker + compose
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.

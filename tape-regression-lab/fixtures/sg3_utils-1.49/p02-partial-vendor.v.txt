@@ -1,0 +1,6 @@
+
+Write error counter log page  [0x2]
+  Errors corrected without substantial delay = 5
+  Total bytes processed = 1073741825 [1 GB]
+  Total uncorrected errors = 2
+  Reserved or vendor specific [0x8000] = 99

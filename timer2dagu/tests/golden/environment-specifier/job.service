@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+Environment=CACHE=%C/job UNIT=%n
+ExecStart=/usr/local/bin/job

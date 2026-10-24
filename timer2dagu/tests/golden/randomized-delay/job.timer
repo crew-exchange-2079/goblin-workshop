@@ -1,0 +1,6 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h

@@ -1,0 +1,6 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=Mon..Fri 07:00 Europe/Berlin
+OnCalendar=daily UTC

@@ -1,0 +1,6 @@
+timer2dagu report: job.timer + job.service
+
+approximated (3):
+  job.service:3 ExecStartPre=: privilege prefix '+' has no Dagu meaning: the command runs as the Dagu process user
+  job.service:4 ExecStartPre=: privilege prefix '!!' has no Dagu meaning: the command runs as the Dagu process user
+  job.service:5 ExecStart=: '@' argv[0] override dropped: the program sees its real name
