@@ -1,0 +1,8 @@
+# p02-u64max: Write error counters at the uint64 edge
+# Synthetic SPC log page; not captured from any device.
+02 00 00 54 00 00 60 08 ff ff ff ff ff ff ff ff
+00 01 60 08 ff ff ff ff ff ff ff fe 00 02 60 08
+80 00 00 00 00 00 00 00 00 03 60 08 00 00 00 01
+00 00 00 00 00 04 60 08 00 00 00 00 ff ff ff ff
+00 05 60 08 0d e0 b6 b3 a7 64 00 00 00 06 60 08
+00 00 00 00 00 00 00 01

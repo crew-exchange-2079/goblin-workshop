@@ -1,0 +1,8 @@
+# p03-typical: Read error counters, all seven SPC parameters
+# Synthetic SPC log page; not captured from any device.
+03 00 00 54 00 00 60 08 00 00 00 00 00 00 00 0c
+00 01 60 08 00 00 00 00 00 00 00 00 00 02 60 08
+00 00 00 00 00 00 00 04 00 03 60 08 00 00 00 00
+00 00 00 0c 00 04 60 08 00 00 00 00 00 00 00 28
+00 05 60 08 00 00 01 5d 3e f7 98 00 00 06 60 08
+00 00 00 00 00 00 00 01

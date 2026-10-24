@@ -1,0 +1,6 @@
+# p0c-cleaning-not-required: Sequential access: TB-scale counts, no cleaning
+# Synthetic SPC log page; not captured from any device.
+0c 00 00 3c 00 00 40 08 00 00 0a e9 f7 bc c0 00
+00 01 40 08 00 00 05 74 fb de 60 01 00 02 40 08
+00 00 00 e8 d4 a5 0f ff 00 03 40 08 00 00 00 e8
+d4 a5 10 00 01 00 40 08 00 00 00 00 00 00 00 00

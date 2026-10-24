@@ -1,0 +1,8 @@
+# p02-typical: Write error counters, all seven SPC parameters
+# Synthetic SPC log page; not captured from any device.
+02 00 00 54 00 00 60 08 00 00 00 00 00 00 00 00
+00 01 60 08 00 00 00 00 00 00 00 03 00 02 60 08
+00 00 00 00 00 00 00 11 00 03 60 08 00 00 00 00
+00 00 00 03 00 04 60 08 00 00 00 00 00 00 00 15
+00 05 60 08 00 00 02 00 00 00 00 01 00 06 60 08
+00 00 00 00 00 00 00 00
