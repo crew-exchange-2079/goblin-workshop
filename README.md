@@ -7,6 +7,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-exporter/`](tape-exporter/): read-only Prometheus exporter for Linux LTO/SCSI tape drives (MIT).
 - [`tapefec/`](tapefec/): streaming forward-error-correction (Reed–Solomon) framer for tar-to-tape pipelines; pure-Python educational prototype (MIT).
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
+- [`lto-capacity-planner/`](lto-capacity-planner/): static, dependency-free calculator for LTO-7…LTO-10 cartridges, library slots and media cost over a retention period; shareable URL state (MIT).
 - [`tailnet-policy-tester/`](tailnet-policy-tester/): offline evaluator for Tailscale policy files: reachability and SSH queries, the policy's own `tests`/`sshTests`, and policy diffs; stdlib-only Python, not affiliated with Tailscale (MIT).
 - [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
 - [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
@@ -48,6 +49,7 @@ python -m pytest -q .github/release              # release tooling (from the rep
 python .github/release/release.py check --base origin/main   # changelog/version check, as in changelog.yml
 (cd tape-library-playground && node --test)      # Node 22, no Python
 (cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
+(cd lto-capacity-planner && node --test)         # Node 22; Playwright smoke: npm ci && npx playwright install chromium && npx playwright test
 python -m pytest -q examples/tests               # examples/: static checks (from the repo root)
 python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, needs Docker + compose
 ```
