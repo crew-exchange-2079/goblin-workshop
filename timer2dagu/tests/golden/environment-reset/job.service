@@ -1,0 +1,6 @@
+[Service]
+Type=oneshot
+Environment=OLD=1
+Environment=
+Environment=NEW=2
+ExecStart=/usr/local/bin/job

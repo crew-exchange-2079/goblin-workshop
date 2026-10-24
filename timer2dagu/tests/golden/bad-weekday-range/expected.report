@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (1):
+  job.timer:5 OnCalendar=: 'Fri..Mon 12:00': weekday range 'Fri..Mon' runs backwards

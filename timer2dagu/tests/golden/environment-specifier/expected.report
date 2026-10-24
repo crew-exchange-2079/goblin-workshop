@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service (user unit)
+
+approximated (1):
+  job.service:3 Environment=: %C used systemd's default ~/.cache; $XDG_* overrides are not consulted, and the path is taken from ${HOME} at run time (pass --home to fix it)
+
+ignored (1):
+  job.service: Dagu also loads a .env file from the working directory if one exists; systemd would not

@@ -1,0 +1,6 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnBootSec=5min
+Persistent=true

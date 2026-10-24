@@ -1,0 +1,6 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1d

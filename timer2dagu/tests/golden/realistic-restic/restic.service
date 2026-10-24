@@ -1,0 +1,13 @@
+[Unit]
+Description=Run restic backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment="RESTIC_REPOSITORY=/srv/backup repo" TAG=%n
+EnvironmentFile=-%h/.config/restic.env
+WorkingDirectory=%h
+ExecStartPre=/usr/bin/test -d ${RESTIC_REPOSITORY}
+ExecStart=/usr/bin/restic backup --tag $TAG "%h/my docs"
+ExecStopPost=-/usr/bin/curl -fsS https://hc.example/ping
+TimeoutStartSec=2h

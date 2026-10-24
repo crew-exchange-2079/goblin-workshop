@@ -1,0 +1,6 @@
+# p02-zero: Write error counters, all zero (fresh cartridge)
+# Synthetic SPC log page; not captured from any device.
+02 00 00 38 00 00 60 04 00 00 00 00 00 01 60 04
+00 00 00 00 00 02 60 04 00 00 00 00 00 03 60 04
+00 00 00 00 00 04 60 04 00 00 00 00 00 05 60 04
+00 00 00 00 00 06 60 04 00 00 00 00

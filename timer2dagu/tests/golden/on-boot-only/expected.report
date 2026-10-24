@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (1):
+  job.timer:5 OnBootSec=: relative to boot; Dagu has no boot-time trigger
+
+approximated (1):
+  job.timer:6 OnUnitActiveSec=: '1d' became '@every 24h': systemd counts from the service's last activation, Dagu from its scheduler's own clock

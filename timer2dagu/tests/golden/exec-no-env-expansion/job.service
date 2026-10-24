@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+Environment=X=1
+ExecStart=:/usr/bin/echo ${X} $X

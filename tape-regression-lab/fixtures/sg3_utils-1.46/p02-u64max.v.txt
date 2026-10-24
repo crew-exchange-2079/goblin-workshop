@@ -1,0 +1,8 @@
+Write error counter page  [0x2]
+  Errors corrected without substantial delay = 18446744073709551615 [18446744 TB]
+  Errors corrected with possible delays = 18446744073709551614 [18446744 TB]
+  Total rewrites or rereads = 9223372036854775808 [9223372 TB]
+  Total errors corrected = 4294967296
+  Total times correction algorithm processed = 4294967295
+  Total bytes processed = 1000000000000000000 [1000000 TB]
+  Total uncorrected errors = 1

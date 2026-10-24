@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (1):
+  job.service:4 TimeoutSec=: the stop half of TimeoutSec= (TimeoutStopSec) has no Dagu equivalent; only the start timeout was translated

@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+ignored (1):
+  job.service:4 TimeoutStartSec=: for Type=exec the start timeout does not bound the main process, so there is nothing to translate
