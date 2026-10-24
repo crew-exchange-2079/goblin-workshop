@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LTO capacity planner</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>LTO capacity planner</h1>
+  <p class="sub">cartridges, slots and a cost range per LTO generation · runs in your browser, sends nothing anywhere</p>
+</header>
+
+<main>
+  <form id="form" class="panel" aria-label="Assumptions" novalidate>
+    <h2>Assumptions</h2>
+    <div class="field">
+      <label for="size">Data today</label>
+      <div class="pair">
+        <input id="size" name="size" type="number" min="0" step="any" inputmode="decimal">
+        <select id="unit" name="unit" aria-label="Unit">
+          <option>GB</option><option>TB</option><option>PB</option><option>TiB</option><option>PiB</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="growth">Growth, % per year</label>
+      <input id="growth" name="growth" type="number" step="any" min="-90" max="1000">
+    </div>
+    <div class="field">
+      <label for="years">Retention, years</label>
+      <input id="years" name="years" type="number" step="1" min="0" max="50">
+    </div>
+    <div class="field">
+      <label for="copies">Copies on tape</label>
+      <input id="copies" name="copies" type="number" step="1" min="1" max="10">
+    </div>
+    <div class="field">
+      <label for="inLibrary">…of which stay in the library</label>
+      <input id="inLibrary" name="inLibrary" type="number" step="1" min="0" max="10">
+    </div>
+    <div class="field">
+      <label for="ratio">Compression assumed (x:1)</label>
+      <input id="ratio" name="ratio" type="number" step="0.1" min="1" max="10">
+    </div>
+    <div class="field">
+      <label for="fill">Usable fill, %</label>
+      <input id="fill" name="fill" type="number" step="1" min="1" max="100">
+    </div>
+    <div class="field">
+      <label for="spare">Spare slots, %</label>
+      <input id="spare" name="spare" type="number" step="1" min="0" max="200">
+    </div>
+
+    <details class="prices">
+      <summary>Cartridge prices (USD, low–high)</summary>
+      <p class="note">Defaults are rough placeholders, not quotes. Put in your own.</p>
+      <div id="pricefields"></div>
+    </details>
+
+    <div class="buttons">
+      <button id="copylink" type="button">Copy link</button>
+      <button id="reset" type="button" class="ghost">Reset</button>
+      <span id="copystatus" class="status" role="status"></span>
+    </div>
+  </form>
+
+  <section class="panel" aria-label="Results">
+    <h2>Plan</h2>
+    <p id="summary" class="summary"></p>
+    <div class="tablewrap">
+      <table id="results">
+        <thead>
+          <tr>
+            <th scope="col">Generation</th>
+            <th scope="col">Native / rated compressed</th>
+            <th scope="col">Planned per cartridge</th>
+            <th scope="col" class="num">Cartridges per copy</th>
+            <th scope="col" class="num">Cartridges total</th>
+            <th scope="col" class="num">Library slots</th>
+            <th scope="col" class="num">Media cost</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">Media cost covers cartridges only — no drives, library, licences, labour or offsite storage.
+      Compressed figures are the LTO Program's rated 2.5:1; real ratios depend entirely on your data, and already-compressed or encrypted data gets about 1:1.</p>
+
+    <h3>Cartridges owned by end of year (all copies)</h3>
+    <div class="tablewrap"><table id="schedule"></table></div>
+  </section>
+
+  <section class="panel sources" aria-label="Sources">
+    <h2>Sources</h2>
+    <ul id="sources"></ul>
+  </section>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

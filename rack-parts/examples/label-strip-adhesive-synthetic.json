@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "synthetic-label-strip-adhesive",
+  "units": "mm",
+  "facets": 48,
+  "min_wall_mm": 1.2,
+  "part": "label_holder",
+  "card_width_mm": 200.0,
+  "card_height_mm": 12.0,
+  "card_thickness_mm": 0.2,
+  "card_clearance_mm": 0.4,
+  "lip_overlap_mm": 2.0,
+  "frame_border_mm": 2.0,
+  "back_thickness_mm": 1.6,
+  "front_thickness_mm": 1.2,
+  "ear_width_mm": 0.0,
+  "mount_screw_clearance_diameter_mm": 3.4,
+  "mount_screw_head_diameter_mm": 6.0,
+  "max_overall_width_mm": 220.0,
+  "max_overall_height_mm": 20.0,
+  "build_plate_x_mm": 256.0,
+  "build_plate_y_mm": 256.0
+}

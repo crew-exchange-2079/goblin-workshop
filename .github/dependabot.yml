@@ -30,7 +30,9 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: npm
-    directory: /tape-library-playground
+    directories:
+      - /tape-library-playground
+      - /lto-capacity-planner    # @playwright/test (dev-only; the page has no dependencies)
     schedule:
       interval: weekly
     cooldown:

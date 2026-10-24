@@ -441,6 +441,45 @@ def _rail_front_checks(c, W, H, p):
     return rd, rr
 
 
+def _stiffener_checks(c, p):
+    """Stiffening-rib checks shared by the flat panels (blanking, cable, keystone). Returns the rib half-width."""
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    H = c["panel_height_mm"]
+    rr = hole_d(c["rail_screw_clearance_diameter_mm"], fn) / 2
+    rib_depth = c["stiffener_depth_mm"]
+    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
+    rib_half = c["rail_opening_width_mm"] / 2 - c["rail_side_clearance_mm"]
+    shank_inner = c["rail_hole_center_spacing_mm"] / 2 - c["rail_slot_extra_length_mm"] / 2 - rr
+    if rib_depth > 0:
+        if rib_half <= 0:
+            p.append("rail_side_clearance_mm leaves no room for stiffeners inside the rail opening")
+        if shank_inner < rib_half - 1e-9:
+            p.append("stiffener (half-width %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
+                     % (rib_half, shank_inner))
+        if rib_t < w - 1e-9:
+            p.append("stiffener_thickness_mm %g is thinner than min_wall_mm %g" % (rib_t, w))
+        if 2 * rib_t > H - w + 1e-9:
+            p.append("two stiffeners of %g mm leave less than min_wall_mm of open height in a %g mm panel" % (rib_t, H))
+    return rib_half
+
+
+def _panel_window(c, rib_half):
+    """Region of a panel face that cut-outs may use: |x| <= x_lim and z_lo <= z <= z_hi.
+
+    Inside the rail opening minus rail_side_clearance_mm (or the ribs), min_wall_mm clear of the rail screw
+    heads, and min_wall_mm clear of the panel edges or stiffeners.
+    """
+    w = c["min_wall_mm"]
+    rib_depth = c["stiffener_depth_mm"]
+    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
+    S = c["rail_hole_center_spacing_mm"]
+    x_lim = min(rib_half if rib_depth > 0 else c["rail_opening_width_mm"] / 2 - c["rail_side_clearance_mm"],
+                S / 2 - c["rail_slot_extra_length_mm"] / 2 - c["rail_screw_head_diameter_mm"] / 2 - w)
+    z_lo = rib_t + w
+    return x_lim, z_lo, c["panel_height_mm"] - z_lo
+
+
 FILLET_STEPS = 6  # straight-sided steps used to approximate each quarter-round edge
 
 
@@ -456,7 +495,6 @@ def derive_panel(c):
     S = c["rail_hole_center_spacing_mm"]
     opening = c["rail_opening_width_mm"]
     rd = hole_d(c["rail_screw_clearance_diameter_mm"], fn)
-    rr = rd / 2
     slot = c["rail_slot_extra_length_mm"]
     head = c["rail_screw_head_diameter_mm"]
     side_clr = c["rail_side_clearance_mm"]
@@ -464,18 +502,7 @@ def derive_panel(c):
     rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
 
     _rail_front_checks(c, W, H, p)
-    rib_half = opening / 2 - side_clr
-    shank_inner = S / 2 - slot / 2 - rr
-    if rib_depth > 0:
-        if rib_half <= 0:
-            p.append("rail_side_clearance_mm leaves no room for stiffeners inside the rail opening")
-        if shank_inner < rib_half - 1e-9:
-            p.append("stiffener (half-width %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
-                     % (rib_half, shank_inner))
-        if rib_t < w - 1e-9:
-            p.append("stiffener_thickness_mm %g is thinner than min_wall_mm %g" % (rib_t, w))
-        if 2 * rib_t > H - w + 1e-9:
-            p.append("two stiffeners of %g mm leave less than min_wall_mm of open height in a %g mm panel" % (rib_t, H))
+    rib_half = _stiffener_checks(c, p)
 
     cuts = []
     cut_len = cut_h = fillet = 0.0
@@ -985,9 +1012,505 @@ def derive_pdu(c):
     }
 
 
+LATCH_LEDGE_MM = 0.5   # thinned panel needed past the cutout edge for a keystone latch to hook behind
+
+
+def derive_keystone(c):
+    """Keystone patch panel. Frame: x centred, y = 0 at the front face, z = 0 at the bottom edge."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    rib_depth = c["stiffener_depth_mm"]
+    rib_t = c["stiffener_thickness_mm"] if rib_depth > 0 else 0.0
+    n = c["keystone_count"]
+    pitch = c["keystone_pitch_mm"]
+    cw, ch = c["keystone_cutout_width_mm"], c["keystone_cutout_height_mm"]
+    bw, bh = c["jack_body_width_mm"], c["jack_body_height_mm"]
+    jc = c["jack_clearance_mm"]
+    seat = c["jack_latch_panel_thickness_mm"]
+    rows = list(c["keystone_row_z_mm"])
+
+    rd, _ = _rail_front_checks(c, W, H, p)
+    rib_half = _stiffener_checks(c, p)
+    if seat > t + 1e-9:
+        p.append("jack_latch_panel_thickness_mm %g is thicker than panel_thickness_mm %g: the latch could not "
+                 "reach the back of the panel" % (seat, t))
+    if bw < cw - 1e-9 or bh < ch - 1e-9:
+        p.append("jack body (%g x %g) is smaller than its cutout (%g x %g): measure the body behind the panel, "
+                 "including the latch" % (bw, bh, cw, ch))
+    pocket = seat < t - 1e-9
+    pw, ph = (bw + 2 * jc, bh + 2 * jc) if pocket else (cw, ch)
+    if pocket and (ph - ch) / 2 < LATCH_LEDGE_MM - 1e-9:
+        # the latch hooks behind the cutout's top/bottom edge: the thinned area must reach past that edge
+        p.append("the back pocket reaches only %.2f mm past the cutout's top/bottom edge; the latch would hook "
+                 "full-thickness panel. Need >= %g mm (jack_body_height_mm + 2 x jack_clearance_mm - "
+                 "keystone_cutout_height_mm)" % ((ph - ch) / 2, LATCH_LEDGE_MM))
+    if n > 1 and pitch - pw < w - 1e-9:
+        p.append("jacks at %g mm pitch leave %.2f mm between %s; need >= min_wall_mm %g"
+                 % (pitch, pitch - pw, "back pockets" if pocket else "cutouts", w))
+    xs = [(k - (n - 1) / 2) * pitch for k in range(n)]
+    x_lim, z_lo, z_hi = _panel_window(c, rib_half)
+    if xs[-1] + pw / 2 > x_lim + 1e-9:
+        p.append("row of %d jacks reaches %.2f mm from the centre; it must stay within %.2f mm (inside the rail "
+                 "opening minus rail_side_clearance_mm, and min_wall_mm from screw heads)" % (n, xs[-1] + pw / 2, x_lim))
+    for i, z in enumerate(rows):
+        if z - ph / 2 < z_lo - 1e-9 or z + ph / 2 > z_hi + 1e-9:
+            p.append("keystone row %d (z=%g, %s height %.2f) must stay between z=%.2f and z=%.2f (panel edges/"
+                     "stiffeners + min_wall_mm)" % (i, z, "pocket" if pocket else "cutout", ph, z_lo, z_hi))
+    srows = sorted(rows)
+    for i in range(len(srows) - 1):
+        if srows[i + 1] - srows[i] - ph < w - 1e-9:
+            p.append("keystone rows at z=%g and z=%g leave less than min_wall_mm between them" % (srows[i], srows[i + 1]))
+    fits = _fits_plate(W, H, c)
+    if not fits and not c["allow_oversize_print"]:
+        p.append("panel face %g x %g mm does not fit the %g x %g mm build plate in either rotation; set "
+                 "allow_oversize_print to true to generate it anyway (no split is produced)"
+                 % (W, H, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    if p:
+        raise ConfigError(p)
+
+    orient = ("UNVALIDATED suggestion: print front face down (-y to the bed): the face gets the bed finish and "
+              "the cutouts' edges stay square; the back pockets are open toward the top and need no supports. ")
+    if not fits:
+        orient += ("WARNING: the %g x %g mm face does NOT fit the stated %g x %g mm build plate; this STL is one "
+                   "piece and cannot be printed on that printer. No modular joint is provided. " %
+                   (W, H, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    orient += "Not tested on any physical printer."
+    return {
+        "module": "keystone_panel",
+        "args": {
+            "w": W, "h": H, "t": t, "hole_x": S / 2, "hole_zs": list(c["rail_hole_z_offsets_mm"]),
+            "rail_d": rd, "slot_len": c["rail_slot_extra_length_mm"], "rib_half": rib_half,
+            "rib_depth": rib_depth, "rib_t": rib_t, "jack_x": xs, "rows": rows,
+            "cut_w": cw, "cut_h": ch, "pocket_w": pw, "pocket_h": ph, "seat_t": seat if pocket else t,
+            "fn": fn,
+        },
+        "derived": {
+            "panel_face_mm": [W, H],
+            "overall_depth_mm": t + rib_depth,
+            "rail_hole_x_mm": [-S / 2, S / 2],
+            "modelled_rail_hole_diameter_mm": rd,
+            "jacks": n * len(rows),
+            "jack_x_mm": xs,
+            "back_pocket_mm": [pw, ph] if pocket else None,
+            "latch_ledge_per_side_mm": [(pw - cw) / 2, (ph - ch) / 2] if pocket else None,
+            "panel_thickness_at_latch_mm": seat if pocket else t,
+            "fits_build_plate": fits,
+            "build_plate_mm": [c["build_plate_x_mm"], c["build_plate_y_mm"]],
+        },
+        "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, t + rib_depth, H]},
+        "print_orientation_suggestion": orient,
+        "physical_use": {
+            "status": PHYSICAL_USE + " Not a cabling or electrical product: it only holds jacks you supply.",
+            "required_before_use": [
+                "Fit coupon: print a short strip with one cutout (e.g. cut the model in your slicer) and snap a real "
+                "jack in and out; adjust keystone_cutout_*_mm and jack_latch_panel_thickness_mm until it holds "
+                "without forcing.",
+                "Owner inspection: check the thin latch ledges for layer splits after inserting every jack.",
+            ],
+        },
+    }
+
+
+def _deferred_19in(c, part):
+    if c["rack_width_class"] == "19in":
+        raise ConfigError(["%s for 19in racks is deferred and refused: the front plate is too wide for common build "
+                           "plates and no bolt-together split joint is implemented or checked; use rack_width_class "
+                           "10in or a commercial 19-inch part" % part])
+
+
+def derive_drawer(c):
+    """Rack drawer: housing (shelf frame) or drawer box (x centred, y = 0 at its front face, z = 0 at its bottom).
+
+    Both components are derived from the same numbers every run, so the drawer is always checked against
+    the housing it must slide into.
+    """
+    p = []
+    w = c["min_wall_mm"]
+    W = c["panel_width_mm"]
+    H = c["panel_height_mm"]
+    t = c["panel_thickness_mm"]
+    S = c["rail_hole_center_spacing_mm"]
+    slot = c["rail_slot_extra_length_mm"]
+    head = c["rail_screw_head_diameter_mm"]
+    D = c["sleeve_depth_mm"]
+    sh = c["sleeve_height_mm"]
+    th = c["housing_wall_thickness_mm"]
+    td = c["drawer_wall_thickness_mm"]
+    tfr = c["drawer_front_thickness_mm"]
+    clr = c["slide_clearance_mm"]
+    ov = c["front_overlap_mm"]
+    pull_w, pull_h = c["pull_width_mm"], c["pull_height_mm"]
+    k = c["divider_count"]
+
+    _deferred_19in(c, "rack_drawer")
+    rd, rr = _rail_front_checks(c, W, H, p)
+    half = c["rail_opening_width_mm"] / 2 - c["rail_side_clearance_mm"]   # sleeve outer half-width
+    shank_inner = S / 2 - slot / 2 - rr
+    if shank_inner < half - 1e-9:
+        p.append("sleeve side wall (half-width %.2f) would obstruct the rail screw shank (inner edge at %.2f)"
+                 % (half, shank_inner))
+    if th < w - 1e-9 or td < w - 1e-9 or tfr < w - 1e-9:
+        p.append("housing_wall_thickness_mm, drawer_wall_thickness_mm and drawer_front_thickness_mm must be at "
+                 "least min_wall_mm %g" % w)
+    if sh > H + 1e-9:
+        p.append("sleeve_height_mm %g rises above the front plate (panel_height_mm %g) into the rack space above"
+                 % (sh, H))
+    if t + D > c["rack_clear_depth_mm"] + 1e-9:
+        p.append("housing reaches %.2f mm behind the front face but rack_clear_depth_mm is %g" % (t + D, c["rack_clear_depth_mm"]))
+
+    # opening = sleeve interior; the drawer box is the opening minus slide clearance
+    open_half = half - th
+    open_z0, open_z1 = th, sh - th
+    bw = 2 * open_half - 2 * clr
+    bh = open_z1 - open_z0 - clr
+    bl = t + D - th - clr                    # from the housing front face to clr in front of the back wall
+    iw = bw - 2 * td                         # drawer interior
+    ih = bh - td
+    il = bl - td
+    if iw < 2 * w - 1e-9 or ih < w - 1e-9 or il < 2 * w - 1e-9:
+        p.append("no usable drawer space: interior %.2f x %.2f x %.2f mm (width x depth x height) after walls and "
+                 "clearance" % (iw, il, ih))
+    # drawer front: bottom flush with the box bottom, reaches front_overlap_mm past the opening sides and top
+    fw = 2 * open_half + 2 * ov
+    fh = bh + clr + ov
+    screw_clear = S / 2 - slot / 2 - head / 2 - w
+    if fw / 2 > screw_clear + 1e-9:
+        p.append("drawer front (half-width %.2f) would cover the rail screw heads; keep it within %.2f mm of the "
+                 "centre (reduce front_overlap_mm)" % (fw / 2, screw_clear))
+    if open_z0 + fh > H + 1e-9:
+        p.append("drawer front top (z=%.2f) rises above the panel (panel_height_mm %g) into the rack space above; "
+                 "reduce front_overlap_mm" % (open_z0 + fh, H))
+    pull_z = fh / 2
+    if pull_w > 0:
+        if pull_h > pull_w + 1e-9:
+            p.append("pull_height_mm (%g) must not exceed pull_width_mm (%g)" % (pull_h, pull_w))
+        if pull_w / 2 > iw / 2 - w + 1e-9:
+            p.append("finger pull (%g mm) is wider than the drawer interior minus min_wall_mm (%.2f)" % (pull_w, iw - 2 * w))
+        if pull_z - pull_h / 2 < td + w - 1e-9 or pull_z + pull_h / 2 > fh - w + 1e-9:
+            p.append("finger pull (%g mm tall, centred at z=%.2f) leaves less than min_wall_mm above the drawer "
+                     "floor or below the top of the %.2f mm drawer front" % (pull_h, pull_z, fh))
+    dividers = []
+    if k > 0:
+        comp = (iw - k * td) / (k + 1)
+        if comp < 2 * w - 1e-9:
+            p.append("%d dividers leave %.2f mm wide compartments; need >= 2 x min_wall_mm" % (k, comp))
+        dividers = [-iw / 2 + (i + 1) * comp + i * td + td / 2 for i in range(k)]
+        for i, x in enumerate(dividers):
+            if pull_w > 0 and abs(x) - td / 2 < pull_w / 2 - 1e-9:
+                p.append("divider %d (x=%.2f) stands behind the finger pull and would block it; change "
+                         "divider_count or pull_width_mm" % (i, x))
+
+    # printing: housing like the shelf; drawer base down
+    Z = c["build_plate_z_mm"]
+    orients = []
+    if _fits_plate(W, H, c) and t + D <= Z + 1e-9:
+        orients.append("front_face_down")
+    if _fits_plate(W, t + D, c) and H <= Z + 1e-9:
+        orients.append("floor_down")
+    if not orients:
+        p.append("housing (%g wide x %g deep x %g tall) fits the %g x %g x %g mm build volume in neither "
+                 "front-face-down nor floor-down orientation; no split is produced"
+                 % (W, t + D, H, c["build_plate_x_mm"], c["build_plate_y_mm"], Z))
+    if not (_fits_plate(fw, tfr + bl, c) and fh <= Z + 1e-9):
+        p.append("drawer (%.2f wide x %.2f deep x %.2f tall) does not fit the %g x %g x %g mm build volume base-down"
+                 % (fw, tfr + bl, fh, c["build_plate_x_mm"], c["build_plate_y_mm"], Z))
+    if p:
+        raise ConfigError(p)
+
+    derived = {
+        "front_plate_mm": [W, H],
+        "rail_hole_x_mm": [-S / 2, S / 2],
+        "modelled_rail_hole_diameter_mm": rd,
+        "housing_depth_mm": t + D,
+        "opening_mm": [2 * open_half, open_z1 - open_z0],
+        "drawer_box_mm": [bw, bl, bh],
+        "drawer_front_mm": [fw, fh],
+        "drawer_interior_mm": [iw, il, ih],
+        "compartment_width_mm": (iw - k * td) / (k + 1),
+        "housing_printable_orientations": orients,
+        "build_volume_mm": [c["build_plate_x_mm"], c["build_plate_y_mm"], Z],
+    }
+    physical = {
+        "status": PHYSICAL_USE,
+        "required_before_use": [
+            "Fit coupon: first print a blanking_panel with identical rail_* and panel_* values (stiffener_depth_mm 0) "
+            "and confirm it screws to your rails without forcing.",
+            "Print the housing and the drawer from the same file (only component and name changed) and check the "
+            "drawer slides with slide_clearance_mm on your printer before installing.",
+            "The housing hangs only from the front rail screws (cantilever) and the drawer has no pull-out stop. "
+            "No load rating exists; keep it light and do not rest anything on the housing roof.",
+        ],
+    }
+    if c["component"] == "housing":
+        orient = "UNVALIDATED suggestion; fitting housing orientations and their overhangs: "
+        if "floor_down" in orients:
+            orient += ("floor down: the sleeve roof is a %.1f mm horizontal bridge over the drawer space and needs "
+                       "supports (or long-span bridging); the rail holes are horizontal round holes. " % (2 * open_half))
+        if "front_face_down" in orients:
+            orient += ("front face down (-y to the bed): the back wall becomes a %.1f x %.1f mm horizontal bridge "
+                       "over the sleeve and needs supports. " % (2 * open_half, open_z1 - open_z0))
+        orient += "Check your slicer's overhang preview. Not tested on any physical printer."
+        return {
+            "module": "drawer_housing",
+            "args": {"w": W, "h": H, "t": t, "hole_x": S / 2, "hole_zs": list(c["rail_hole_z_offsets_mm"]),
+                     "rail_d": rd, "slot_len": slot, "half": half, "depth": D, "sleeve_h": sh,
+                     "t_floor": th, "t_wall": th, "t_roof": th, "t_back": th, "fn": c["facets"]},
+            "derived": derived,
+            "expected_bbox": {"min": [-W / 2, 0.0, 0.0], "max": [W / 2, t + D, H]},
+            "print_orientation_suggestion": orient,
+            "physical_use": physical,
+        }
+    return {
+        "module": "drawer_box",
+        "args": {"box_w": bw, "box_l": bl, "box_h": bh, "t_floor": td, "t_wall": td, "t_front": tfr,
+                 "front_w": fw, "front_h": fh, "pull_w": pull_w, "pull_h": pull_h, "pull_z": pull_z,
+                 "dividers": dividers, "fn": c["facets"]},
+        "derived": derived,
+        "expected_bbox": {"min": [-fw / 2, 0.0, 0.0], "max": [fw / 2, tfr + bl, fh]},
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print the drawer base down as modelled; the top of the finger pull is a short "
+            "%.1f mm bridge. Not tested on any physical printer." % pull_w if pull_w > 0 else
+            "UNVALIDATED suggestion: print the drawer base down as modelled. Not tested on any physical printer."),
+        "physical_use": physical,
+    }
+
+
+def derive_label(c):
+    """Slide-in label holder. Frame: x centred, y = 0 at the back face, z = 0 at the bottom edge."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    cw, chh, ct = c["card_width_mm"], c["card_height_mm"], c["card_thickness_mm"]
+    clr = c["card_clearance_mm"]
+    lip = c["lip_overlap_mm"]
+    b = c["frame_border_mm"]
+    tb, tf = c["back_thickness_mm"], c["front_thickness_mm"]
+    ear = c["ear_width_mm"]
+    hd = hole_d(c["mount_screw_clearance_diameter_mm"], fn)
+    head = c["mount_screw_head_diameter_mm"]
+
+    pw, ph, pt = cw + 2 * clr, chh + clr, ct + clr
+    body_w = pw + 2 * b
+    outer_w = body_w + 2 * ear
+    outer_h = ph + b
+    win_w = cw - 2 * lip
+    if lip - clr < w - 1e-9:
+        p.append("missing retention: the lips cover the card edge by %.2f mm once it shifts by card_clearance_mm "
+                 "(lip_overlap_mm - card_clearance_mm); need >= min_wall_mm %g" % (lip - clr, w))
+    if win_w < w - 1e-9 or chh - lip < w - 1e-9:
+        p.append("lip_overlap_mm %g leaves no readable window on a %g x %g mm card" % (lip, cw, chh))
+    if b < w - 1e-9 or tb < w - 1e-9 or tf < w - 1e-9:
+        p.append("frame_border_mm, back_thickness_mm and front_thickness_mm must be at least min_wall_mm %g" % w)
+    holes = []
+    if ear > 0:
+        if head < c["mount_screw_clearance_diameter_mm"]:
+            p.append("mount_screw_head_diameter_mm must be at least mount_screw_clearance_diameter_mm")
+        if head > ear + 1e-9 or head > outer_h + 1e-9:
+            p.append("unsafe screw clearance: a %g mm screw head does not bear fully on the %g x %.2f mm ear"
+                     % (head, ear, outer_h))
+        if ear / 2 - hd / 2 < w - 1e-9 or outer_h / 2 - hd / 2 < w - 1e-9:
+            p.append("mount screw hole (%.2f mm) leaves less than min_wall_mm in the ear" % hd)
+        holes = [-(body_w / 2 + ear / 2), body_w / 2 + ear / 2]
+    if outer_w > c["max_overall_width_mm"] + 1e-9:
+        p.append("label holder width %.2f exceeds max_overall_width_mm %g" % (outer_w, c["max_overall_width_mm"]))
+    if outer_h > c["max_overall_height_mm"] + 1e-9:
+        p.append("label holder height %.2f exceeds max_overall_height_mm %g" % (outer_h, c["max_overall_height_mm"]))
+    if not _fits_plate(outer_w, outer_h, c):
+        p.append("label holder %.2f x %.2f mm does not fit the %g x %g mm build plate back-down"
+                 % (outer_w, outer_h, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    if p:
+        raise ConfigError(p)
+    depth = tb + pt + tf
+    return {
+        "module": "label_holder",
+        "args": {"outer_w": outer_w, "body_w": body_w, "outer_h": outer_h, "t_back": tb, "t_front": tf,
+                 "pocket_w": pw, "pocket_h": ph, "pocket_t": pt, "bottom_wall": b, "win_w": win_w, "lip": lip,
+                 "holes_x": holes, "hole_d": hd, "fn": fn},
+        "derived": {
+            "outer_mm": [outer_w, depth, outer_h],
+            "card_pocket_mm": [pw, pt, ph],
+            "window_mm": [win_w, chh - lip],
+            "retention_overlap_mm": lip - clr,
+            "mount_hole_x_mm": holes,
+            "modelled_mount_hole_diameter_mm": hd if holes else None,
+        },
+        "expected_bbox": {"min": [-outer_w / 2, 0.0, 0.0], "max": [outer_w / 2, depth, outer_h]},
+        "preview": {"azimuth_deg": 145.0},   # the reader's side is +y
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print back face down (y = 0 on the bed). The front lips overhang the card "
+            "pocket by %.1f mm from the frame; most slicers print that without supports, check the preview. "
+            "Not tested on any physical printer." % (clr + lip)),
+    }
+
+
+def derive_comb(c):
+    """Cable comb. Frame: x along the comb (centred), y = 0 at the back face, z = 0 at the bottom edge."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    cd = c["cable_diameter_mm"]
+    sd = cd + c["cable_clearance_mm"]
+    sd_m = hole_d(sd, fn)                    # modelled so the polygon still clears sd
+    n = c["slot_count"]
+    pitch = c["slot_pitch_mm"]
+    throat = c["entry_throat_mm"]
+    tip = c["finger_length_mm"]
+    bh = c["base_height_mm"]
+    t = c["comb_thickness_mm"]
+    em = c["end_margin_mm"]
+    spacing = c["mount_hole_spacing_mm"]
+    hd = hole_d(c["mount_screw_clearance_diameter_mm"], fn)
+    head = c["mount_screw_head_diameter_mm"]
+
+    if throat > sd + 1e-9:
+        p.append("entry_throat_mm %g is wider than the seat (cable_diameter_mm + cable_clearance_mm = %g)" % (throat, sd))
+    if n > 1 and pitch - sd_m < w - 1e-9:
+        p.append("seats %.2f mm wide at %g mm pitch leave %.2f mm fingers; need >= min_wall_mm %g"
+                 % (sd_m, pitch, pitch - sd_m, w))
+    if em < w - 1e-9:
+        p.append("end_margin_mm %g is less than min_wall_mm %g" % (em, w))
+    if bh < w - 1e-9:
+        p.append("base_height_mm %g is less than min_wall_mm %g" % (bh, w))
+    xs = [(k - (n - 1) / 2) * pitch for k in range(n)]
+    L = 2 * (xs[-1] + sd_m / 2 + em)
+    seat_z = bh + sd_m / 2
+    top = bh + sd_m + tip
+    holes = []
+    if spacing > 0:
+        if head < c["mount_screw_clearance_diameter_mm"]:
+            p.append("mount_screw_head_diameter_mm must be at least mount_screw_clearance_diameter_mm")
+        if head > bh + 1e-9:
+            p.append("unsafe screw clearance: a %g mm screw head does not bear fully on the %g mm base bar"
+                     % (head, bh))
+        if bh / 2 - hd / 2 < w - 1e-9:
+            p.append("mount screw hole (%.2f mm) leaves less than min_wall_mm in the %g mm base bar" % (hd, bh))
+        holes = [-spacing / 2, spacing / 2]
+        if spacing / 2 + max(head / 2, hd / 2 + w) > L / 2 + 1e-9:
+            p.append("mount holes %g mm apart do not fit on the %.2f mm comb with min_wall_mm to its ends; add "
+                     "end_margin_mm" % (spacing, L))
+        for hx in holes:
+            for i, x in enumerate(xs):
+                if math.hypot(hx - x, bh / 2 - seat_z) < hd / 2 + sd_m / 2 + w - 1e-9:
+                    p.append("mount hole at x=%g and cable seat %d are closer than min_wall_mm" % (hx, i))
+    if L > c["max_overall_width_mm"] + 1e-9:
+        p.append("comb length %.2f exceeds max_overall_width_mm %g" % (L, c["max_overall_width_mm"]))
+    if top > c["max_overall_height_mm"] + 1e-9:
+        p.append("comb height %.2f exceeds max_overall_height_mm %g" % (top, c["max_overall_height_mm"]))
+    if not _fits_plate(L, top, c):
+        p.append("comb %.2f x %.2f mm does not fit the %g x %g mm build plate back-down"
+                 % (L, top, c["build_plate_x_mm"], c["build_plate_y_mm"]))
+    if p:
+        raise ConfigError(p)
+    squeeze = max(0.0, cd - throat)
+    return {
+        "module": "cable_comb",
+        "args": {"length": L, "t": t, "base_h": bh, "height": top, "slots_x": xs, "slot_d": sd_m, "slot_z": seat_z,
+                 "throat": throat, "holes_x": holes, "hole_d": hd, "fn": fn},
+        "derived": {
+            "comb_mm": [L, t, top],
+            "seat_x_mm": xs,
+            "modelled_seat_diameter_mm": sd_m,
+            "seat_centre_z_mm": seat_z,
+            "finger_width_mm": pitch - sd_m if n > 1 else None,
+            "snap_in_squeeze_mm": squeeze,
+            "mount_hole_x_mm": holes,
+        },
+        "expected_bbox": {"min": [-L / 2, 0.0, 0.0], "max": [L / 2, t, top]},
+        "preview": {"azimuth_deg": 145.0},   # y = 0 is the mounting face
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print back face down (y = 0 on the bed); every seat, throat and hole then runs "
+            "vertically and there are no overhangs. %sNot tested on any physical printer."
+            % ("Cables are pressed %.2f mm past the throat; the jacket deforms and the fingers flex. " % squeeze
+               if squeeze > 0 else "")),
+    }
+
+
+def derive_cartridge(c):
+    """Grid holder for upright items. Frame: x centred, y = 0 at the front edge, z = 0 at the bottom."""
+    p = []
+    fn = c["facets"]
+    w = c["min_wall_mm"]
+    clr = c["item_clearance_mm"]
+    pw = c["item_width_mm"] + 2 * clr
+    pd = c["item_thickness_mm"] + 2 * clr
+    ih = c["item_height_mm"]
+    cols, rows = c["columns"], c["rows"]
+    depth = c["pocket_depth_mm"]
+    tf, tw, tdv = c["floor_thickness_mm"], c["wall_thickness_mm"], c["divider_thickness_mm"]
+    fh_d = c["floor_hole_diameter_mm"]
+    nw, nd = c["finger_notch_width_mm"], c["finger_notch_depth_mm"]
+
+    if depth > ih - 1e-9:
+        p.append("buried item: pocket_depth_mm %g is not less than item_height_mm %g, nothing would stand proud to "
+                 "grip" % (depth, ih))
+    if tf < w - 1e-9 or tw < w - 1e-9 or tdv < w - 1e-9:
+        p.append("floor_thickness_mm, wall_thickness_mm and divider_thickness_mm must be at least min_wall_mm %g" % w)
+    fh_m = hole_d(fh_d, fn) if fh_d > 0 else 0.0
+    if fh_d > 0 and fh_m + 2 * w > min(pw, pd) + 1e-9:
+        p.append("floor_hole_diameter_mm %g leaves less than min_wall_mm of floor ledge in a %.2f x %.2f mm pocket"
+                 % (fh_d, pw, pd))
+    if nw > 0:
+        if nw > pw - 2 * w + 1e-9:
+            p.append("finger_notch_width_mm %g leaves less than min_wall_mm of the dividers beside the %.2f mm pocket"
+                     % (nw, pw))
+        if nd <= 0 or nd > depth + 1e-9:
+            p.append("finger_notch_depth_mm %g must be > 0 and at most pocket_depth_mm %g" % (nd, depth))
+    ow = cols * pw + (cols - 1) * tdv + 2 * tw
+    od = rows * pd + (rows - 1) * tdv + 2 * tw
+    H = tf + depth
+    pockets = [[-ow / 2 + tw + i * (pw + tdv) + pw / 2, tw + j * (pd + tdv) + pd / 2]
+               for j in range(rows) for i in range(cols)]
+    # finger notches [x0, x1, y0, y1, z0]: through the wall in front of each pocket (front wall for row 0,
+    # the divider for the others), reaching 0.5 mm into the open pocket(s) on either side
+    notches = []
+    if nw > 0:
+        for j in range(rows):
+            for i in range(cols):
+                x, y = pockets[j * cols + i]
+                notches.append([x - nw / 2, x + nw / 2, -1.0 if j == 0 else y - pd / 2 - tdv - 0.5,
+                                y - pd / 2 + 0.5, H - nd])
+    if ow > c["max_overall_width_mm"] + 1e-9:
+        p.append("holder width %.2f exceeds max_overall_width_mm %g" % (ow, c["max_overall_width_mm"]))
+    if od > c["max_overall_depth_mm"] + 1e-9:
+        p.append("holder depth %.2f exceeds max_overall_depth_mm %g" % (od, c["max_overall_depth_mm"]))
+    loaded = tf + ih
+    if loaded > c["max_overall_height_mm"] + 1e-9:
+        p.append("holder with items standing in it is %.2f mm tall; max_overall_height_mm is %g"
+                 % (loaded, c["max_overall_height_mm"]))
+    if not (_fits_plate(ow, od, c) and H <= c["build_plate_z_mm"] + 1e-9):
+        p.append("holder %.2f x %.2f x %.2f mm does not fit the %g x %g x %g mm build volume base-down"
+                 % (ow, od, H, c["build_plate_x_mm"], c["build_plate_y_mm"], c["build_plate_z_mm"]))
+    if p:
+        raise ConfigError(p)
+    return {
+        "module": "cartridge_holder",
+        "args": {"outer_w": ow, "outer_d": od, "height": H, "t_floor": tf, "pocket_w": pw, "pocket_d": pd,
+                 "pockets": pockets, "floor_hole_d": fh_m, "notches": notches, "fn": fn},
+        "derived": {
+            "outer_mm": [ow, od, H],
+            "pockets": cols * rows,
+            "pocket_mm": [pw, pd, depth],
+            "item_exposed_mm": ih - depth,
+            "height_loaded_mm": loaded,
+            "modelled_floor_hole_diameter_mm": fh_m if fh_d > 0 else None,
+        },
+        "expected_bbox": {"min": [-ow / 2, 0.0, 0.0], "max": [ow / 2, od, H]},
+        "print_orientation_suggestion": (
+            "UNVALIDATED suggestion: print base down as modelled; pockets, notches and push-out holes are all "
+            "vertical, so there are no overhangs. Not tested on any physical printer."),
+    }
+
+
 DERIVE = {"rack_bracket": derive_bracket, "sff_cradle": derive_cradle, "switch_cradle": derive_switch,
           "blanking_panel": derive_panel, "cable_panel": derive_panel,
-          "rack_shelf": derive_shelf, "pdu_mount": derive_pdu}
+          "rack_shelf": derive_shelf, "pdu_mount": derive_pdu,
+          "keystone_panel": derive_keystone, "rack_drawer": derive_drawer, "label_holder": derive_label,
+          "cable_comb": derive_comb, "cartridge_holder": derive_cartridge}
 
 
 def validate(data):

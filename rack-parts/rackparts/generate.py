@@ -1,4 +1,5 @@
-"""Write SCAD, render STL with headless OpenSCAD, check the mesh, write a manifest.
+"""Write SCAD, render STL with headless OpenSCAD, check the mesh and the part's spec, export 3MF (and
+optionally a PNG preview), write a manifest.
 
 Output goes into a directory that must not exist yet; it is created with
 os.mkdir (so an existing path, file or symlink is refused) and files are
@@ -15,7 +16,7 @@ import shutil
 import subprocess
 import tempfile
 
-from . import __version__, mesh
+from . import __version__, export, mesh, speccheck
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCAD_DIR = os.path.join(os.path.dirname(HERE), "scad")
@@ -102,7 +103,7 @@ def _write_new(path, data):
         f.write(data)
 
 
-def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, timeout=300):
+def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, timeout=300, png=False):
     """Returns the manifest dict. Raises FileExistsError, ToolError or mesh.MeshError."""
     exe = None
     if not scad_only:
@@ -158,6 +159,12 @@ def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, tim
                     ad["ok"] = not ad["problems"]
                     rep["admesh"] = ad
                     rep["problems"].extend(ad["problems"])
+                tris = mesh.read_stl(tmp_stl)
+                if not rep["problems"]:
+                    # the features the validated numbers describe must exist in the mesh
+                    spec_rep = speccheck.run(cfg, geo, tris)
+                    manifest["spec_check"] = spec_rep
+                    rep["problems"].extend(spec_rep["problems"])
                 rep["ok"] = not rep["problems"]
                 if not rep["ok"]:
                     raise mesh.MeshError("rendered mesh rejected: " + "; ".join(rep["problems"]))
@@ -167,6 +174,20 @@ def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, tim
             manifest["mesh"] = rep
             manifest["files"]["stl"] = {"path": os.path.basename(stl_path), "sha256": sha256_file(stl_path),
                                         "bytes": os.path.getsize(stl_path)}
+            path_3mf = os.path.join(out_dir, name + ".3mf")
+            created.append(path_3mf)
+            export.write_3mf(tris, path_3mf, name)
+            if mesh.geometry_hash(export.read_3mf(path_3mf)) != rep["geometry_sha256"]:
+                raise mesh.MeshError("3MF export does not reproduce the checked STL geometry")
+            manifest["files"]["3mf"] = {"path": os.path.basename(path_3mf), "sha256": sha256_file(path_3mf),
+                                        "bytes": os.path.getsize(path_3mf)}
+            if png:
+                png_path = os.path.join(out_dir, name + ".png")
+                created.append(png_path)
+                export.write_png(tris, png_path, **geo.get("preview", {}))
+                manifest["files"]["png"] = {"path": os.path.basename(png_path), "sha256": sha256_file(png_path),
+                                            "bytes": os.path.getsize(png_path),
+                                            "note": "orthographic preview only; not for measurement"}
         man_path = os.path.join(out_dir, "manifest.json")
         _write_new(man_path, json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n")
         created.append(man_path)
