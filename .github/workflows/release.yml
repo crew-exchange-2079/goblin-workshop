@@ -1,0 +1,144 @@
+name: Release
+
+# Builds one tool's distributions from a release tag <tool>-v<semver> (for
+# example tapefec-v1.0.0), attests their build provenance, and attaches them
+# to a GitHub Release for that tag. See RELEASING.md.
+#
+# Tags only: there is no pull_request, push-to-branch or workflow_dispatch
+# trigger, so nothing a pull request contains can reach the jobs that hold
+# id-token or contents: write. Legacy tags (v0.1.0, v0.2.0) do not match.
+
+on:
+  push:
+    tags: ["*-v[0-9]*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Unprivileged: runs the tool's build backend, so it gets no token scopes
+    # beyond reading the repository.
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      tool: ${{ steps.resolve.outputs.tool }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: tag commit is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git merge-base --is-ancestor "refs/tags/$TAG^{commit}" origin/main || {
+            echo "::error::$TAG does not point at a commit on main; tag a commit that has been merged to main"
+            exit 1
+          }
+      - name: resolve tag (version and changelog must match)
+        id: resolve
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 .github/release/release.py check
+          python3 .github/release/release.py resolve "$TAG" --github-output "$GITHUB_OUTPUT"
+      - name: install pinned build toolchain
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/release/requirements.txt
+      - name: build and smoke-test
+        env:
+          TOOL: ${{ steps.resolve.outputs.tool }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          python .github/release/release.py build "$TOOL" "$RUNNER_TEMP/dist"
+          python .github/release/release.py notes "$TOOL" "$VERSION" > "$RUNNER_TEMP/notes.md"
+          if [ "$TOOL" = tape-exporter ]; then python tape-exporter/ci/check_package.py "$RUNNER_TEMP/dist"; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: ${{ runner.temp }}/dist/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    # Signs SLSA build provenance for the exact files the build job produced.
+    # No checkout and no repository code runs here.
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+      - id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "dist/*"
+      - name: keep the attestation bundle for the release
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+          STEM: ${{ needs.build.outputs.tool }}-${{ needs.build.outputs.version }}
+        run: |
+          mkdir attestation
+          cp "$BUNDLE" "attestation/$STEM.intoto.jsonl"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-attestation
+          path: attestation/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    # The only job that can write: creates the release and uploads assets.
+    # No checkout and no repository code runs here.
+    needs: [build, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: release
+      - name: create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          TITLE: ${{ needs.build.outputs.tool }} ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::a release for $TAG already exists; releases are immutable, bump the version instead"
+            exit 1
+          fi
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); else flags+=(--latest=false); fi
+          (cd release/release-dist && sha256sum -c SHA256SUMS)
+          gh release create "$TAG" --verify-tag --title "$TITLE" \
+            --notes-file release/release-notes/notes.md "${flags[@]}" \
+            release/release-dist/* release/release-attestation/*

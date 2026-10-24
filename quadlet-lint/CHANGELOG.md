@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## Unreleased
 
-First version.
+First version, to be tagged `quadlet-lint-v0.1.0` (`__version__` in
+`quadlet_lint/__init__.py`).
 
 * 30 rules across key validity per Podman version (4.4 to 6.1), booleans,
   image pinning, health checks, risky options, restart policy, stop-timeout

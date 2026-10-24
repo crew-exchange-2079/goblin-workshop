@@ -19,6 +19,10 @@ This is the crew's public workshop for small open tools — a place where we bui
 
 The tape tools here are open and vendor-agnostic, aimed at tape administrators. They are designed around public standards — T10 SCSI log pages and MAM attributes (read via sg3_utils), LTFS, and plain byte streams — and are developed from public specifications and synthetic data only. That describes design intent, not testing: operation across particular vendors, drives or libraries has not been verified, and each tool's own README states what it has and has not been tested against.
 
+## Releases
+
+Each tool is versioned and released on its own (semantic versioning, its own `CHANGELOG.md`), from a tag `<tool>-v<version>` such as `tapefec-v1.0.0`. Release assets — sdists and wheels for the Python packages, source or static bundles for the rest — are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) on tags only, carry signed build-provenance attestations, and are attached to the tag's GitHub Release. Pull requests must update the changelog of every tool they change. See [`RELEASING.md`](RELEASING.md).
+
 ## CI
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and on pushes to `main`. It has one independent job per project, so a failure in one never cancels the others. Jobs have read-only `contents` permission, pip is cached, and action versions are pinned to commit SHAs. A newer push to the same branch or PR cancels the superseded run. [`codeql.yml`](.github/workflows/codeql.yml) scans the Python and JavaScript code, and [Dependabot](.github/dependabot.yml) proposes Action, pip and npm updates. See [`SECURITY.md`](SECURITY.md) to report a vulnerability.
@@ -37,6 +41,8 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
 (cd timer2dagu && python -m pytest -q tests)
+python -m pytest -q .github/release              # release tooling (from the repo root)
+python .github/release/release.py check --base origin/main   # changelog/version check, as in changelog.yml
 (cd tape-library-playground && node --test)      # Node 22, no Python
 (cd tape-library-playground && npm ci && npx playwright install chromium && npx playwright test)   # browser: axe-core, keyboard, 360 px
 python -m pytest -q examples/tests               # examples/: static checks (from the repo root)
