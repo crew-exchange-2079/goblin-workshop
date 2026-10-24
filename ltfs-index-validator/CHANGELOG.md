@@ -15,3 +15,8 @@ directory; install `lxml` from the hash-pinned `requirements.txt`).
 * Offline schema-only checker for LTFS 2.4.0 full index XML against the
   SNIA Annex B XSD, with a bounded JSON report and fixed exit codes. Not
   LTFS compliance or certification.
+* `web/`: static, client-side viewer. Drop index XML to see the directory
+  tree, extents, generations (back-pointer chain and diffs) and findings.
+  Nothing is uploaded; the page's CSP forbids connections. Its schema checks
+  are a hand-written mirror of Annex B, cross-checked against `validate.py`
+  in CI. They are not XSD validation.
