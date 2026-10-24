@@ -228,10 +228,14 @@ def boundary_cases():
         dict(k, name="keystone-flat-min-web", jack_latch_panel_thickness_mm=4.0, stiffener_depth_mm=0.0,
              keystone_pitch_mm=16.9),
         dict(k, name="keystone-single", keystone_count=1),
+        # pocket only 0.1 mm deep (latch seat just under the panel thickness)
+        dict(k, name="keystone-shallow-pocket", jack_latch_panel_thickness_mm=3.9),
         # two rows on a 2U panel, rows exactly min_wall_mm apart
         dict(k, name="keystone-2u-two-rows", panel_height_mm=88.1,
              rail_hole_z_offsets_mm=[5.955, 37.705, 50.405, 82.155], keystone_row_z_mm=[33.0, 56.6]),
         dict(d, name="drawer-flush-no-pull", front_overlap_mm=0.0, pull_width_mm=0.0, divider_count=0),
+        # a single divider on the centre line (allowed without a pull)
+        dict(d, name="drawer-centre-divider", pull_width_mm=0.0, divider_count=1),
         dict(d, name="drawer-housing-max-overlap", component="housing", front_overlap_mm=3.15),
         dict(d, name="drawer-max-overlap", front_overlap_mm=3.15, divider_count=4, pull_width_mm=0.0),
         dict(lab, name="label-min-lip", lip_overlap_mm=1.5),

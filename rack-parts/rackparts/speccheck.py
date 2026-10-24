@@ -229,8 +229,9 @@ def check_keystone(c, a):
         p.append(_probe("face beside the cutout x=%g" % x, (x + cw / 2 + E, seat / 2, z), True))
         if seat < t:
             p.append(_probe("jack body pocket behind the ledge x=%g" % x, (x, (seat + t) / 2, z + ch / 2 + E), False))
+            # mid-depth of the pocket: it can be much shallower than the probe inset (seat close to t)
             p.append(_probe("jack body pocket corner x=%g" % x,
-                            (x + pw / 2 - E, t - E, z + ph / 2 - E), False))
+                            (x + pw / 2 - E, (seat + t) / 2, z + ph / 2 - E), False))
             p.append(_probe("full-thickness panel outside the pocket x=%g" % x,
                             (x, (seat + t) / 2, z + ph / 2 + E), True))
     if len(a["jack_x"]) > 1:
@@ -271,7 +272,11 @@ def check_drawer_box(c, a):
     for s in (-1, 1):
         p.append(_probe("drawer side wall", (s * (bw / 2 - tw / 2), tfr + bl / 2, bh - E), True))
     p.append(_probe("drawer back wall", (0.0, tfr + bl - tw / 2, bh - E), True))
-    p.append(_probe("drawer is open at the top", (0.0, tfr + bl / 2, bh - E), False))
+    # centre of the first compartment: a divider may stand at x = 0
+    iw = bw - 2 * tw
+    k = len(a["dividers"])
+    x_open = -iw / 2 + (iw - k * tw) / (k + 1) / 2
+    p.append(_probe("drawer is open at the top", (x_open, tfr + bl / 2, bh - E), False))
     p.append(_probe("drawer interior is empty", (bw / 2 - tw - E, tfr + E, tf + E), False))
     p.append(_probe("nothing behind the drawer", (0.0, tfr + bl + E, bh / 2), False))
     if a["pull_w"] > 0:
