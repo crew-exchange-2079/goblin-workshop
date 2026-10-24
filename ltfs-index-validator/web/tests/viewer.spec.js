@@ -99,7 +99,7 @@ test("reads several indexes as generations and diffs them", async ({ page }) => 
   await expect(diff).toContainText("gen 2 (sample-gen2.xml) → gen 3 (sample-gen3.xml)");
   await expect(diff.locator(".d-added")).toContainText("/logs/2026-01-03.log");
   await expect(diff.locator(".d-removed")).toContainText("/sparse.img");
-  await expect(diff.locator(".d-changed li").first()).toHaveText("~/ modifytime"); // root dir, not "//"
+  await expect(diff.locator(".d-changed li").first()).toHaveText("~/ creationtime, changetime, modifytime, accesstime, backuptime"); // root dir, not "//"
   await expect(page.locator('#findings li[data-code="SEM_UID_DUPLICATE"]')).toHaveCount(1);
   await expect(page.locator('#findings li[data-code="SEM_TAPE_OVERLAP"]')).toHaveCount(1);
   await expect(page.locator('#findings li[data-code^="GEN_"]')).toHaveCount(0);
@@ -151,6 +151,37 @@ test("treats same-generation copies on two partitions as copies", async ({ page 
   await load(page, xmlFile("ip.xml", a), xmlFile("dp.xml", b));
   await expect(page.locator('#findings li[data-code="GEN_COPY"]')).toHaveCount(1);
   await expect(page.locator('#findings li[data-code="GEN_CONFLICT"]')).toHaveCount(0);
+});
+
+test("same generation with different content is a conflict, wherever it sits", async ({ page }) => {
+  const at = (part, root) => S.index({ gen: 4, loc: 100, prev: 50, hi: 2, root })
+    .replace("<partition>b</partition><startblock>100", `<partition>${part}</partition><startblock>100`);
+  const base = S.dir(1, "root", [S.file(2, "a", 0)]);
+  const f = page.locator("#findings");
+  const cases = [
+    // [why, second index, expected code]
+    ["same position, length changed", at("b", S.dir(1, "root", [S.file(2, "a", 1, { extents: [S.extent("b", 9, 1, 0)] })])), "GEN_CONFLICT"],
+    ["same position, identical", at("b", base), "GEN_DUPLICATE"],
+    ["other partition, readonly changed", at("a", base.replace(/(<file>.*?)<readonly>false<\/readonly>/, "$1<readonly>true</readonly>")), "GEN_CONFLICT"],
+    ["other partition, accesstime changed", at("a", base.replace(/(<file>.*?)<accesstime>[^<]*<\/accesstime>/, "$1<accesstime>2026-02-01T00:00:00.000000000Z</accesstime>")), "GEN_CONFLICT"],
+    ["other partition, xattr added", at("a", S.dir(1, "root", [S.file(2, "a", 0, { extra: "<extendedattributes><xattr><key>k</key><value/></xattr></extendedattributes>" })])), "GEN_CONFLICT"],
+    ["other partition, identical", at("a", base), "GEN_COPY"],
+  ];
+  for (const [why, second, code] of cases) {
+    if (await page.locator("#clear").isEnabled()) await page.locator("#clear").click();
+    await load(page, xmlFile("first.xml", at("b", base)), xmlFile("second.xml", second));
+    for (const c of ["GEN_CONFLICT", "GEN_DUPLICATE", "GEN_COPY"]) {
+      await expect(f.locator(`li[data-code="${c}"]`), `${why}: ${c}`).toHaveCount(c === code ? 1 : 0);
+    }
+  }
+});
+
+test("generation diff names every changed metadata field", async ({ page }) => {
+  const root = (ro, at) => S.dir(1, "root", [S.file(2, "a", 0)
+    .replace("<readonly>false</readonly>", `<readonly>${ro}</readonly>`).replace(/<accesstime>[^<]*/, `<accesstime>${at}`)]);
+  await load(page, xmlFile("g1.xml", S.index({ gen: 1, loc: 10, hi: 2, root: root("false", S.T) })),
+    xmlFile("g2.xml", S.index({ gen: 2, loc: 20, prev: 10, hi: 2, root: root("true", "2026-03-01T00:00:00.000000000Z") })));
+  await expect(page.locator("#diff .d-changed")).toContainText("/a accesstime, readonly");
 });
 
 test("block size drives the cross-file tape overlap check", async ({ page }) => {

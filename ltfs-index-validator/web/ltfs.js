@@ -523,12 +523,15 @@
       var same = order.filter(function (o) { return o !== cur && o.generation === cur.generation && o.volumeuuid === cur.volumeuuid; });
       same.forEach(function (o) {
         if (order.indexOf(o) > i) return;
-        if (o.location && cur.location && o.location.partition === cur.location.partition && o.location.startblock === cur.location.startblock) {
+        var samePos = o.location && cur.location && o.location.partition === cur.location.partition &&
+          o.location.startblock === cur.location.startblock;
+        if (!sameTree(o, cur)) {
+          ctx.add("error", "GEN_CONFLICT", tag + " and the index at " + fmtPos(o.location) + " share a generation number" +
+            (samePos ? " and location" : "") + " but differ.", "/");
+        } else if (samePos) {
           ctx.add("warning", "GEN_DUPLICATE", tag + " was loaded twice.", "/");
-        } else if (sameTree(o, cur)) {
-          ctx.add("info", "GEN_COPY", tag + " is a copy of the same generation at " + fmtPos(o.location) + ".", "/");
         } else {
-          ctx.add("error", "GEN_CONFLICT", tag + " and the copy at " + fmtPos(o.location) + " share a generation number but differ.", "/");
+          ctx.add("info", "GEN_COPY", tag + " is a copy of the same generation at " + fmtPos(o.location) + ".", "/");
         }
       });
       if (!older.length) continue;
@@ -565,8 +568,16 @@
     return n.extents.map(function (e) { return [e.partition, e.startblock, e.byteoffset, e.bytecount, e.fileoffset].join(","); }).join(";");
   }
 
+  function xattrSig(n) {
+    return n.xattrs.map(function (x) { return [x.key, x.type, x.value].join("\u0000"); }).join("\u0001");
+  }
+
+  // Every per-entry field the index records, so that copies differing only in
+  // metadata (readonly, xattrs, any timestamp) are not mistaken for identical.
   function sig(n) {
-    return [n.kind, String(n.uid), String(n.length), n.times.modifytime || "", n.symlink || "", extSig(n)].join("|");
+    return [n.kind, String(n.uid), String(n.length), n.rawName, String(n.percentEncoded), String(n.readonly),
+      String(n.openforwrite), n.symlink || "", extSig(n), xattrSig(n)]
+      .concat(TIMES.map(function (t) { return n.times[t] || ""; })).join("|");
   }
 
   function sameTree(a, b) {
@@ -585,9 +596,13 @@
       if (o.kind !== n.kind) what.push("kind");
       if (o.uid !== n.uid) what.push("fileuid");
       if (o.length !== n.length) what.push("length " + o.length + "→" + n.length);
-      if ((o.times.modifytime || "") !== (n.times.modifytime || "")) what.push("modifytime");
+      TIMES.forEach(function (t) { if ((o.times[t] || "") !== (n.times[t] || "")) what.push(t); });
+      if (o.rawName !== n.rawName || o.percentEncoded !== n.percentEncoded) what.push("stored name");
+      if (o.readonly !== n.readonly) what.push("readonly");
+      if (o.openforwrite !== n.openforwrite) what.push("openforwrite");
       if ((o.symlink || "") !== (n.symlink || "")) what.push("symlink target");
       if (extSig(o) !== extSig(n)) what.push("extents");
+      if (xattrSig(o) !== xattrSig(n)) what.push("xattrs");
       out.changed.push({ path: p, kind: n.kind, what: what.join(", ") });
     });
     A.forEach(function (n, p) { if (!B.has(p)) out.removed.push({ path: p, kind: n.kind }); });
