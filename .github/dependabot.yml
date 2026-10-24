@@ -20,6 +20,7 @@ updates:
       - /ltfs-index-validator    # requirements.txt, hash-pinned
       - /tape-exporter           # pyproject.toml
       - /quadlet-lint/ci         # pre-commit-requirements.txt, hash-pinned (CI hook test)
+      - /tape-label-gen          # requirements-test.txt, hash-pinned (decode tests only)
     schedule:
       interval: weekly
     cooldown:
