@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import pytest
 
@@ -232,3 +233,105 @@ def test_secret_used_as_a_key_is_withheld_from_paths(tmp_path, run_cli):
     _, out, _ = run_cli("-q", "default", "--format", "json", str(p))
     assert [f["code"] for f in json.loads(out)["files"][0]["findings"]].count("DL401") == 2
     assert "Zq9" not in out
+
+
+# Differential check over the whole fixture corpus, so an echo site that
+# misses Linter.echo() cannot hide: every input value a fixture's output
+# quotes must disappear from the output once the same value is also declared
+# as a secret elsewhere in the file.
+_QUOTED_OUT = re.compile(r"'([^'\n]{1,200})'|\(([^()\n]{1,100})\)")
+
+
+def _echoed_input_values(path, out):
+    from dagu_lint.loader import load_documents
+    from dagu_lint.rules import _scalars
+
+    with open(path, encoding="utf-8") as fh:
+        docs = load_documents(fh.read())
+    scalars = {v for d in docs if d is not None for _, v, *_ in _scalars(d, "")}
+    keys = set()
+    for d in docs:
+        stack = [d]
+        while stack:
+            o = stack.pop()
+            if isinstance(o, dict):
+                keys.update(str(k) for k in o)
+                stack.extend(o.values())
+            elif isinstance(o, list):
+                stack.extend(o)
+    with open(POLICY, encoding="utf-8") as fh:
+        policy = fh.read()
+    found = {a or b for a, b in _QUOTED_OUT.findall(out)}
+    return sorted(v for v in found if (v in scalars or v in keys) and v not in policy)
+
+
+def _parses(path):
+    from dagu_lint.loader import load_documents
+
+    try:
+        with open(path, encoding="utf-8") as fh:
+            load_documents(fh.read())
+        return True
+    except Exception:
+        return False
+
+
+CORPUS = [p for p in fixture_files("good") + fixture_files("bad") if _parses(p)]
+
+
+@pytest.mark.parametrize("path", CORPUS, ids=os.path.basename)
+def test_every_echoed_value_is_withheld_once_it_is_a_secret(path, tmp_path, run_cli, monkeypatch):
+    # The post-format scrub would hide a missed echo site for values of 4+
+    # characters; switch it off so this tests withholding at build time alone.
+    from dagu_lint.rules import Linter
+
+    monkeypatch.setattr(Linter, "redact", lambda self, text: text)
+    _, out, _ = run_cli("-c", POLICY, "--now", NOW, path)
+    values = _echoed_input_values(path, out)
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    for v in values:
+        p = tmp_path / "dag.yaml"
+        p.write_text(text + f"\n---\nname: zz\nenv:\n  DB_PASSWORD: {json.dumps(v)}\nsteps:\n  - run: echo\n",
+                     encoding="utf-8")
+        for fmt in ("text", "json", "github"):
+            _, out2, err2 = run_cli("-c", POLICY, "--format", fmt, "--now", NOW, str(p))
+            for form in (f"'{v}'", f"({v})"):
+                assert form not in out2 + err2, (v, fmt)
+
+
+def test_corpus_exercises_echo_sites():
+    # Guard against the differential test passing vacuously.
+    from dagu_lint.cli import main
+    import contextlib
+    import io
+
+    total = 0
+    for path in CORPUS:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            main(["-c", POLICY, "--now", NOW, path])
+        total += len(_echoed_input_values(path, buf.getvalue()))
+    assert total >= 40, total
+
+
+def test_valid_schedule_that_contains_a_secret(tmp_path, run_cli):
+    # Review round 4: '1,2' is both the password and a day-of-month list.
+    p = tmp_path / "dag.yaml"
+    p.write_text("name: x\nqueue: default\ntimeout_sec: 60\nhandler_on: {failure: {run: ./n.sh}}\n"
+                 "env:\n  DB_PASSWORD: '1,2'\nschedule: '0 0 1,2 * 1'\nsteps:\n  - run: echo\n")
+    for fmt in ("text", "json", "github"):
+        _, out, err = run_cli("-q", "default", "--format", fmt, "--now", NOW, str(p))
+        assert "DL204" in out and "1,2" not in out + err, fmt
+
+
+@pytest.mark.parametrize("text", [
+    "name: x\nenv: {DB_PASSWORD: abc}\nparams:\n  abc: 1\n  abc: 2\nsteps:\n  - run: echo\n",  # DL002
+    'name: x\nenv: {DB_PASSWORD: "abc"}\nq: "abc\\q"\n',                                    # DL001
+])
+def test_unparseable_files_quote_no_input(tmp_path, text, run_cli):
+    p = tmp_path / "dag.yaml"
+    p.write_text(text)
+    for fmt in ("text", "json", "github"):
+        code, out, err = run_cli("-q", "default", "--format", fmt, str(p))
+        assert code == 1 and "abc" not in out + err and "\\q" not in out + err, fmt

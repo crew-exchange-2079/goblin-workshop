@@ -257,18 +257,23 @@ class Linter:
                 else:
                     self.add("DL201", f"{label}: {item.strip()!r}: {e}", iline, icol)
                 continue
+            # A schedule that parses can still contain a secret (`1,2` as both a
+            # password and a day list); then no message may quote any of it.
+            withheld = self.is_sensitive(item)
+            expr = secrets.REDACTED if withheld else repr(s.expression)
             for msg in cron.misleading_steps(s.expression):
-                self.add("DL203", f"{label}: {msg}", iline, icol)
+                self.add("DL203", f"{label}: {expr}: uneven */N step resets at the wrap (details withheld: the "
+                                  "value matches a secret)" if withheld else f"{label}: {msg}", iline, icol)
             if cron.day_fields_ored(s):
-                self.add("DL204", f"{label}: {s.expression!r} fires on days matching day-of-month OR day-of-week, "
+                self.add("DL204", f"{label}: {expr} fires on days matching day-of-month OR day-of-week, "
                                   "not both", iline, icol)
-            if self.is_sensitive(item):
-                self.infos.append(Info(label, secrets.REDACTED, secrets.REDACTED, [], iline))
-                continue
             runs = s.next_runs(self.now, max(self.cfg.next_runs, 1))
             if not runs:
-                self.add("DL202", f"{label}: {s.expression!r} has no fire time in the next {cron.SEARCH_YEARS} years",
+                self.add("DL202", f"{label}: {expr} has no fire time in the next {cron.SEARCH_YEARS} years",
                          iline, icol)
+                continue
+            if withheld:
+                self.infos.append(Info(label, secrets.REDACTED, secrets.REDACTED, [], iline))
                 continue
             self.infos.append(Info(label, s.expression, s.describe(),
                                    [r.isoformat() for r in runs[: self.cfg.next_runs]], iline))

@@ -46,6 +46,7 @@ class DuplicateKey(Exception):
         self.key = key
         self.line = line
         self.col = col
+        self.first_line = first_line
 
 
 def _at(obj, node):

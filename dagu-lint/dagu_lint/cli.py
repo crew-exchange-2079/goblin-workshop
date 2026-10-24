@@ -14,13 +14,13 @@ import yaml
 
 from . import __version__, cron
 from .config import ConfigError, load
-from . import secrets
 from .loader import DuplicateKey, load_documents
 from .rules import RULES, Finding, Linter
 
 MAX_BYTES = 1 << 20
 EXIT_OK, EXIT_FINDINGS, EXIT_USAGE = 0, 1, 2
 
+_QUOTED = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
 _DISABLE_RE = re.compile(r"#\s*dagu-lint:\s*disable(-file)?=([A-Z0-9, ]+)")
 
 
@@ -70,11 +70,14 @@ def lint_file(path, cfg, now):
         return [Finding("DL004", "file is not UTF-8")], []
     try:
         docs = load_documents(text)
+    # The file did not parse, so Linter.prepare() cannot learn its secrets:
+    # these messages quote no input (the key name and any quoted characters
+    # are left out; the line and column say where to look).
     except DuplicateKey as e:
-        return [Finding("DL002", secrets.redact(str(e)), e.line, e.col)], []
+        return [Finding("DL002", f"duplicate mapping key (first defined on line {e.first_line})", e.line, e.col)], []
     except yaml.YAMLError as e:
         mark = getattr(e, "problem_mark", None)
-        problem = secrets.redact(getattr(e, "problem", None) or "invalid YAML")
+        problem = _QUOTED.sub("<withheld>", getattr(e, "problem", None) or "invalid YAML")
         return [Finding("DL001", problem, mark.line + 1 if mark else 0, mark.column + 1 if mark else 0)], []
     docs = [d for d in docs if d is not None] or [None]
     findings, infos = [], []

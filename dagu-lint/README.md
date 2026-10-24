@@ -65,7 +65,9 @@ value either. Before any rule runs, every value a secret rule matches anywhere i
 When a message is built, any quoted input containing one of those values, a known credential format or a
 high-entropy token is replaced with `<redacted>`; for a schedule, the parser's error details are withheld
 too. This holds at any length and before repr/JSON/annotation escaping, and also when the secret rules
-are disabled or suppressed. The finished text is scrubbed again as a second line of defence. Values are
+are disabled or suppressed. The finished text is scrubbed again as a second line of defence. A file that does not
+parse (`DL001`, `DL002`) has no known secrets yet, so those messages quote no input at all: the
+duplicated key and any quoted characters are left out, and the line and column say where to look. Values are
 compared literally: a secret that appears elsewhere only in a transformed form (case-changed, split across
 fields) is not recognised.
 
