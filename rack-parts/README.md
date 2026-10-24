@@ -307,7 +307,7 @@ The tests also run every checker against a mesh rendered *without* one feature (
 
 ## Catalog (docs site)
 
-[`docs/rack-parts/index.md`](../docs/rack-parts/index.md) is the catalog page of the repository's docs site ([`docs/`](../docs/), plain Markdown for GitHub Pages). `python3 -m rackparts catalog --out build/catalog` renders every example and writes the page plus `img/<example>.png`; copy `build/catalog/` to `docs/rack-parts/` when parts or examples change. A unit test requires the committed page to match `catalog.markdown()`, and CI runs `python3 -m rackparts catalog --check ../docs/rack-parts`, which rebuilds it and fails if the page text or any preview's pixels differ (pixels, not file bytes: zlib builds may compress identical pixels differently).
+[`docs/rack-parts/index.md`](../docs/rack-parts/index.md) is the catalog page of the repository's docs site (MkDocs, see the root README; the page is listed in `mkdocs.yml`'s nav). `python3 -m rackparts catalog --out build/catalog` renders every example and writes the page plus `img/<example>.png`; copy `build/catalog/` to `docs/rack-parts/` when parts or examples change. A unit test requires the committed page to match `catalog.markdown()`, and CI runs `python3 -m rackparts catalog --check ../docs/rack-parts`, which rebuilds it and fails if the page text or any preview's pixels differ (pixels, not file bytes: zlib builds may compress identical pixels differently).
 
 ## Slicer starting settings (untested)
 

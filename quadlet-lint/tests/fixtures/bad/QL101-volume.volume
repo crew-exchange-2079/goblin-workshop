@@ -1,0 +1,4 @@
+# expect: QL101
+[Volume]
+Driver=image
+Image=quay.io/example/data:latest

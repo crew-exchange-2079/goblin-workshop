@@ -420,8 +420,9 @@ class CatalogTests(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(DOCS, "img", stem + ".png")), stem)
 
     def test_docs_site_links_the_catalog(self):
-        with open(os.path.join(os.path.dirname(DOCS), "index.md"), encoding="utf-8") as f:
-            self.assertIn("rack-parts/", f.read())
+        # the catalog is a hand-written MkDocs page, so it must be in the nav (mkdocs build --strict)
+        with open(os.path.join(os.path.dirname(os.path.dirname(DOCS)), "mkdocs.yml"), encoding="utf-8") as f:
+            self.assertIn("rack-parts/index.md", f.read())
 
 
 class DocTests(unittest.TestCase):
