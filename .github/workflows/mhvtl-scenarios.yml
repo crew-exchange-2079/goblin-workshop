@@ -1,0 +1,112 @@
+name: mhvtl scenarios (tape-regression-lab)
+
+# Loads the mhvtl kernel module on a disposable VM, drives ONE emulated tape
+# drive through load/unload, full tape, cleaning cartridge, drive offline and
+# WORM media, and asserts on lto-exporter's metrics after every step. See
+# tape-regression-lab/mhvtl-scenarios/README.md for the runner requirement:
+# a host that cannot load out-of-tree modules (container, lockdown, no
+# headers) gets a clean SKIPPED, not a failure. Never run run.sh on a host
+# you care about.
+
+on:
+  push:
+    paths:
+      - "tape-regression-lab/mhvtl-scenarios/**"
+      - "tape-exporter/lto_exporter/**"
+      - "tape-exporter/ci/mhvtl/**"
+      - ".github/workflows/mhvtl-scenarios.yml"
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "space-separated subset (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mhvtl-scenarios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MHVTL_REPO: https://github.com/markh794/mhvtl.git
+  MHVTL_SHA: 37b0997c17efce10acc39abf777247b41ba05d3e   # same pin as tape-exporter-mhvtl.yml
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: src
+      - name: probe (can this runner build and load a kernel module?)
+        id: probe
+        run: |
+          set +e
+          reason="$(src/tape-regression-lab/mhvtl-scenarios/preflight.sh --probe)"
+          rc=$?
+          echo "$reason"
+          case "$rc" in
+            0) echo "available=true" >> "$GITHUB_OUTPUT" ;;
+            77) echo "available=false" >> "$GITHUB_OUTPUT"
+                echo "::notice title=mhvtl scenarios skipped::$reason"
+                printf '## mhvtl scenarios: SKIPPED\n\n%s\n' "$reason" >> "$GITHUB_STEP_SUMMARY" ;;
+            *) exit "$rc" ;;
+          esac
+      - name: install build/test tools
+        if: steps.probe.outputs.available == 'true'
+        timeout-minutes: 8
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential \
+            "linux-headers-$(uname -r)" sg3-utils lsscsi strace zlib1g-dev python3-venv
+      - name: fetch mhvtl at the pinned commit
+        if: steps.probe.outputs.available == 'true'
+        timeout-minutes: 3
+        run: |
+          git init -q mhvtl
+          git -C mhvtl fetch -q --depth 1 "$MHVTL_REPO" "$MHVTL_SHA"
+          git -C mhvtl checkout -q --detach FETCH_HEAD
+          test "$(git -C mhvtl rev-parse HEAD)" = "$MHVTL_SHA"
+      - name: build mhvtl kernel module and daemons
+        if: steps.probe.outputs.available == 'true'
+        timeout-minutes: 8
+        run: |
+          make -C mhvtl/kernel
+          make -C mhvtl usr -j"$(nproc)"
+          ls -l mhvtl/kernel/mhvtl.ko mhvtl/usr/bin/vtltape mhvtl/usr/bin/vtlcmd mhvtl/usr/bin/mktape
+      - name: install lto-exporter into a venv readable by the unprivileged user
+        if: steps.probe.outputs.available == 'true'
+        run: |
+          sudo python3 -m venv /opt/lto-ci/venv
+          sudo /opt/lto-ci/venv/bin/pip install -q --disable-pip-version-check ./src/tape-exporter
+          sudo chmod -R a+rX /opt/lto-ci
+      - name: run scenarios
+        if: steps.probe.outputs.available == 'true'
+        timeout-minutes: 18
+        env:
+          SCENARIOS: ${{ github.event.inputs.scenarios }}
+        run: |
+          sudo env CI=true PATH="$PATH" MHVTL_SCENARIOS_REQUIRE=1 SCENARIOS="$SCENARIOS" \
+            MHVTL_SRC="$GITHUB_WORKSPACE/mhvtl" LTO_VENV=/opt/lto-ci/venv \
+            EVIDENCE="$RUNNER_TEMP/evidence" \
+            timeout -k 10 1020 src/tape-regression-lab/mhvtl-scenarios/run.sh
+      - name: job summary
+        if: always() && steps.probe.outputs.available == 'true'
+        run: |
+          if [ -f "$RUNNER_TEMP/evidence/summary.md" ]; then
+            cat "$RUNNER_TEMP/evidence/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## mhvtl scenarios: NOT COMPLETED (no summary produced)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: upload evidence
+        if: always() && steps.probe.outputs.available == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mhvtl-scenarios-evidence
+          path: ${{ runner.temp }}/evidence
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service (user unit)
+
+untranslated (1):
+  job.service:3 ExecStart=: specifier %U has no translation and was left verbatim

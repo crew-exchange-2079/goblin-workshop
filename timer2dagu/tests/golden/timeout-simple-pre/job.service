@@ -1,0 +1,5 @@
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/true
+ExecStart=/usr/local/bin/job
+TimeoutStartSec=90

@@ -1,0 +1,14 @@
+# Minimal but clean, using a unit-built image and a pod.
+[Container]
+Image=worker.build
+Pod=stack.pod
+ReadOnly=yes
+Notify=healthy
+HealthCmd=/app/healthcheck
+Exec=/app/worker \
+    --queue jobs \
+    --concurrency 4
+
+[Service]
+Restart=always
+RestartSec=3

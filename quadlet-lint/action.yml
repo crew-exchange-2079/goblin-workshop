@@ -1,0 +1,60 @@
+name: quadlet-lint
+description: Lint Podman Quadlet .container/.volume/.network/.pod files and annotate the findings.
+author: goblin-workshop contributors
+branding:
+  icon: check-square
+  color: purple
+
+inputs:
+  paths:
+    description: Files or directories to lint, one per line. Directories are searched recursively.
+    required: false
+    default: "."
+  podman-version:
+    description: Podman release the units must work with, e.g. "5.2". Empty means the newest release the key table knows.
+    required: false
+    default: ""
+  fail-on:
+    description: Lowest severity that fails the step (error, warning, info, never).
+    required: false
+    default: warning
+  min-severity:
+    description: Hide findings below this severity (error, warning, info).
+    required: false
+    default: info
+  select:
+    description: Comma-separated rule ids to run (default all).
+    required: false
+    default: ""
+  disable:
+    description: Comma-separated rule ids to skip.
+    required: false
+    default: ""
+  python:
+    description: Python 3.10+ interpreter to run with. GitHub's Ubuntu runners ship one as python3.
+    required: false
+    default: python3
+
+runs:
+  using: composite
+  steps:
+    - name: quadlet-lint
+      shell: bash
+      env:
+        QL_BIN: ${{ github.action_path }}/bin/quadlet-lint
+        QL_PATHS: ${{ inputs.paths }}
+        QL_PODMAN_VERSION: ${{ inputs.podman-version }}
+        QL_FAIL_ON: ${{ inputs.fail-on }}
+        QL_MIN_SEVERITY: ${{ inputs.min-severity }}
+        QL_SELECT: ${{ inputs.select }}
+        QL_DISABLE: ${{ inputs.disable }}
+        QL_PYTHON: ${{ inputs.python }}
+      run: |
+        set -euo pipefail
+        args=(--format github --fail-on "$QL_FAIL_ON" --min-severity "$QL_MIN_SEVERITY")
+        if [ -n "$QL_PODMAN_VERSION" ]; then args+=(--podman-version "$QL_PODMAN_VERSION"); fi
+        if [ -n "$QL_SELECT" ]; then args+=(--select "$QL_SELECT"); fi
+        if [ -n "$QL_DISABLE" ]; then args+=(--disable "$QL_DISABLE"); fi
+        mapfile -t paths < <(printf '%s\n' "$QL_PATHS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')
+        if [ "${#paths[@]}" -eq 0 ]; then echo "quadlet-lint: no paths given" >&2; exit 2; fi
+        "$QL_PYTHON" "$QL_BIN" "${args[@]}" -- "${paths[@]}"

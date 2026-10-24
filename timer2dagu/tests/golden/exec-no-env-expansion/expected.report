@@ -1,0 +1,7 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:4 ExecStart=: a literal '$' is single-quoted for the shell, but Dagu may still interpolate it before the shell runs
+
+ignored (1):
+  job.service: Dagu also loads a .env file from the working directory if one exists; systemd would not

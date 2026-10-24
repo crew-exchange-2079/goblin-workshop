@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.service:3 ExecCondition=: not translated; Dagu `preconditions` have different exit-code semantics (systemd skips on 1-254, fails on 255)
+  job.service:5 ExecReload=: has no meaning for a run-to-completion job

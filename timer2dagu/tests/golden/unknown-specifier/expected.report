@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.service:3 ExecStart=: specifier %H has no translation and was left verbatim
+  job.service:3 ExecStart=: specifier %m has no translation and was left verbatim

@@ -1,0 +1,3 @@
+# expect: QL002
+[Unit]
+Description=net with no [Network]

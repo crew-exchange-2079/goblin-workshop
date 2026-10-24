@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/job
+TimeoutStartSec=45min

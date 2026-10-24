@@ -1,0 +1,9 @@
+Volume statistics page (ssc-4), subpage=0
+  Page valid: 1
+  Thread count: 314
+  Total data sets written: 5000
+  Total write retries: 2
+  Total unrecovered write errors: 0
+  Total data sets read: 1200
+  Total read retries: 1
+  Volume serial number: SYN001L8                        

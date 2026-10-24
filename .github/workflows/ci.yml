@@ -118,6 +118,78 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
       - run: timeout --kill-after=5s 120s python -m pytest -q test_runner.py
 
+  sg-logs-fixtures:
+    # Every tape-exporter parser against every fixture in the sg_logs corpus.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-regression-lab/fixtures
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
+      - run: python -m pytest -q test_corpus.py
+
+  sg-logs-fixtures-reproduce:
+    # The committed fixtures must be exactly what the real sg_logs 1.46
+    # (Ubuntu 24.04 package) and 1.49 (pinned upstream commit) print today.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tape-regression-lab/fixtures
+    env:
+      SG3_UTILS_TAG: release-1.49
+      SG3_UTILS_COMMIT: b1f5e2eee8f91cda2926dbcc71f7734ec9fac358
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install sg3-utils 1.46 and build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends sg3-utils autoconf automake libtool
+      - name: Build sg_logs from sg3_utils ${{ env.SG3_UTILS_TAG }}
+        run: |
+          git clone -q --depth 1 --branch "$SG3_UTILS_TAG" https://github.com/doug-gilbert/sg3_utils "$RUNNER_TEMP/sg3_utils"
+          cd "$RUNNER_TEMP/sg3_utils"
+          test "$(git rev-parse HEAD)" = "$SG3_UTILS_COMMIT"
+          ./autogen.sh >/dev/null
+          ./configure -q --disable-shared
+          make -s -j"$(nproc)" -C lib
+          make -s -C src sg_logs
+      - run: python generate.py --check --sg-logs 1.46=/usr/bin/sg_logs --sg-logs "1.49=$RUNNER_TEMP/sg3_utils/src/sg_logs"
+
+  mhvtl-scenarios:
+    # Scenario driver and assertions against a fake drive + the real exporter
+    # collector. The kernel-module run is mhvtl-scenarios.yml.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tape-regression-lab/mhvtl-scenarios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../../.github/ci-requirements.txt
+      - run: python -m pytest -q test_scenarios.py
+
   sweep:
     # Regression tests for the input-handling bugs fixed in the 2026-10-22 sweep
     # (see FINDINGS.md). They span tapefec and rack-parts, so they run from the root.
@@ -134,6 +206,24 @@ jobs:
           cache-dependency-path: .github/ci-requirements.txt
       - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
       - run: python -m pytest -q tests/sweep
+
+  timer2dagu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: timer2dagu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
 
   hsm-sim:
     runs-on: ubuntu-24.04
@@ -157,6 +247,83 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
       - run: python -m pytest -q tests
 
+  quadlet-lint:
+    name: quadlet-lint (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor in pyproject.toml; the tool is stdlib-only.
+        python: ["3.10", "3.13"]
+    defaults:
+      run:
+        working-directory: quadlet-lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+
+  quadlet-lint-integrations:
+    # The pre-commit hook and the GitHub Action, exercised the way users run them.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: quadlet-lint/ci/pre-commit-requirements.txt
+      - name: pre-commit hook (try-repo against fixture units)
+        env:
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.invalid
+          GIT_COMMITTER_NAME: ci
+          GIT_COMMITTER_EMAIL: ci@example.invalid
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: \
+            -r quadlet-lint/ci/pre-commit-requirements.txt
+          work="$RUNNER_TEMP/precommit"
+          mkdir -p "$work" && cd "$work" && git init -q
+          cp "$GITHUB_WORKSPACE"/quadlet-lint/tests/fixtures/good/* .
+          git add .
+          pre-commit try-repo "$GITHUB_WORKSPACE" quadlet-lint --all-files
+          cp "$GITHUB_WORKSPACE"/quadlet-lint/tests/fixtures/bad/QL304-volume.container .
+          git add .
+          if pre-commit try-repo "$GITHUB_WORKSPACE" quadlet-lint --all-files; then
+            echo "hook passed on a unit that mounts the podman socket" >&2
+            exit 1
+          fi
+      - name: Action on clean units
+        uses: ./quadlet-lint
+        with:
+          paths: |
+            quadlet-lint/tests/fixtures/good
+          podman-version: "5.5"
+          fail-on: info
+      - name: Action on a bad unit (must fail)
+        id: bad
+        continue-on-error: true
+        uses: ./quadlet-lint
+        with:
+          paths: quadlet-lint/tests/fixtures/bad/QL304-volume.container
+          select: QL304
+      - name: Check the bad run failed
+        env:
+          OUTCOME: ${{ steps.bad.outcome }}
+        run: test "$OUTCOME" = failure
+
   tape-library-playground:
     # JavaScript project: no Python, no pip.
     runs-on: ubuntu-24.04
@@ -172,3 +339,92 @@ jobs:
         with:
           node-version: "22"
       - run: node --test
+
+  examples:
+    # End-to-end walkthroughs in examples/ (synthetic data, real containers).
+    # Static checks first, then each live walkthrough is run, checked and torn
+    # down by run_walkthrough.py; a fresh recording is kept as evidence.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
+      - name: static checks (no Docker)
+        run: python -m pytest -q examples/tests
+      - name: tool versions
+        run: docker version --format 'docker {{.Server.Version}}' && docker compose version
+      - name: exporter -> Grafana
+        timeout-minutes: 12
+        run: |
+          mkdir -p "$RUNNER_TEMP/examples"
+          python examples/run_walkthrough.py exporter-to-grafana \
+            --cast "$RUNNER_TEMP/examples/exporter-to-grafana.cast"
+      - name: nothing left behind
+        if: always()
+        run: |
+          left="$(docker ps -aq --filter label=com.docker.compose.project)"
+          if [ -n "$left" ]; then docker ps -a; exit 1; fi
+          echo "no walkthrough containers remain"
+      - name: upload recordings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: examples-recordings
+          path: ${{ runner.temp }}/examples
+          retention-days: 14
+          if-no-files-found: warn
+
+  docs:
+    # Builds the MkDocs site with --strict so broken nav, links or a README
+    # missing from docs/hooks.py fail the PR. Deploying is pages.yml, main only.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+      - run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r docs/requirements.txt
+      - run: python -m mkdocs build --strict
+
+  release-dry-run:
+    # Builds every tool's release distributions exactly as release.yml does,
+    # twice, and requires identical bytes. Never attests or publishes: that
+    # happens only in release.yml, on a release tag.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .github/ci-requirements.txt
+            .github/release/requirements.txt
+      - run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/release/requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r .github/ci-requirements.txt
+      - run: python -m pytest -q .github/release
+      - name: build every tool twice and compare
+        run: |
+          for tool in $(python -c "import json; print(' '.join(json.load(open('.github/release/tools.json'))['tools']))"); do
+            python .github/release/release.py build "$tool" "$RUNNER_TEMP/a/$tool"
+            python .github/release/release.py build "$tool" "$RUNNER_TEMP/b/$tool" > /dev/null
+            cmp "$RUNNER_TEMP/a/$tool/SHA256SUMS" "$RUNNER_TEMP/b/$tool/SHA256SUMS"
+          done
+          python tape-exporter/ci/check_package.py "$RUNNER_TEMP/a/tape-exporter"

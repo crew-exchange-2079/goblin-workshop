@@ -1,0 +1,9 @@
+# expect: QL101 QL102
+[Container]
+Image=redis
+ReadOnly=true
+HealthCmd=/bin/true
+
+[Service]
+Restart=on-failure
+RestartSec=5s

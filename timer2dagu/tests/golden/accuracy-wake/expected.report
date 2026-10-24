@@ -1,0 +1,8 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (1):
+  job.timer:7 WakeSystem=: Dagu cannot wake a suspended system
+
+ignored (2):
+  job.timer:6 AccuracySec=: Dagu's scheduler fires on the minute; systemd's coalescing window does not apply
+  job.timer:8 RemainAfterElapse=: only affects when systemd unloads the timer
