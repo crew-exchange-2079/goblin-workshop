@@ -143,3 +143,92 @@ def test_non_string_scalars_are_checked(tmp_path, value, run_cli):
     code, out, _ = run_cli("-q", "default", "--disable", "DL301", "--disable", "DL501", "--format", "json", str(p))
     codes = [f["code"] for f in json.loads(out)["files"][0]["findings"]]
     assert codes == ["DL401"] and value not in out
+
+
+# Passwords chosen to defeat scrubbing of finished text: too short to
+# substring-replace, or changed by repr/JSON/annotation escaping.
+TRICKY = {"short": "abc", "short-mixed": "Zq9", "escapes": "pa\\ss\nword9", "unicode": "pässwörd",
+          "quotes": "it's\"q"}
+
+
+def _every_echo_site(pw):
+    q = json.dumps(pw)  # a JSON string is a valid YAML double-quoted scalar
+    return f"""name: x
+queue: {q}
+timeout_sec: {q}
+schedule:
+  start:
+    - {q}
+    - at: {q}
+  {q}: "0 1 * * *"
+handler_on:
+  {q}:
+    run: ./n.sh
+env:
+  DB_PASSWORD: {q}
+steps:
+  - id: {q}
+    run: echo
+    timeout_sec: {q}
+    retry_policy:
+      limit: {q}
+      interval_sec: {q}
+      max_interval_sec: {q}
+  - id: b
+    foreach:
+      items: [a]
+      steps:
+        - id: {q}
+          run: echo
+"""
+
+
+def _forms(pw):
+    return {pw, repr(pw)[1:-1], json.dumps(pw)[1:-1], json.dumps(json.dumps(pw))[1:-1],
+            pw.replace("%", "%25").replace("\n", "%0A")}
+
+
+@pytest.mark.parametrize("pw", TRICKY.values(), ids=TRICKY.keys())
+@pytest.mark.parametrize("fmt", ["text", "json", "github"])
+def test_no_echo_site_discloses_a_detected_secret(tmp_path, pw, fmt, run_cli):
+    p = tmp_path / "dag.yaml"
+    p.write_text(_every_echo_site(pw), encoding="utf-8")
+    code, out, err = run_cli("-q", "default", "--format", fmt, "--now", NOW, str(p))
+    assert code == 1
+    assert "DL401" in out  # the secret is detected ...
+    for form in _forms(pw):  # ... and appears in no form anywhere else
+        assert form not in out + err, form
+
+
+def test_numeric_secret_not_echoed_by_numeric_rules(tmp_path, run_cli):
+    p = tmp_path / "dag.yaml"
+    p.write_text("name: x\nqueue: default\nenv:\n  DB_PASSWORD: 7777\nsteps:\n  - id: s\n    run: echo\n"
+                 "    retry_policy:\n      limit: 7777\n      interval_sec: 7777\n")
+    _, out, _ = run_cli("-q", "default", "--format", "json", str(p))
+    codes = sorted(f["code"] for f in json.loads(out)["files"][0]["findings"])
+    assert "DL401" in codes and "DL601" in codes and "DL604" in codes
+    assert "7777" not in out
+
+
+def test_secret_in_second_document_withheld_in_first(tmp_path, run_cli):
+    p = tmp_path / "dag.yaml"
+    p.write_text('name: x\nqueue: "abc"\nsteps:\n  - run: echo\n---\nname: sub\nenv:\n  DB_PASSWORD: abc\n'
+                 "steps:\n  - run: echo\n")
+    _, out, _ = run_cli("-q", "default", "--format", "json", str(p))
+    assert "DL101" in out and "abc" not in out
+
+
+def test_non_secret_values_are_still_quoted(run_cli):
+    from conftest import FIXTURES
+
+    _, out, _ = run_cli("-c", POLICY, "--now", NOW, os.path.join(FIXTURES, "bad", "queue-typo.yaml"))
+    assert "queue 'reprots' is not in the allowlist; did you mean 'reports'?" in out
+
+
+def test_secret_used_as_a_key_is_withheld_from_paths(tmp_path, run_cli):
+    p = tmp_path / "dag.yaml"
+    p.write_text("name: x\nqueue: default\nenv:\n  DB_PASSWORD: Zq9\nparams:\n  - Zq9:\n      API_TOKEN: other\n"
+                 "steps:\n  - run: echo\n")
+    _, out, _ = run_cli("-q", "default", "--format", "json", str(p))
+    assert [f["code"] for f in json.loads(out)["files"][0]["findings"]].count("DL401") == 2
+    assert "Zq9" not in out

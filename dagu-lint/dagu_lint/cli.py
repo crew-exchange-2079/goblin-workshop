@@ -79,6 +79,7 @@ def lint_file(path, cfg, now):
     docs = [d for d in docs if d is not None] or [None]
     findings, infos = [], []
     linter = Linter(cfg, now)
+    linter.prepare(docs)  # secrets anywhere in the file are known before any message is built
     for i, doc in enumerate(docs):
         f, inf = linter.lint_dag(doc, i, is_main=(i == 0))
         findings += f
@@ -87,8 +88,8 @@ def lint_file(path, cfg, now):
     kept = [f for f in findings
             if f.code not in cfg.disable and f.code not in whole and f.code not in per_line.get(f.line, ())]
     kept.sort(key=lambda f: (f.line, f.col, f.code))
-    # Messages and schedule summaries can echo input (a cron parse error, a
-    # bad queue name); scrub every value a secret rule matched, file-wide.
+    # Messages withhold secret-matching input when they are built (Linter.echo);
+    # this scrub of the finished text is a second line of defence.
     for f in kept:
         f.message = linter.redact(f.message)
     for i in infos:

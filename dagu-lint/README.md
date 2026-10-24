@@ -59,11 +59,13 @@ dags/etl.yaml:3: info schedule 'CRON_TZ=Europe/Berlin 30 2 * * *': at 02:30, eve
 | 2 | usage or config problem (bad flag, unknown rule code, invalid TOML, unknown `--tz`, no files found) |
 
 Values that trip a secret rule are never printed in any format: findings carry the location, the signal
-(key name, credential type, or token length and entropy) and nothing of the value. Every diagnostic and
-schedule summary is also scrubbed before output, so a message that quotes input (a cron parse error, a
-rejected queue name) cannot leak a value either: values any secret rule matched in the file, known
-credential formats and high-entropy tokens become `<redacted>`, even when the secret rules are disabled
-or suppressed.
+(key name, credential type, or token length and entropy) and nothing of the value. Messages that quote
+input (a rejected queue name, an unparseable schedule, a bad timeout, a step id in a label) cannot leak a
+value either. Before any rule runs, every value a secret rule matches anywhere in the file is collected.
+When a message is built, any quoted input containing one of those values, a known credential format or a
+high-entropy token is replaced with `<redacted>`; for a schedule, the parser's error details are withheld
+too. This holds at any length and before repr/JSON/annotation escaping, and also when the secret rules
+are disabled or suppressed. The finished text is scrubbed again as a second line of defence.
 
 ## Rules
 

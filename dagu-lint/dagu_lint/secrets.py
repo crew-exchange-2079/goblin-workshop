@@ -13,6 +13,7 @@ Values are never echoed: findings name the location, the signal and a length.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 
@@ -115,9 +116,12 @@ def redact(text: str, sensitive=(), min_len: int = 20, threshold: float = 4.0) -
     so a message echoing input (a cron parse error, a bad queue name) cannot
     leak a value even when the secret rules are disabled.
     """
+    # Values shorter than 4 characters are not scrubbed here (that would hit
+    # unrelated text); Linter.echo withholds them where messages are built.
     for value in sorted(sensitive, key=len, reverse=True):
         if len(value) >= 4:
-            text = text.replace(value, REDACTED)
+            for form in {value, repr(value)[1:-1], json.dumps(value)[1:-1]}:
+                text = text.replace(form, REDACTED)
     for _, rx in KNOWN_PATTERNS:
         text = rx.sub(REDACTED, text)
     for _, _, tok in high_entropy_tokens(text, min_len, threshold, []):

@@ -96,9 +96,10 @@ def _int(v):
     return None
 
 
-def iter_steps(dag: LDict):
+def iter_steps(dag: LDict, clean=str):
     """Yield (step, label, is_handler) for every step mapping in the DAG,
-    including parallel groups, map-form steps, foreach bodies and handlers."""
+    including parallel groups, map-form steps, foreach bodies and handlers.
+    `clean` renders user-chosen names (step ids, map keys) for labels."""
 
     def walk(steps, prefix):
         if isinstance(steps, LList):
@@ -111,11 +112,11 @@ def iter_steps(dag: LDict):
         elif isinstance(steps, LDict):
             for name, item in steps.items():
                 if isinstance(item, LDict):
-                    yield from one(item, f"{prefix}.{name}")
+                    yield from one(item, f"{prefix}.{clean(name)}")
 
     def one(step, label):
         name = step.get("id") or step.get("name")
-        yield step, (f"{label} ({name})" if isinstance(name, str) else label), False
+        yield step, (f"{label} ({clean(name)})" if isinstance(name, str) else label), False
         fe = step.get("foreach")
         if isinstance(fe, LDict):
             yield from walk(fe.get("steps"), f"{label}.foreach.steps")
@@ -125,18 +126,45 @@ def iter_steps(dag: LDict):
     if isinstance(handlers, LDict):
         for event, step in handlers.items():
             if isinstance(step, LDict):
-                yield step, f"handler_on.{event}", True
+                yield step, f"handler_on.{clean(event)}", True
 
 
 class Linter:
     def __init__(self, cfg: Config, now: dt.datetime):
         self.cfg = cfg
         self.now = now
-        # Every value a secret rule matched in this file, whether or not the
-        # rule is disabled or suppressed; output is scrubbed with redact().
+        # Every value a secret rule matches anywhere in the file, whether or
+        # not the rule is disabled or suppressed. prepare() fills it before any
+        # rule runs, so messages can withhold such values when they are built.
         self.sensitive: set[str] = set()
 
+    def prepare(self, docs):
+        for dag in docs:
+            if isinstance(dag, LDict):
+                for *_, values in self._secret_scan(dag):
+                    self.sensitive.update(v for v in values if v)
+
+    def is_sensitive(self, value) -> bool:
+        text = str(value)
+        if any(s in text for s in self.sensitive):
+            return True
+        return bool(secrets.known_pattern(text) or secrets.high_entropy_tokens(
+            text, self.cfg.entropy_min_length, self.cfg.entropy_threshold, self.cfg.secret_allow))
+
+    def echo(self, value, quote=True) -> str:
+        """Render an input value for a message: repr() (or str()), or
+        <redacted> when it contains anything a secret rule matched. Every
+        message that quotes input must go through here, because escaping in
+        repr/JSON/annotations defeats scrubbing after formatting."""
+        if self.is_sensitive(value):
+            return secrets.REDACTED
+        return repr(value) if quote else str(value)
+
+    def label(self, value) -> str:
+        return self.echo(value, quote=False)
+
     def redact(self, text: str) -> str:
+        """Last-line scrub of finished text (defence in depth, not the main control)."""
         return secrets.redact(text, self.sensitive, self.cfg.entropy_min_length, self.cfg.entropy_threshold)
 
     def lint_dag(self, dag, doc_index: int, is_main: bool):
@@ -154,7 +182,7 @@ class Linter:
         if "retry_policy" in dag:
             self.check_retry(dag.get("retry_policy"), "retry_policy", dag, "retry_policy", None, dag_level=True)
         dag_timeout = _int(dag.get("timeout_sec"))
-        for step, label, _ in iter_steps(dag):
+        for step, label, _ in iter_steps(dag, clean=self.label):
             self.check_step(step, label, dag_timeout)
         self.check_secrets(dag)
         return self.findings, self.infos
@@ -167,7 +195,7 @@ class Linter:
         if "queue" not in dag:
             if self.cfg.require_queue:
                 name = dag.get("name")
-                hint = f" (Dagu would use the DAG name {name!r})" if isinstance(name, str) else " (Dagu would use the DAG name)"
+                hint = f" (Dagu would use the DAG name {self.echo(name)})" if isinstance(name, str) else " (Dagu would use the DAG name)"
                 self.add("DL102", "no `queue` set" + hint + "; set one from the allowlist", dag.line, dag.col)
             return
         q = dag["queue"]
@@ -177,8 +205,9 @@ class Linter:
             return
         if self.cfg.queues and q not in self.cfg.queues:
             close = difflib.get_close_matches(q, self.cfg.queues, n=1)
-            hint = f"; did you mean {close[0]!r}?" if close else f"; allowed: {', '.join(self.cfg.queues)}"
-            self.add("DL101", f"queue {q!r} is not in the allowlist{hint}", line, col)
+            hint = f"; did you mean {close[0]!r}?" if close and not self.is_sensitive(q) else \
+                f"; allowed: {', '.join(self.cfg.queues)}"
+            self.add("DL101", f"queue {self.echo(q)} is not in the allowlist{hint}", line, col)
 
     # --- schedule ------------------------------------------------------
     def check_schedule(self, dag):
@@ -190,7 +219,8 @@ class Linter:
             for kind, value in sched.items():
                 kline, kcol = sched.pos(kind)
                 if kind not in ("start", "stop", "restart"):
-                    self.add("DL201", f"schedule.{kind}: unknown key (expected start, stop or restart)", kline, kcol)
+                    self.add("DL201", f"schedule.{self.label(kind)}: unknown key (expected start, stop or restart)",
+                             kline, kcol)
                     continue
                 self._schedule_entries(value, f"schedule.{kind}", kline, kcol, allow_at=(kind == "start"))
         else:
@@ -220,13 +250,21 @@ class Linter:
             try:
                 s = cron.parse(item, self.cfg.timezone)
             except cron.CronError as e:
-                self.add("DL201", f"{label}: {item.strip()!r}: {e}", iline, icol)
+                if self.is_sensitive(item):
+                    # The parser's message quotes fragments of the value, so withhold it too.
+                    self.add("DL201", f"{label}: {secrets.REDACTED}: does not parse (details withheld: the value "
+                                      "matches a secret)", iline, icol)
+                else:
+                    self.add("DL201", f"{label}: {item.strip()!r}: {e}", iline, icol)
                 continue
             for msg in cron.misleading_steps(s.expression):
                 self.add("DL203", f"{label}: {msg}", iline, icol)
             if cron.day_fields_ored(s):
                 self.add("DL204", f"{label}: {s.expression!r} fires on days matching day-of-month OR day-of-week, "
                                   "not both", iline, icol)
+            if self.is_sensitive(item):
+                self.infos.append(Info(label, secrets.REDACTED, secrets.REDACTED, [], iline))
+                continue
             runs = s.next_runs(self.now, max(self.cfg.next_runs, 1))
             if not runs:
                 self.add("DL202", f"{label}: {s.expression!r} has no fire time in the next {cron.SEARCH_YEARS} years",
@@ -243,10 +281,13 @@ class Linter:
         try:
             when = dt.datetime.fromisoformat(at.replace("Z", "+00:00"))
         except ValueError:
-            self.add("DL201", f"{label}.at: {at!r} is not a real date/time", line, col)
+            self.add("DL201", f"{label}.at: {self.echo(at)} is not a real date/time", line, col)
             return
         if when <= self.now:
-            self.add("DL205", f"{label}.at: {at} is in the past; it will never fire", line, col)
+            self.add("DL205", f"{label}.at: {self.label(at)} is in the past; it will never fire", line, col)
+            return
+        if self.is_sensitive(at):
+            self.infos.append(Info(label, secrets.REDACTED, secrets.REDACTED, [], line))
             return
         self.infos.append(Info(label, at, "once", [when.isoformat()], line))
 
@@ -265,11 +306,11 @@ class Linter:
         for event, step in h.items():
             eline, ecol = h.pos(event)
             if event not in HANDLER_EVENTS:
-                close = difflib.get_close_matches(str(event), HANDLER_EVENTS, n=1)
+                close = [] if self.is_sensitive(event) else difflib.get_close_matches(str(event), HANDLER_EVENTS, n=1)
                 hint = f"; did you mean {close[0]!r}?" if close else ""
-                self.add("DL303", f"handler_on.{event}: unknown event{hint}", eline, ecol)
+                self.add("DL303", f"handler_on.{self.label(event)}: unknown event{hint}", eline, ecol)
             elif not isinstance(step, LDict) or not step:
-                self.add("DL303", f"handler_on.{event}: must be a step mapping (e.g. `run: ./notify.sh`)", eline, ecol)
+                self.add("DL303", f"handler_on.{self.label(event)}: must be a step mapping (e.g. `run: ./notify.sh`)", eline, ecol)
         for event in required:
             if event not in h:
                 self.add("DL302", f"handler_on.{event} is required", line, col)
@@ -287,10 +328,10 @@ class Linter:
     def _timeout(self, v, where, maximum, line, col, allow_zero):
         n = v if isinstance(v, int) and not isinstance(v, bool) else None
         if n is None or n < 0 or (n == 0 and not allow_zero):
-            self.add("DL502", f"{where}: must be a positive integer number of seconds, got {v!r}", line, col)
+            self.add("DL502", f"{where}: must be a positive integer number of seconds, got {self.echo(v)}", line, col)
             return None
         if n > maximum:
-            self.add("DL502", f"{where}: {n}s is above the maximum {maximum}s", line, col)
+            self.add("DL502", f"{where}: {self.label(n)}s is above the maximum {maximum}s", line, col)
         return n
 
     # --- steps ---------------------------------------------------------
@@ -302,8 +343,8 @@ class Linter:
             step_timeout = self._timeout(step["timeout_sec"], f"{label}.timeout_sec", self.cfg.max_step_timeout_sec,
                                          *step.pos("timeout_sec"), allow_zero=True)
             if step_timeout and dag_timeout and dag_timeout > 0 and step_timeout > dag_timeout:
-                self.add("DL503", f"{label}.timeout_sec ({step_timeout}s) is longer than the DAG timeout_sec "
-                                  f"({dag_timeout}s); one of them is wrong", *step.pos("timeout_sec"))
+                self.add("DL503", f"{label}.timeout_sec ({self.label(step_timeout)}s) is longer than the DAG timeout_sec "
+                                  f"({self.label(dag_timeout)}s); one of them is wrong", *step.pos("timeout_sec"))
         if "retry_policy" in step:
             self.check_retry(step["retry_policy"], f"{label}.retry_policy", step, "retry_policy",
                              (step_timeout, dag_timeout), dag_level=False)
@@ -348,10 +389,10 @@ class Linter:
             return
         lline, lcol = rp.pos("limit")
         if limit is None or limit < 0:
-            self.add("DL601", f"{where}.limit: must be a non-negative integer, got {rp['limit']!r}", lline, lcol)
+            self.add("DL601", f"{where}.limit: must be a non-negative integer, got {self.echo(rp['limit'])}", lline, lcol)
             return
         if limit > self.cfg.max_retry_limit:
-            self.add("DL601", f"{where}.limit: {limit} is above the maximum {self.cfg.max_retry_limit}", lline, lcol)
+            self.add("DL601", f"{where}.limit: {self.label(limit)} is above the maximum {self.cfg.max_retry_limit}", lline, lcol)
         if limit == 0:
             return
         interval = None
@@ -359,14 +400,14 @@ class Linter:
             interval = _int(rp["interval_sec"])
             iline, icol = rp.pos("interval_sec")
             if interval is None or interval < 1:
-                self.add("DL604", f"{where}.interval_sec: must be a positive integer, got {rp['interval_sec']!r}",
+                self.add("DL604", f"{where}.interval_sec: must be a positive integer, got {self.echo(rp['interval_sec'])}",
                          iline, icol)
                 interval = None
             elif interval > self.cfg.max_retry_interval_sec:
-                self.add("DL604", f"{where}.interval_sec: {interval}s is above the maximum "
+                self.add("DL604", f"{where}.interval_sec: {self.label(interval)}s is above the maximum "
                                   f"{self.cfg.max_retry_interval_sec}s", iline, icol)
         else:
-            self.add("DL602", f"{where}: retries {limit}x with no interval_sec", line, col)
+            self.add("DL602", f"{where}: retries {self.label(limit)}x with no interval_sec", line, col)
         backoff = rp.get("backoff")
         mult = 2.0 if backoff is True else (float(backoff) if isinstance(backoff, (int, float))
                                             and not isinstance(backoff, bool) else 1.0)
@@ -382,7 +423,7 @@ class Linter:
                 self.add("DL604", f"{where}.max_interval_sec: must be a positive integer", mline, mcol)
                 cap = None
             elif interval and cap < interval:
-                self.add("DL604", f"{where}.max_interval_sec ({cap}s) is shorter than interval_sec ({interval}s)",
+                self.add("DL604", f"{where}.max_interval_sec ({self.label(cap)}s) is shorter than interval_sec ({self.label(interval)}s)",
                          mline, mcol)
         elif mult > 1.0:
             self.add("DL603", f"{where}: backoff without max_interval_sec grows without bound", line, col)
@@ -399,12 +440,13 @@ class Linter:
                     cur *= mult
                 attempts = (limit + 1) * step_timeout if step_timeout else 0
                 if wait + attempts > dag_timeout:
-                    extra = f" plus {limit + 1} x {step_timeout}s attempts" if step_timeout else ""
+                    extra = f" plus {limit + 1} x {self.label(step_timeout)}s attempts" if step_timeout else ""
                     self.add("DL606", f"{where}: worst case is {int(wait)}s of retry waits{extra}, more than the "
-                                      f"DAG timeout_sec ({dag_timeout}s)", line, col)
+                                      f"DAG timeout_sec ({self.label(dag_timeout)}s)", line, col)
 
     # --- secrets -------------------------------------------------------
-    def check_secrets(self, dag):
+    def _secret_scan(self, dag):
+        """Yield (code, message, line, col, matched values) for each secret finding."""
         for key, value, line, col, path in _scalars(dag, ""):
             if not value.strip():
                 continue
@@ -412,22 +454,28 @@ class Linter:
                 continue  # references to an external provider, by design
             hit = secrets.known_pattern_match(value)
             if hit:
-                self.sensitive.update((hit[1], value.strip()))
-                self.add("DL402", f"{path}: looks like a {hit[0]} (value redacted, {len(value)} chars)", line, col)
+                yield ("DL402", f"{path}: looks like a {hit[0]} (value redacted, {len(value)} chars)", line, col,
+                       (hit[1], value, value.strip()))
                 continue
             if key is not None and secrets.secret_key(str(key)) and not secrets.is_reference(value):
                 if not _is_benign(str(key), value):
-                    self.sensitive.add(value.strip())
-                    self.add("DL401", f"{path}: literal value for a secret-looking key (value redacted); "
-                                      "use `secrets:` or an env reference", line, col)
+                    yield ("DL401", f"{path}: literal value for a secret-looking key (value redacted); "
+                                    "use `secrets:` or an env reference", line, col, (value, value.strip()))
                     continue
             hits = secrets.high_entropy_tokens(value, self.cfg.entropy_min_length, self.cfg.entropy_threshold,
                                                self.cfg.secret_allow)
             if hits:
-                self.sensitive.update(tok for _, _, tok in hits)
                 n, e, _ = hits[0]
-                self.add("DL403", f"{path}: contains a {n}-char token with entropy {e} bits/char "
-                                  "(value redacted)", line, col)
+                yield ("DL403", f"{path}: contains a {n}-char token with entropy {e} bits/char (value redacted)",
+                       line, col, tuple(tok for _, _, tok in hits))
+
+    def check_secrets(self, dag):
+        for code, message, line, col, values in self._secret_scan(dag):
+            self.sensitive.update(v for v in values if v)
+            path = message.split(": ", 1)[0]
+            if self.is_sensitive(path):  # a key on the path holds a detected value
+                message = secrets.REDACTED + message[len(path):]
+            self.add(code, message, line, col)
 
 
 def _is_benign(key: str, value: str) -> bool:
