@@ -9,6 +9,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`tape-library-playground/`](tape-library-playground/): browser-based teaching simulator of a robotic tape library and its scheduling policies; not an operational controller (MIT).
 - [`hsm-sim/`](hsm-sim/): deterministic command-line teaching simulator of a disk cache in front of a tape archive (migration, watermarks, purge, recall, repack) driven by YAML scenarios; generic concepts only, models no product (MIT).
 - [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
+- [`quadlet-lint/`](quadlet-lint/): linter for Podman Quadlet `.container`/`.volume`/`.network`/`.pod` units, with a pre-commit hook and a GitHub Action (MIT).
 
 ## Examples
 
@@ -32,6 +33,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 (cd tape-regression-lab/fixtures && python -m pytest -q test_corpus.py)   # every tape-exporter parser vs the sg_logs corpus
 (cd tape-regression-lab/mhvtl-scenarios && python -m pytest -q test_scenarios.py)   # fake drive; the kernel-module run is below
+(cd quadlet-lint && python -m pytest -q tests)   # stdlib only
 python -m pytest -q tests/sweep                  # regression tests for the 2026-10-22 bug sweep (from the repo root)
 (cd hsm-sim && pip install -r requirements.txt && python -m pytest -q tests)   # needs PyYAML
 (cd timer2dagu && python -m pytest -q tests)

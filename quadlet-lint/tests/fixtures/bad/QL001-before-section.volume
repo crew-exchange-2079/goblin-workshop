@@ -1,0 +1,4 @@
+# expect: QL001
+Label=x=y
+[Volume]
+VolumeName=v

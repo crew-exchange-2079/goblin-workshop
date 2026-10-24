@@ -247,6 +247,83 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
       - run: python -m pytest -q tests
 
+  quadlet-lint:
+    name: quadlet-lint (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor in pyproject.toml; the tool is stdlib-only.
+        python: ["3.10", "3.13"]
+    defaults:
+      run:
+        working-directory: quadlet-lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: .github/ci-requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
+      - run: python -m pytest -q tests
+
+  quadlet-lint-integrations:
+    # The pre-commit hook and the GitHub Action, exercised the way users run them.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: quadlet-lint/ci/pre-commit-requirements.txt
+      - name: pre-commit hook (try-repo against fixture units)
+        env:
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.invalid
+          GIT_COMMITTER_NAME: ci
+          GIT_COMMITTER_EMAIL: ci@example.invalid
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: \
+            -r quadlet-lint/ci/pre-commit-requirements.txt
+          work="$RUNNER_TEMP/precommit"
+          mkdir -p "$work" && cd "$work" && git init -q
+          cp "$GITHUB_WORKSPACE"/quadlet-lint/tests/fixtures/good/* .
+          git add .
+          pre-commit try-repo "$GITHUB_WORKSPACE" quadlet-lint --all-files
+          cp "$GITHUB_WORKSPACE"/quadlet-lint/tests/fixtures/bad/QL304-volume.container .
+          git add .
+          if pre-commit try-repo "$GITHUB_WORKSPACE" quadlet-lint --all-files; then
+            echo "hook passed on a unit that mounts the podman socket" >&2
+            exit 1
+          fi
+      - name: Action on clean units
+        uses: ./quadlet-lint
+        with:
+          paths: |
+            quadlet-lint/tests/fixtures/good
+          podman-version: "5.5"
+          fail-on: info
+      - name: Action on a bad unit (must fail)
+        id: bad
+        continue-on-error: true
+        uses: ./quadlet-lint
+        with:
+          paths: quadlet-lint/tests/fixtures/bad/QL304-volume.container
+          select: QL304
+      - name: Check the bad run failed
+        env:
+          OUTCOME: ${{ steps.bad.outcome }}
+        run: test "$OUTCOME" = failure
+
   tape-library-playground:
     # JavaScript project: no Python, no pip.
     runs-on: ubuntu-24.04

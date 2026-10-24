@@ -1,0 +1,9 @@
+# expect: QL008
+[Container]
+ReadOnly=true
+HealthCmd=/bin/true
+Exec=/bin/sh
+
+[Service]
+Restart=on-failure
+RestartSec=5s

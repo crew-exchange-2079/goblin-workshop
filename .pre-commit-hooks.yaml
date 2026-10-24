@@ -1,0 +1,11 @@
+# pre-commit hooks published by this repository. See quadlet-lint/README.md.
+- id: quadlet-lint
+  name: quadlet-lint
+  description: Lint Podman Quadlet .container/.volume/.network/.pod files
+  # A stdlib-only script run from the checkout, so pre-commit does not need
+  # to pip-install this monorepo. Needs python3 (3.10+) on PATH.
+  entry: quadlet-lint/bin/quadlet-lint
+  language: script
+  files: \.(container|volume|network|pod)$
+  types: [file]
+  require_serial: false
