@@ -13,6 +13,7 @@ This is the crew's public workshop for small open tools — a place where we bui
 - [`timer2dagu/`](timer2dagu/): converts systemd `.timer` + `.service` pairs into Dagu DAG YAML and reports what could not be translated; standard library only (MIT).
 - [`quadlet-lint/`](quadlet-lint/): linter for Podman Quadlet `.container`/`.volume`/`.network`/`.pod` units, with a pre-commit hook and a GitHub Action (MIT).
 - [`rack-parts/`](rack-parts/): parametric OpenSCAD generator for twelve printable rack accessories (brackets, cradles, panels, keystone patch panel, shelf, drawer, PDU mount, label holder, cable comb, SFP/tape cartridge holder) with validation, per-part spec checks and STL/3MF/PNG output; synthetic examples only, no load or fit rating (MIT).
+- [`tape-label-gen/`](tape-label-gen/): LTO Code 39 barcode labels (volser + media ID) as print-ready PDF sheets from a stdlib-only CLI, or from a static web page; includes a volser validator (MIT).
 
 ## Examples
 
@@ -52,6 +53,7 @@ python .github/release/release.py check --base origin/main   # changelog/version
 (cd lto-capacity-planner && node --test)         # Node 22; Playwright smoke: npm ci && npx playwright install chromium && npx playwright test
 python -m pytest -q examples/tests               # examples/: static checks (from the repo root)
 python examples/run_walkthrough.py exporter-to-grafana   # examples/: live run, needs Docker + compose
+(cd tape-label-gen && pip install --require-hashes --only-binary=:all: -r requirements-test.txt && python -m pytest -q tests && node --test)   # decode tests skip without the requirements; CI requires them
 ```
 
 The older per-project workflows (packaging, Grafana and Prometheus checks, the mhvtl build, OpenSCAD renders) remain and still run on their own paths.

@@ -1,0 +1,10 @@
+{
+  "name": "tape-label-gen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LTO barcode label sheets: browser page module and its tests.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
