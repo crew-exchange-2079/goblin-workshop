@@ -1,0 +1,5 @@
+[Unit]
+Description=test timer
+
+[Timer]
+OnCalendar=*-1,4,7,10-15 01:00

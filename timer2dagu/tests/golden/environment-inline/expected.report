@@ -1,0 +1,4 @@
+timer2dagu report: job.timer + job.service
+
+approximated (1):
+  job.service:3 Environment=: --inline-env: values are copied into the DAG; Dagu expands ${...} in them, systemd does not

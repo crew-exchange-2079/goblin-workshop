@@ -1,0 +1,7 @@
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/my job
+EnvironmentFile=-/etc/my job/env
+ExecStart=/usr/local/bin/job
+TimeoutStartSec=0
+RuntimeMaxSec=0

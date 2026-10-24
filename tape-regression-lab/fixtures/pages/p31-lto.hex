@@ -1,0 +1,5 @@
+# p31-lto: LTO tape capacity (vendor page, --vendor=lto5), MB units
+# Synthetic SPC log page; not captured from any device.
+31 00 00 20 00 01 60 04 00 24 9f 00 00 02 60 04
+00 00 00 00 00 03 60 04 00 26 25 a0 00 04 60 04
+00 00 00 00

@@ -1,0 +1,6 @@
+
+Read error counter log page  [0x3]
+  Total rewrites or rereads = 7
+  Total uncorrected errors = 0
+  Reserved or vendor specific [0x8001] = 1
+  Reserved or vendor specific [0x8002] = 2
