@@ -29,9 +29,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: .github/ci-requirements.txt
+          cache-dependency-path: |
+            .github/ci-requirements.txt
+            tapefec/requirements-dev.txt
       - run: python -m pip install --disable-pip-version-check -r ../.github/ci-requirements.txt
-      - run: python -m pytest -q test_tapefec.py
+      - run: python -m pip install --disable-pip-version-check --require-hashes -r requirements-dev.txt
+      - run: python -m pytest -q test_tapefec.py test_properties.py
 
   tape-exporter:
     runs-on: ubuntu-24.04

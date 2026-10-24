@@ -23,6 +23,11 @@ test-only commit (`pytest tests/sweep -x`) and passes after the fix commit.
 * 3: a frame with `block_id >= frame_index` is skipped; each block occupies its own frame, so it cannot be genuine.
 * 4: `analyse` raises `MeshError` on any non-finite vertex coordinate.
 
+Fixes 1–3 were later replaced by an exact layout check on every frame header
+(`tapefec/DESIGN.md` §1.1), after fuzzing showed that a CRC-valid frame from
+another stream could still crash the decoder or fill a slot. Fix 1 now ignores
+the frame instead of assuming a full group.
+
 Known limit of fixes 2 and 3: they reject *internally inconsistent* headers only.
 A hostile stream that self-consistently declares a huge `frame_index` still makes the
 decoder pad zeros, because the format itself lets a trailer assert a length that the

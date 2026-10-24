@@ -6,13 +6,15 @@ library or any vendor's hardware or software, and no compatibility is claimed.**
 
 `torture-output.txt` records 800 trials of random synthetic frame damage in which
 the decoder never reported "verified" for a wrong output. See `DESIGN.md` §2 for
-how the Reed–Solomon code is built and `test_tapefec.py` for the current 84 unit
+how the Reed–Solomon code is built and `test_tapefec.py` for the current 91 unit
 tests (the fixes behind them were also confirmed by 8 separately verified
-regression reproductions). The torture and throughput outputs below are
-historical measurements from before those fixes, not new runs.
+regression reproductions). `test_properties.py` (hypothesis) and `fuzz.py` check
+the erasure contract on random streams; see [Property tests and fuzzing](#property-tests-and-fuzzing).
+The torture and throughput outputs below are historical measurements from before
+those fixes, not new runs.
 
 **Reproduce (stdlib only, nothing installed):**
-`python3 -m unittest test_tapefec && python3 torture.py`
+`python3 -m unittest test_tapefec && python3 fuzz.py && python3 torture.py`
 
 Historical original 68-test run (the current suite includes later regressions):
 
@@ -307,13 +309,69 @@ The honest engineering conclusion is that this should *not* be ported until
 someone needs multi-stream tape writes: a Python file that anyone can read and
 audit is worth a lot when the data is archival.
 
+## Property tests and fuzzing
+
+```console
+$ python3 -m pip install --require-hashes -r requirements-dev.txt   # tests only
+$ python3 -m unittest -v test_properties
+$ python3 fuzz.py --cases 50000 --seed 1             # stdlib only
+$ python3 fuzz.py --cases 5000 --seed 2 --forge
+$ python3 fuzz.py --seconds 600                      # random base seed
+$ python3 fuzz.py --replay SEED [--forge]            # reproduce one failure
+```
+
+Both check the same contract, per parity group of `k'` data and `m` parity
+frames:
+
+- **at most `m` frames erased** (deleted, payload damaged, or header damaged, in
+  any mix and any position): `decode` returns the original bytes exactly and
+  verifies the trailer;
+- **more than `m` erased**: the group is reported unrecoverable, the exit status
+  is non-zero, and every byte *not* listed in `unrecoverable_ranges` is the
+  original byte. The decoder never hands back wrong data as good.
+
+`test_properties.py` generates the erasure patterns per group from random
+`(k, m, block_size, length, version)`; it also covers in-group reordering, junk
+between frames, truncation and the bare RS codec. `fuzz.py` stacks unstructured
+mutators (bit flips, byte runs, insertions, deletions, dropped, duplicated and
+moved frames, junk containing the magic, truncation, frames from a stream with
+another `stream_id`). With `--forge` it also injects CRC-valid lies (re-sealed
+header fields, frames from another stream with the *same* `stream_id`), where
+the oracle relaxes to "no crash, and exit 0 only with the right bytes".
+
+What the fuzzer found, now fixed and pinned in `test_tapefec.py`
+(`TestFuzzFindings`):
+
+1. **Crash and wrong data on a frame from another stream.** Two archives
+   encoded with the default `--stream-id 0` on one tape, the first missing a
+   block: a CRC-valid data frame of the second with a larger block size filled
+   the slot. With nothing else to repair it was emitted as data (wrong bytes,
+   wrong length); with a repair to do, `rs_repair` died with `OverflowError`.
+2. **One stray frame zero-filled phantom groups.** A CRC-valid frame whose
+   `block_id` pointed far ahead made the decoder emit whole groups of zeros,
+   then drop every real frame of those groups as "already past it", writing
+   past the trailer length.
+3. **A trailer from another `stream_id` was accepted** as this stream's
+   trailer: the stream-id filter ran after the trailer check.
+4. **`encode_stream(version=1)` stamped data/parity frames as version 2.** The
+   decoder still accepts such streams.
+
+Fixes 1–3 share one mechanism: the decoder now requires each data/parity
+frame's `frame_index`, `payload_len` and `group_data_len` to match the layout
+the encoder writes for its `block_id`, and requires the trailer's `frame_index`
+to match its `total_length`. Frames that don't fit are counted in
+`implausible_frames` and ignored (DESIGN §1.1).
+
 ## Repository layout
 
 | file | what it is |
 |---|---|
 | `tapefec.py` | the whole tool: framing, GF(2⁸)/Reed–Solomon, encoder, decoder, CLI |
 | `DESIGN.md` | wire format, RS construction, overhead maths, and what the format does **not** protect against |
-| `test_tapefec.py` | 84 unittest tests: GF identities, RS erasure patterns, round trips, damage |
+| `test_tapefec.py` | 91 unittest tests: GF identities, RS erasure patterns, round trips, damage, fuzz regressions |
+| `test_properties.py` | hypothesis property tests of the framer and decoder (needs `requirements-dev.txt`) |
+| `fuzz.py` | byte-level fuzz harness for the decoder, stdlib only |
+| `requirements-dev.txt` | pins hypothesis, the only test dependency |
 | `torture.py` | 200 trials × 4 damage rates over a 20 MB stream |
 | `torture-output.txt` | the torture table, pasted from a historical run |
 | `bench.py` | throughput measurement |
@@ -337,8 +395,10 @@ What is included:
 - `tapefec.py` (~900 lines, one file, `--help`, `-k`, `-m`, `--block-size`,
   `--stream-id`). Encode and decode are both streaming with memory bounded at
   about `2·(k+m)·block_size`.
-- 84 unit tests: an original 68-test set plus later regression tests covering
-  reporting, EOF handling and size validation.
+- 91 unit tests: an original 68-test set plus later regression tests covering
+  reporting, EOF handling, size validation and the fuzz findings below.
+- `test_properties.py` and `fuzz.py`: property-based and fuzz checks of the
+  erasure contract.
 - `torture.py` (200 trials per damage rate over 20 MB; table in
   `torture-output.txt`) and `bench.py`. Their published outputs are historical,
   and the C/Rust port cost above is an estimate, not a measurement.
@@ -358,9 +418,12 @@ What is included:
   are destroyed, the decoder cannot know how long the last group was and the
   output length can be wrong. The torture run hits this at 15 % damage. Reported
   in the JSON report rather than papered over.
-- **No fuzzing.** Malformed `payload_len` is bounded by a cap derived from the
-  header frame before allocation, but there has been no adversarial-input campaign.
-  Do not point this at untrusted data yet.
+- **Fuzzing is random, not coverage-guided, and the streams are small.**
+  `fuzz.py` mutates whole streams of up to a few groups; it is not an
+  AFL/libFuzzer-style campaign and has not run against multi-gigabyte inputs. A
+  forger who writes a whole self-consistent frame sequence can still make the
+  decoder pad zeros up to `2³²` frames' worth (DESIGN §1.1). Do not point this at
+  untrusted data yet.
 - **No real tape.** Nothing here has been written to or read from an LTO drive.
   It has never seen `mt`, filemarks, EOT, a changer, or a drive that lies about
   a successful write. That is the single biggest gap between this prototype and
