@@ -1,0 +1,43 @@
+// examples/policy.hujson with HTTP alt ports opened for engineers and root dropped for ops.
+{
+  "groups": {
+    "group:eng": ["alice@example.com", "bob@example.com"],
+    "group:ops": ["carol@example.com"],
+  },
+  "tagOwners": {
+    "tag:web": ["group:ops"],
+    "tag:db": ["group:ops"],
+    "tag:ci": ["group:ops"],
+  },
+  "hosts": {
+    "nas": "100.64.0.50",
+    "office": "192.168.10.0/24",
+  },
+  "acls": [
+    // Engineers reach the web tier over HTTPS.
+    {"action": "accept", "src": ["group:eng"], "dst": ["tag:web:443,8000-8100"]},
+    // Web talks to the database.
+    {"action": "accept", "src": ["tag:web"], "dst": ["tag:db:5432"]},
+    // Everyone reaches their own devices.
+    {"action": "accept", "src": ["autogroup:member"], "dst": ["autogroup:self:*"]},
+  ],
+  "grants": [
+    // Ops reach everything tagged, on any protocol.
+    {"src": ["group:ops"], "dst": ["autogroup:tagged"], "ip": ["*"]},
+    // CI pulls from the NAS.
+    {"src": ["tag:ci"], "dst": ["nas"], "ip": ["tcp:445", "tcp:22"]},
+  ],
+  "ssh": [
+    {"action": "check", "src": ["group:ops"], "dst": ["tag:web", "tag:db"], "users": ["autogroup:nonroot"]},
+    {"action": "accept", "src": ["autogroup:member"], "dst": ["autogroup:self"], "users": ["autogroup:nonroot"]},
+  ],
+  "tests": [
+    {"src": "alice@example.com", "accept": ["tag:web:443"], "deny": ["tag:db:5432", "tag:web:22"]},
+    {"src": "tag:web", "proto": "tcp", "accept": ["tag:db:5432"], "deny": ["tag:db:22"]},
+    {"src": "carol@example.com", "accept": ["tag:db:22"]},
+  ],
+  "sshTests": [
+    {"src": "carol@example.com", "dst": ["tag:web"], "check": ["root", "deploy"]},
+    {"src": "alice@example.com", "dst": ["tag:web"], "deny": ["root", "alice"]},
+  ],
+}

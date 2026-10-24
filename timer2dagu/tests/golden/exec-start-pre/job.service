@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/mkdir -p /var/lib/job
+ExecStartPre=-/usr/bin/rm -f /var/lib/job/lock
+ExecStart=/usr/local/bin/job

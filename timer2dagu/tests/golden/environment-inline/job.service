@@ -1,0 +1,4 @@
+[Service]
+Type=oneshot
+Environment=A=1 "B=two words"
+ExecStart=/usr/local/bin/job

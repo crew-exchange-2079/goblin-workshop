@@ -1,0 +1,5 @@
+timer2dagu report: job.timer + job.service
+
+untranslated (2):
+  job.service:2 Type=: Type=forking readiness semantics do not exist in Dagu; each step simply runs until its process exits
+  job.service:3 PIDFile=: no Dagu equivalent

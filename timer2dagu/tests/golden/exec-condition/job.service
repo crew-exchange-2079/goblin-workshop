@@ -1,0 +1,5 @@
+[Service]
+Type=oneshot
+ExecCondition=/usr/bin/test -f /etc/job.enabled
+ExecStart=/usr/local/bin/job
+ExecReload=/bin/kill -HUP $MAINPID
