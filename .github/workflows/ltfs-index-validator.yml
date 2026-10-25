@@ -32,6 +32,13 @@ jobs:
       - run: |
           python -m venv .venv
           .venv/bin/pip install --require-hashes --only-binary=:all: -r requirements.txt
+          .venv/bin/pip install --require-hashes --only-binary=:all: -r requirements-dev.txt
       - run: .venv/bin/python -m unittest discover -s tests -v
+      - run: .venv/bin/python tests/make_corpus.py --check
       - run: .venv/bin/python validate.py --input fixtures/valid-nested.xml
-      - run: "! .venv/bin/python validate.py --input fixtures/valid-nested.xml --bogus"
+      - run: |
+          set +e
+          .venv/bin/python validate.py --input corpus/bad/extent-overlap.xml; test $? -eq 1 || exit 1
+          .venv/bin/python validate.py --input corpus/bad/name-not-nfc.xml --strict; test $? -eq 1 || exit 1
+          .venv/bin/python validate.py --input fixtures/valid-nested.xml --bogus; test $? -eq 3 || exit 1
+          exit 0

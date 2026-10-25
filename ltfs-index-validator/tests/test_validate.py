@@ -46,10 +46,11 @@ class Accept(Base):
     def test_fixtures_pass(self):
         for name in ("valid-empty.xml", "valid-nested.xml", "valid-reordered.xml"):
             rc, rep, _ = cli(FIX / name)
-            self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"), name)
+            self.assertEqual((rc, rep["status"]), (0, "VALID"), name)
             self.assertEqual(rep["established_version"], "2.4.0")
             self.assertEqual(rep["schema"]["sha256"], validate.SCHEMA_SHA256)
-            self.assertEqual(rep["semantic_checks"], "NOT_PERFORMED")
+            self.assertEqual(rep["semantic_checks"], "PERFORMED")
+            self.assertEqual(rep["counts"], {"errors": 0, "warnings": 0})
 
     def test_module_matches_cli_and_hashes(self):
         rep = validate.validate_path(str(FIX / "valid-nested.xml"))
@@ -59,13 +60,19 @@ class Accept(Base):
         self.assertEqual(hashlib.sha256(validate.SCHEMA_PATH.read_bytes()).hexdigest(),
                          validate.SCHEMA_SHA256)
 
-    def test_semantic_counterexample_still_schema_valid_only(self):
+    def test_semantic_counterexample(self):
         bad = (NESTED.replace("<fileuid>3</fileuid>", "<fileuid>2</fileuid>")
                .replace("<highestfileuid>4</highestfileuid>", "<highestfileuid>0</highestfileuid>")
                .replace("<fileoffset>512</fileoffset>", "<fileoffset>0</fileoffset>"))
         rc, rep, _ = self.run_cli(bad)  # duplicate UID, overlapping extents, wrong highest UID
-        self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"))
-        self.assertIn("UID uniqueness", " ".join(rep["limitations"]))
+        self.assertEqual((rc, rep["status"]), (1, "INVALID"))
+        self.assertEqual(self.codes(rep), {"UID_DUPLICATE", "EXTENT_OVERLAP", "HIGHESTFILEUID_TOO_LOW"})
+        # the same document still passes the schema alone
+        p = self.write(bad, "schema-only.xml")
+        p2 = subprocess.run([sys.executable, str(ROOT / "validate.py"), "--input", str(p), "--schema-only"],
+                            capture_output=True, text=True, timeout=20)
+        self.assertEqual(p2.returncode, 0)
+        self.assertEqual(json.loads(p2.stdout)["status"], "SCHEMA_VALID_ONLY")
 
 
 class Reject(Base):
@@ -295,7 +302,7 @@ class DeviceSafety(Base):
             return fd
         with mock.patch("validate.os.open", racing):
             rep = validate.validate_path(str(target))
-        self.assertEqual(rep["status"], "SCHEMA_VALID_ONLY")
+        self.assertEqual(rep["status"], "VALID")
         for c, f in calls:
             self.assertTrue((f & os.O_PATH) or c.startswith("/proc/self/fd/"), (c, f))
 
@@ -304,7 +311,7 @@ class Encoding(Base):
     def test_utf8_positive_and_non_utf8_refused(self):
         ok = EMPTY.replace("synthetic fixture", "caf\u00e9").encode("utf-8")
         rc, rep, _ = cli(self.write(ok, "u8.xml", "wb"))
-        self.assertEqual((rc, rep["status"]), (0, "SCHEMA_VALID_ONLY"))
+        self.assertEqual((rc, rep["status"]), (0, "VALID"))
         ascii_iso = EMPTY.replace("UTF-8", "ISO-8859-1").encode("ascii")
         misdeclared = EMPTY.replace("UTF-8", "ISO-8859-1").replace("synthetic fixture", "caf\u00e9").encode("utf-8")
         latin1 = EMPTY.replace("synthetic fixture", "caf\u00e9").replace("UTF-8", "ISO-8859-1").encode("latin-1")
@@ -316,6 +323,80 @@ class Encoding(Base):
                 self.assertIn("ENCODING_NOT_UTF8", self.codes(rep))
                 self.assertNotIn("ISO-8859", out)
                 self.assertNotIn(name, out)
+
+
+class CliContract(Base):
+    """Every new option: valid combinations, usage errors (exit 3), and --previous refusals."""
+
+    def run_args(self, *args):
+        p = subprocess.run([sys.executable, str(ROOT / "validate.py"), *map(str, args)],
+                           capture_output=True, text=True, timeout=20)
+        rep = json.loads(p.stdout)
+        self.assertEqual(p.returncode, rep["exit_code"])
+        return p.returncode, rep
+
+    def test_usage_errors(self):
+        nested = FIX / "valid-nested.xml"
+        for args in (["--index-partition", "a"], ["--data-partition", "b"],
+                     ["--index-partition", "a", "--data-partition", "a"],
+                     ["--index-partition", "A", "--data-partition", "b"],
+                     ["--index-partition", "ab", "--data-partition", "c"],
+                     ["--blocksize", "0"], ["--blocksize", "-1"], ["--blocksize", "1e3"],
+                     ["--schema", "other"], ["--schema-only", "--strict"],
+                     ["--schema-only", "--previous", nested], ["--schema-only", "--blocksize", "512"],
+                     ["--bogus"]):
+            with self.subTest(args):
+                rc, rep = self.run_args("--input", nested, *args)
+                self.assertEqual((rc, rep["status"]), (3, "ERROR"))
+                self.assertEqual(self.codes(rep), {"USAGE_ERROR"})
+
+    def test_options_echoed_and_accepted(self):
+        rc, rep = self.run_args("--input", FIX / "valid-nested.xml", "--index-partition", "a",
+                                "--data-partition", "b", "--blocksize", "524288", "--strict")
+        self.assertEqual((rc, rep["status"]), (0, "VALID"))
+        self.assertEqual(rep["options"], {"schema_variant": "errata1", "schema_only": False, "strict": True,
+                                          "blocksize": 524288, "index_partition": "a", "data_partition": "b"})
+        rc, rep = self.run_args("--input", FIX / "valid-nested.xml", "--schema", "annex-b")
+        self.assertEqual((rc, rep["schema"]["variant"]), (0, "annex-b"))
+
+    def test_previous_chain_and_refusals(self):
+        prev = FIX / "valid-nested.xml"  # location b/20, generation 1
+        cur = self.write(NESTED.replace("<location><partition>b</partition><startblock>20",
+                                        "<location><partition>b</partition><startblock>30")
+                         .replace("<previousgenerationlocation><partition>b</partition><startblock>5",
+                                  "<previousgenerationlocation><partition>b</partition><startblock>20")
+                         .replace("<generationnumber>1<", "<generationnumber>2<"), "cur.xml")
+        self.assertNotEqual(cur.read_text(), NESTED)
+        rc, rep = self.run_args("--input", cur, "--previous", prev)
+        self.assertEqual((rc, rep["status"]), (0, "VALID"), rep["diagnostics"])
+        self.assertIsNotNone(rep["previous"]["sha256"])
+        rc, rep = self.run_args("--input", FIX / "valid-nested.xml", "--previous", prev)
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.codes(rep), {"PREVIOUS_NOT_REFERENCED", "GENERATION_NOT_INCREASING"})
+        rc, rep = self.run_args("--input", cur, "--previous", self.tmp / "missing.xml")
+        self.assertEqual((rc, self.codes(rep)), (3, {"PREVIOUS_INPUT_OPEN_FAILED"}))
+        rc, rep = self.run_args("--input", cur, "--previous", "/dev/null")
+        self.assertEqual((rc, self.codes(rep)), (3, {"PREVIOUS_INPUT_DEVICE_REFUSED"}))
+        bad_prev = self.write(EMPTY.replace("</ltfsindex>", ""), "badprev.xml")
+        rc, rep = self.run_args("--input", cur, "--previous", bad_prev)
+        self.assertEqual((rc, self.codes(rep)), (3, {"PREVIOUS_INDEX_REJECTED"}))
+        v25 = self.write(EMPTY.replace("2.4.0", "2.5.0"), "v25.xml")
+        rc, rep = self.run_args("--input", cur, "--previous", v25)
+        self.assertEqual((rc, self.codes(rep)), (3, {"PREVIOUS_INDEX_REJECTED"}))
+        # current input problems are still reported against the input, not the previous index
+        rc, rep = self.run_args("--input", self.tmp / "nope.xml", "--previous", prev)
+        self.assertEqual((rc, self.codes(rep)), (3, {"INPUT_OPEN_FAILED"}))
+        rc, rep = self.run_args("--input", v25, "--previous", bad_prev)
+        self.assertEqual((rc, self.codes(rep)), (2, {"VERSION_UNSUPPORTED"}))
+
+    def test_warning_exit_codes(self):
+        warn = NESTED.replace("<name>sub</name>", "<name>e\u0301</name>")  # not NFC
+        rc, rep, _ = self.run_cli(warn)
+        self.assertEqual((rc, rep["status"]), (0, "VALID"))
+        self.assertEqual(rep["counts"], {"errors": 0, "warnings": 1})
+        self.assertEqual({(d["code"], d["severity"]) for d in rep["diagnostics"]}, {("NAME_NOT_NFC", "warning")})
+        rc, rep = self.run_args("--input", self.write(warn, "w.xml"), "--strict")
+        self.assertEqual((rc, rep["status"]), (1, "INVALID"))
 
 
 if __name__ == "__main__":

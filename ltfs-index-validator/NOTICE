@@ -27,3 +27,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+schema/ltfs-index-2.4.0-errata1.xsd is a modified copy of the same Annex B schema (same SNIA copyright
+and BSD 3-Clause license as above). Its one change, to the xattr <value> content model, is described in
+PROVENANCE.json under "errata_schema".

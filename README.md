@@ -37,7 +37,7 @@ To run the same tests locally (Python 3.12 or newer; `pip install -r .github/ci-
 (cd tapefec && python -m pytest -q test_tapefec.py)
 (cd tape-exporter && python -m pytest -q tests)
 (cd rack-parts && python -m pytest -q tests)      # render tests skip without openscad and admesh; CI installs both and requires them
-(cd ltfs-index-validator && pip install -r requirements.txt && python -m pytest -q tests)   # needs lxml
+(cd ltfs-index-validator && pip install -r requirements.txt -r requirements-dev.txt && python -m pytest -q tests)   # needs lxml, hypothesis
 (cd tape-regression-lab/mhvtl-status && python -m pytest -q test_runner.py)
 (cd tailnet-policy-tester && python -m pytest -q tests)
 (cd tape-regression-lab/fixtures && python -m pytest -q test_corpus.py)   # every tape-exporter parser vs the sg_logs corpus
