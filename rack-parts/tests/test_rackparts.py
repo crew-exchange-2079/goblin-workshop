@@ -235,6 +235,14 @@ class OutputSafetyTests(unittest.TestCase):
             os.symlink(out, link)
             self.assertEqual(cli("generate", os.path.join(EX, EXAMPLES[0]), "--out", link, "--scad-only").returncode, 3)
 
+    def test_creates_missing_parent_dirs(self):
+        # README quick start writes --out build/<name>; the parent need not exist
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "build", "bracket-10in")
+            r = cli("generate", os.path.join(EX, EXAMPLES[0]), "--out", out, "--scad-only")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.isfile(os.path.join(out, "synthetic-bracket-10in-1u.scad")))
+
     def test_refused_input_writes_nothing(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "out")
