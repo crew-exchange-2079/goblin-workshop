@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 DIRECTIVE_RE = re.compile(r"^[#;]\s*quadlet-lint:\s*(disable|disable-next-line)\s*=\s*([A-Za-z0-9_,\s-]+)$")
-SECTION_RE = re.compile(r"^\[([^\[\]]+)\]$")
+SECTION_RE = re.compile(r"^\[([^\[\]\s]+)\]$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -75,6 +75,8 @@ def _parse_directive(text, unit, next_line):
 
 def parse(text, path="<string>"):
     unit = UnitFile(path=path)
+    if text.startswith("\ufeff"):
+        text = text[1:]
     lines = text.splitlines()
     section = None
     pending_disable = set()
