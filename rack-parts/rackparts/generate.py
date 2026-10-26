@@ -113,7 +113,7 @@ def generate(cfg, geo, out_dir, openscad=None, admesh=None, scad_only=False, tim
     name = cfg["name"]
     src = scad_source(cfg, geo)
 
-    os.mkdir(out_dir)  # raises FileExistsError: never clobber
+    os.makedirs(out_dir)  # creates parents; leaf existing still raises FileExistsError: never clobber
     created = []
     try:
         scad_path = os.path.join(out_dir, name + ".scad")
