@@ -588,7 +588,8 @@ class _Parser:
             if d.value == "autogroup:self" and any(
                     s.kind == "tag" or s.value == "autogroup:tagged" for s in srcs):
                 self.err(path, "autogroup:self SSH destination requires user sources")
-            if d.value == "autogroup:member" and any(s.kind == "tag" for s in srcs):
+            if d.value == "autogroup:member" and any(
+                    s.kind == "tag" or s.value == "autogroup:tagged" for s in srcs):
                 self.err(path, "tags in SSH src cannot reach autogroup:member")
         users = self.strlist(f"{path}.users", r.get("users"))
         for j, u in enumerate(users):
