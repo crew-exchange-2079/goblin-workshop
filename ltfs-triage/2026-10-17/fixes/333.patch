@@ -1,0 +1,98 @@
+diff --git a/src/libltfs/xml_writer.c b/src/libltfs/xml_writer.c
+index 21ee8e0..fa27527 100644
+--- a/src/libltfs/xml_writer.c
++++ b/src/libltfs/xml_writer.c
+@@ -108,7 +108,8 @@ int xml_output_tape_write_callback(void *context, const char *buffer, int len)
+ 	if (len == 0)
+ 		return 0;
+ 
+-	if (ctx->err_code || ctx->errno_fd)
++	/* A failed cache write must not stop the index from reaching the tape */
++	if (ctx->err_code)
+ 		return -1;
+ 
+ 	if (ctx->buf_used + len < ctx->buf_size) {
+@@ -126,12 +127,11 @@ int xml_output_tape_write_callback(void *context, const char *buffer, int len)
+ 				return -1;
+ 			}
+ 
+-			if (ctx->fd > 0) {
++			if (ctx->fd > 0 && !ctx->errno_fd) {
+ 				ret = arch_write(ctx->fd, ctx->buf, ctx->buf_size);
+ 				if (ret < 0) {
+ 					ltfsmsg(LTFS_ERR, 17244E, (int)errno);
+ 					ctx->errno_fd = -LTFS_CACHE_IO;
+-					return -1;
+ 				}
+ 			}
+ 
+@@ -155,19 +155,18 @@ int xml_output_tape_close_callback(void *context)
+ 	int ret_t = 0, ret_d = 0, ret = 0, sret = 0;
+ 	struct xml_output_tape *ctx = context;
+ 
+-	if (!ctx->err_code && !ctx->errno_fd && ctx->buf_used > 0) {
++	if (!ctx->err_code && ctx->buf_used > 0) {
+ 		ret_t = tape_write(ctx->device, ctx->buf, ctx->buf_used, true, true);
+ 		if (ret_t < 0) {
+ 			ltfsmsg(LTFS_ERR, 17061E, (int)ret);
+ 			ctx->err_code = ret_t;
+ 			ret = -1;
+ 		} else {
+-			if (ctx->fd >= 0)
++			if (ctx->fd >= 0 && !ctx->errno_fd)
+ 				ret_d = arch_write(ctx->fd, ctx->buf, ctx->buf_used);
+ 			if (ret_d < 0) {
+ 				ltfsmsg(LTFS_ERR, 17245E, (int)errno);
+ 				ctx->errno_fd = -LTFS_CACHE_IO;
+-				ret = -1;
+ 			}
+ 		}
+ 	} else
+@@ -177,7 +176,7 @@ int xml_output_tape_close_callback(void *context)
+ 		sret = fsync(ctx->fd);
+ 		if (sret < 0) {
+ 			ltfsmsg(LTFS_ERR, 17206E, "tape write callback (fsync)", errno, (unsigned long)ctx->buf_used);
+-			return -1;
++			ctx->errno_fd = -LTFS_CACHE_IO;
+ 		}
+ 	}
+ 
+diff --git a/src/libltfs/xml_writer_libltfs.c b/src/libltfs/xml_writer_libltfs.c
+index 094ec44..fc1144d 100644
+--- a/src/libltfs/xml_writer_libltfs.c
++++ b/src/libltfs/xml_writer_libltfs.c
+@@ -891,10 +891,9 @@ int xml_schema_to_tape(char *reason, struct ltfs_volume *vol)
+ 
+ 		xmlFreeTextWriter(writer); /* close callback is called from here */
+ 
+-		if (out_ctx->err_code || out_ctx->errno_fd) {
++		if (out_ctx->err_code) {
+ 			/* Error happens while writing down the index on tape */
+-			if (out_ctx->err_code) ret = out_ctx->err_code;
+-			else if (out_ctx->errno_fd) ret = out_ctx->errno_fd;
++			ret = out_ctx->err_code;
+ 
+ 			if (out_ctx->fd >= 0)
+ 				xml_release_file_lock(vol->index_cache_path, out_ctx->fd, bk, true);
+@@ -907,14 +906,19 @@ int xml_schema_to_tape(char *reason, struct ltfs_volume *vol)
+ 				 * All buffered data, new index and following FM is written on tape correctly.
+ 				 * It's time to unveil the offset cache and sync cache to other programs.
+ 				 */
+-				if (vol->index_cache_path)
++				if (vol->index_cache_path && !out_ctx->errno_fd)
+ 					_commit_offset_caches(vol->index_cache_path, vol->index);
+ 			} else {
+ 				ltfsmsg(LTFS_ERR, 11084E, ret);
+ 			}
+ 
++			/*
++			 * The index is on tape even if the cache file could not be written (already
++			 * reported by 17244E/17245E/17206E): restore the previous cache file contents.
++			 */
+ 			if (out_ctx->fd >= 0)
+-				xml_release_file_lock(vol->index_cache_path, out_ctx->fd, bk, false);
++				xml_release_file_lock(vol->index_cache_path, out_ctx->fd, bk,
++									  out_ctx->errno_fd != 0);
+ 		}
+ 
+ 		/* Update the creator string */

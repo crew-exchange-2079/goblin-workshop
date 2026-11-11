@@ -1,0 +1,24 @@
+== 1. create (build under test: inst106)
+create file name 'aaa<US>aaa': rc=0 
+mkdir  name 'dir<US>x': rc=0
+symlink name 'lnk<US>y': rc=0
+index on tape contains encoded name: 2 record(s)
+== 2. remount and read back
+names (ls -b):
+    aaa\037aaa
+    dir\037x
+    lit%1Fz
+    lnk\037y
+ROUND TRIP: PASS (file content, dir and symlink found by their 0x1f names; literal '%1F' name stays distinct)
+== 3. informational: tape written by build under test, read and then rewritten by the UNFIXED build
+unfixed build sees:
+    aaa%1Faaa
+    dir%1Fx
+    lit%1Fz
+    lnk%1Fy
+fixed build sees after the unfixed build rewrote the index:
+    aaa%1Faaa
+    dir%1Fx
+    dirty
+    lit%1Fz
+    lnk%1Fy
